@@ -41,7 +41,7 @@ Grab the latest standalone executable for **Windows**, **Linux**, or **macOS**:
 
 - **Windows 10 / 11 (x64)** — Requires [Npcap](https://npcap.com/) *(prompted automatically on first launch)*
 - **Ubuntu 24.04+ / Debian 13+ (x64)** — Requires `libpcap` and packet capture capabilities
-- **macOS 14+ Sonoma (Apple Silicon / ARM64)** — Requires `/dev/bpf*` capture permissions
+- **macOS 14+ Sonoma (Apple Silicon)** — Requires macOS network capture permissions *(guided in the Installation Guide)*
 
 📖 **First-time setup:** Check the **[Installation Guide](https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Installation)** for setup instructions and Linux/macOS capture permissions.
 
@@ -54,8 +54,8 @@ Grab the latest standalone executable for **Windows**, **Linux**, or **macOS**:
 - **Free & Open Source**: Completely free to use, unlike paid alternatives.
 - **No Mods Required**: Works 100% externally with zero risk of banning.
 - **PC, Console & Mobile**: Lock onto a specific PC game, or scan PlayStation, Xbox, and mobile via Ethernet cable, Wi-Fi Hotspot, or over your local network.
-- **Smart Server Filtering**: Hide game and cloud servers so only real players appear, plus custom IP/ISP blocklists.
-- **Player Lists & Protection**: Save players with custom names, colors, and notes, with join alerts and automatic protection.
+- **Smart Server Filtering**: Hide game and cloud servers so only real players appear, plus custom IP and internet provider (ISP) blocklists.
+- **Player Lists & Protection**: Save players with custom names, colors, and notes, with visual & voice join alerts and automatic protection.
 - **GTA V & RDR2 Tools**: Session Host & relay detection, Solo Public Session, in-game player IP finder, and [Looky System](https://looky-gta.cc/) integration.
 - **Automatic IP Geolocation**: Built-in [MaxMind GeoLite2](https://dev.maxmind.com/geoip/geolite2-free-geolocation-data) integration — geolocation databases are downloaded and updated automatically on startup.
 - **Logs, Graphs & Extras**: Session history, live traffic graphs, browser/mobile dashboard, Discord integration, custom themes, and 33 languages.
@@ -72,10 +72,10 @@ See the [**Supported Games and Softwares**](https://github.com/BUZZARDGTA/Sessio
 
 ## 🔐 Username Resolving
 
-- **PlayStation 3 (PS3)**: Automatic extraction on [supported games](https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Supported-Games-and-Softwares) *(patched since PS4 and Xbox One)*.
-- **GTA Online (PC) Mod Menus**: Automatic logging via official plugins: [Cherax](https://github.com/BUZZARDGTA/Session_Sniffer-plugin-Cherax-Lua) • [Lexis](https://github.com/BUZZARDGTA/Session_Sniffer-plugin-Lexis-Lua) • [Stand](https://github.com/BUZZARDGTA/Session_Sniffer-plugin-Stand-Lua)
-- **GTA Online (PC) Looky System**: Cloud-based lookup via [**Looky System**](https://looky-gta.cc/) ([setup guide](https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#looky-system-configuration)).
-- **Saved Player Lists**: Assign custom usernames to known IPs across any game ([setup guide](https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-json-databases-configuration)).
+- **PlayStation 3 (PS3)**: Shows PSN usernames automatically on [supported games](https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Supported-Games-and-Softwares) *(patched since PS4 and Xbox One)*.
+- **GTA Online (PC) Mod Menus**: Shows usernames automatically via official plugins: [Cherax](https://github.com/BUZZARDGTA/Session_Sniffer-plugin-Cherax-Lua) • [Lexis](https://github.com/BUZZARDGTA/Session_Sniffer-plugin-Lexis-Lua) • [Stand](https://github.com/BUZZARDGTA/Session_Sniffer-plugin-Stand-Lua)
+- **GTA Online (PC) Looky System**: Shows usernames automatically inside Session Sniffer via [**Looky System**](https://looky-gta.cc/) — no mod menu needed ([setup guide](https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#looky-system-configuration)).
+- **Saved Player Lists**: Save custom usernames for known players across any game ([setup guide](https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-json-databases-configuration)).
 
 ---
 
