@@ -19,7 +19,7 @@ Run the sync script whenever you update themes, icons, version, or translations 
 
 `sync_assets.py` generates/updates everything inside `website/assets/`:
 - `assets/themes.generated.css` — All 6 built-in themes (`Dark`, `Light`, `Midnight`, `Dracula`, `Nord`, `Solarized Light`) and their 20 color tokens from `src/session_sniffer/models/themes.py`.
-- `assets/app-data.generated.js` — Theme metadata, all 33 languages from `src/session_sniffer/i18n.py`, app version (`pyproject.toml`), full Git commit & release-tag history metadata (2021–2026), and the inline SVG sprite built from 71 icons in `resources/icons/`.
+- `assets/app-data.generated.js` — Theme metadata, all 33 languages from `src/session_sniffer/i18n.py`, app version (`pyproject.toml`), full Git commit & release-tag history metadata (2021–2026), and the shared inline SVG sprite compiled from desktop icons in `resources/icons/` plus website-only icons in `website/icons/`.
 - `assets/i18n/<lang>.js` — 32 lazy-loaded per-language bundles merging shared desktop UI & theme translations from `resources/translations/<lang>.json` with website copy from `website/translations/<lang>.json` (full RTL support for `ar`, `fa`, `he`).
 - `assets/app_icon.svg` — Verbatim radar icon copied from `resources/icons/app_icon.svg`.
 - `assets/flags/*.png` — Demo country flags copied from `resources/images/country_flags/`.

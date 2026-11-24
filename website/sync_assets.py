@@ -1,4 +1,4 @@
-"""Sync shared themes, i18n catalogs, metadata, Lucide SVG icons, and flags from Session Sniffer into `website/assets/`."""
+"""Sync shared themes, i18n catalogs, metadata, SVG icons, and flags from Session Sniffer into `website/assets/`."""
 
 from __future__ import annotations
 
@@ -39,6 +39,7 @@ WEBSITE_DIR: Final = REPO_ROOT / 'website'
 ASSETS_DIR: Final = WEBSITE_DIR / 'assets'
 FLAGS_OUT_DIR: Final = ASSETS_DIR / 'flags'
 I18N_OUT_DIR: Final = ASSETS_DIR / 'i18n'
+SITE_ICONS_DIR: Final = WEBSITE_DIR / 'icons'
 SITE_TRANSLATIONS_DIR: Final = WEBSITE_DIR / 'translations'
 
 ICONS_SRC_DIR: Final = REPO_ROOT / 'resources' / 'icons'
@@ -51,6 +52,7 @@ _VIEWBOX_RE: Final = re.compile(r'viewBox="([^"]+)"', re.IGNORECASE)
 _VERSION_BASE_RE: Final = re.compile(r'^(v?\d+\.\d+\.\d+(?:[-.]?(?:rc|alpha|beta)\d*)?)', re.IGNORECASE)
 _TAG_SERIES_RE: Final = re.compile(r'^v?(\d+\.\d+)', re.IGNORECASE)
 _DEFAULT_ICON_STROKE_RE: Final = re.compile(r'#a5b4c4|(?<=stroke=")white(?=")', re.IGNORECASE)
+_SVG_FILL_CURRENT_COLOR_RE: Final = re.compile(r'\bfill="currentColor"', re.IGNORECASE)
 _PLACEHOLDER_RE: Final = re.compile(r'\{[a-zA-Z0-9_]+(?::[^}]+)?\}')
 _HTML_GENERATED_ASSET_RE: Final = re.compile(r'(assets/(?:themes\.generated\.css|app-data\.generated\.js))(?:\?v=[0-9a-f]+)?')
 _WEBSITE_STATIC_ASSETS: Final[tuple[str, ...]] = (
@@ -460,14 +462,30 @@ def _svg_to_symbol(svg_path: Path, symbol_id: str, *, preserve_colors: bool = Fa
 
     normalized_inner = _DEFAULT_ICON_STROKE_RE.sub('currentColor', inner)
     compact_inner = re.sub(r'\s*\r?\n\s*', '', normalized_inner)
+    if _SVG_FILL_CURRENT_COLOR_RE.search(attrs):
+        return f'<symbol id="{symbol_id}" viewBox="{viewbox}" fill="currentColor">{compact_inner}</symbol>'
     return (
         f'<symbol id="{symbol_id}" viewBox="{viewbox}" fill="none" stroke="currentColor" '
         f'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">{compact_inner}</symbol>'
     )
 
 
-def _build_icon_sprite() -> str:
-    """Build the inline SVG sprite containing `app_icon` plus all synced Lucide icons."""
+def _list_site_icon_paths() -> list[Path]:
+    """Return sorted website-only SVG icon paths from `website/icons/`, rejecting collisions with shared icons."""
+    if not SITE_ICONS_DIR.is_dir():
+        return []
+
+    shared_icon_names = {'app_icon', *SYNCED_ICONS}
+    site_icon_paths = sorted(SITE_ICONS_DIR.glob('*.svg'))
+    for icon_path in site_icon_paths:
+        if icon_path.stem in shared_icon_names:
+            message = f'Website icon {icon_path} collides with shared app icon {icon_path.stem!r}'
+            raise ValueError(message)
+    return site_icon_paths
+
+
+def _build_icon_sprite() -> tuple[str, int]:
+    """Build the inline SVG sprite containing `app_icon`, synced app icons, and website-only icons."""
     symbols: list[str] = [_svg_to_symbol(ICONS_SRC_DIR / 'app_icon.svg', 'icon-app_icon', preserve_colors=True)]
     for icon_name in SYNCED_ICONS:
         icon_path = ICONS_SRC_DIR / f'{icon_name}.svg'
@@ -475,7 +493,18 @@ def _build_icon_sprite() -> str:
             message = f'Missing icon file: {icon_path}'
             raise FileNotFoundError(message)
         symbols.append(_svg_to_symbol(icon_path, f'icon-{icon_name}'))
-    return '<svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden">' + ''.join(symbols) + '</svg>'
+
+    symbols.extend(
+        _svg_to_symbol(site_icon_path, f'icon-{site_icon_path.stem}')
+        for site_icon_path in _list_site_icon_paths()
+    )
+
+    sprite = (
+        '<svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden">'
+        + ''.join(symbols)
+        + '</svg>'
+    )
+    return sprite, len(symbols)
 
 
 def _load_json_dict(path: Path) -> dict[str, object]:
@@ -656,7 +685,7 @@ def _collect_git_history_metadata() -> dict[str, object]:
     }
 
 
-def _build_app_data_payload(en_catalog: dict[str, str]) -> dict[str, object]:
+def _build_app_data_payload(en_catalog: dict[str, str], icon_sprite: str) -> dict[str, object]:
     """Build the JSON payload for `app-data.generated.js` before attaching the content hash."""
     full_version, display_version, app_version = _read_project_version()
     missing_lang_flags = sorted(set(SUPPORTED_LANGUAGES) - set(LANGUAGE_COUNTRY_FLAGS))
@@ -693,7 +722,7 @@ def _build_app_data_payload(en_catalog: dict[str, str]) -> dict[str, object]:
             for theme in BUILTIN_THEMES
         ],
         'history': _collect_git_history_metadata(),
-        'iconSprite': _build_icon_sprite(),
+        'iconSprite': icon_sprite,
     }
 
 
@@ -713,7 +742,7 @@ def _render_app_data_js(payload: dict[str, object]) -> str:
     serialized = json.dumps(payload, indent=2, ensure_ascii=False)
     return (
         '/*\n'
-        ' * AUTO-GENERATED from Session Sniffer source (models/themes.py, i18n.py, pyproject.toml, resources/icons/).\n'
+        ' * AUTO-GENERATED from Session Sniffer source (models/themes.py, i18n.py, pyproject.toml, resources/icons/, website/icons/).\n'
         ' * Do not edit by hand — run `python website/sync_assets.py` to refresh.\n'
         ' */\n'
         f'window.SESSION_SNIFFER_DATA = {serialized};\n'
@@ -775,13 +804,14 @@ def main() -> None:
     themes_css = _generate_themes_css()
     _write_crlf_text(ASSETS_DIR / 'themes.generated.css', themes_css)
     bundle_count = _sync_i18n_bundles(en_catalog)
-    payload = _build_app_data_payload(en_catalog)
+    icon_sprite, icon_count = _build_icon_sprite()
+    payload = _build_app_data_payload(en_catalog, icon_sprite)
     asset_version = _compute_generated_assets_version(themes_css, payload)
     payload['assetVersion'] = asset_version
     _write_crlf_text(ASSETS_DIR / 'app-data.generated.js', _render_app_data_js(payload))
     _stamp_html_asset_versions(asset_version)
     print(
-        f'Synced {len(BUILTIN_THEMES)} themes, {len(SYNCED_ICONS) + 1} SVG icons, '
+        f'Synced {len(BUILTIN_THEMES)} themes, {icon_count} SVG icons, '
         f'{len(SYNCED_COUNTRY_FLAGS)} country flags, and {bundle_count + 1} languages '
         f'(v={asset_version}) into {ASSETS_DIR}',
     )
