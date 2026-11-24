@@ -3,9 +3,10 @@
 import logging
 import sys
 import time
+from threading import Event, Thread
 from typing import TYPE_CHECKING, Final, Literal
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtGui import QAction, QKeySequence, QShortcut
 from PySide6.QtWidgets import QMainWindow
 from shiboken6 import isValid
@@ -18,9 +19,9 @@ from session_sniffer.ctypes_windows import (
     WIN32_MOD_SHIFT,
     WIN32_MOD_WIN,
     get_win32_active_modifiers,
-    install_win32_keyboard_hook,
     is_win32_vk_down,
-    uninstall_win32_keyboard_hook,
+    run_win32_raw_keyboard_message_loop,
+    stop_win32_message_window,
     vk_key_scan_win32,
 )
 from session_sniffer.guis.interface_selection_dialog import InterfaceSelectionDialog
@@ -45,6 +46,9 @@ logger = logging.getLogger(__name__)
 
 _MAX_F_KEY_NUMBER: Final[int] = 24
 _HELD_REPEAT_STALE_SECONDS: Final[float] = 1.5
+_WIN32_POLL_INTERVAL_MS: Final[int] = 20
+_WIN32_LISTENER_READY_TIMEOUT_SECONDS: Final[float] = 2.0
+_WIN32_LISTENER_JOIN_TIMEOUT_SECONDS: Final[float] = 1.0
 
 _WIN32_MODIFIER_VKS: Final[frozenset[int]] = frozenset({
     0x10, 0x11, 0x12, 0x5B, 0x5C,
@@ -163,12 +167,20 @@ def append_shortcut_tooltip(tooltip: str, shortcut: str | None, *, is_global: bo
     return f'{tooltip}\n\n{suffix}' if tooltip else suffix
 
 
+class _Win32HotkeySignalBridge(QObject):
+    """Thread-safe Qt signal bridge forwarding Win32 global key triggers to the GUI thread."""
+
+    hotkey_triggered: Signal = Signal(int, int, object)  # (vk_code, mod_flags, is_extended: bool | None)
+
+
 class ShortcutsMixin(QMainWindow):
     """Manage system-wide global hotkeys and main-window keyboard shortcuts on `MainWindow`."""
 
     _shortcuts_initialized: bool = False
-    _win32_hook_bindings: dict[tuple[int, int], list[tuple[bool | None, Callable[[], None]]]]
-    _pressed_hook_vks: dict[int, float]
+    _win32_hotkey_bindings: dict[tuple[int, int], list[tuple[bool | None, Callable[[], None]]]]
+    _win32_hotkey_bridge: _Win32HotkeySignalBridge
+    _win32_listener_thread: Thread | None
+    _win32_listener_hwnd: int | None
     _global_fallback_shortcuts: dict[str, QShortcut]
     _window_shortcuts: dict[str, QShortcut]
 
@@ -239,8 +251,14 @@ class ShortcutsMixin(QMainWindow):
 
     def _init_shortcuts(self) -> None:
         """Create `QShortcut` instances and synchronize initial hotkey registrations."""
-        self._win32_hook_bindings = {}
-        self._pressed_hook_vks = {}
+        self._win32_hotkey_bindings = {}
+        self._win32_listener_thread = None
+        self._win32_listener_hwnd = None
+        self._win32_hotkey_bridge = _Win32HotkeySignalBridge(self)
+        self._win32_hotkey_bridge.hotkey_triggered.connect(
+            self._on_win32_hotkey_triggered,
+            Qt.ConnectionType.QueuedConnection,
+        )
         self._global_fallback_shortcuts = {}
         self._window_shortcuts = {}
 
@@ -261,14 +279,22 @@ class ShortcutsMixin(QMainWindow):
         self._shortcuts_initialized = True
         self._sync_shortcuts()
 
+    def _stop_win32_hotkey_listener(self) -> None:
+        """Stop the dedicated Win32 Raw Input / polling background listener, if running."""
+        listener_hwnd, self._win32_listener_hwnd = self._win32_listener_hwnd, None
+        listener_thread, self._win32_listener_thread = self._win32_listener_thread, None
+        if listener_hwnd is not None:
+            stop_win32_message_window(listener_hwnd)
+        if listener_thread is not None and listener_thread.is_alive():
+            listener_thread.join(timeout=_WIN32_LISTENER_JOIN_TIMEOUT_SECONDS)
+
     def _unregister_global_hotkeys(self) -> None:
         """Unregister all active OS-level global hotkeys and disable fallback `QShortcut`s."""
         if not self._shortcuts_initialized:
             return
         if sys.platform == 'win32':
-            uninstall_win32_keyboard_hook()
-        self._win32_hook_bindings.clear()
-        self._pressed_hook_vks.clear()
+            self._stop_win32_hotkey_listener()
+        self._win32_hotkey_bindings.clear()
         for shortcut in self._global_fallback_shortcuts.values():
             shortcut.setEnabled(False)
             shortcut.setKey(QKeySequence())
@@ -310,40 +336,103 @@ class ShortcutsMixin(QMainWindow):
                 else:
                     mod_flags, triggers = spec
                     for vk_code, extended_req in triggers:
-                        self._win32_hook_bindings.setdefault((mod_flags, vk_code), []).append((extended_req, handler))
+                        self._win32_hotkey_bindings.setdefault((mod_flags, vk_code), []).append((extended_req, handler))
                     win32_fallbacks.append((setting_key, chord, fallback_shortcut))
             else:
                 fallback_shortcut.setKey(QKeySequence.fromString(chord, QKeySequence.SequenceFormat.PortableText))
                 fallback_shortcut.setEnabled(True)
 
-        if sys.platform == 'win32' and self._win32_hook_bindings and not install_win32_keyboard_hook(self._on_win32_key_event):
-            self._win32_hook_bindings.clear()
+        if sys.platform == 'win32' and self._win32_hotkey_bindings and not self._start_win32_hotkey_listener():
+            self._win32_hotkey_bindings.clear()
             for setting_key, chord, fallback_shortcut in win32_fallbacks:
-                logger.warning('Failed to install Win32 keyboard hook for %s (%r); falling back to window shortcut.', setting_key, chord)
+                logger.warning('Failed to start Win32 global hotkey listener for %s (%r); falling back to window shortcut.', setting_key, chord)
                 fallback_shortcut.setKey(QKeySequence.fromString(chord, QKeySequence.SequenceFormat.PortableText))
                 fallback_shortcut.setEnabled(True)
 
-    def _on_win32_key_event(self, key_event: tuple[int, bool, bool]) -> None:
-        """Handle non-consuming Win32 `WH_KEYBOARD_LL` events with auto-repeat suppression."""
-        vk_code, is_key_down, is_extended = key_event
-        if vk_code in _WIN32_MODIFIER_VKS:
-            return
-        if not is_key_down:
-            self._pressed_hook_vks.pop(vk_code, None)
-            return
+    def _start_win32_hotkey_listener(self) -> bool:
+        """Start a dedicated background Win32 Raw Input (`RIDEV_INPUTSINK`) and `GetAsyncKeyState` listener thread."""
+        self._stop_win32_hotkey_listener()
+        watched_vks = frozenset(vk_code for _mods, vk_code in self._win32_hotkey_bindings)
+        bridge = self._win32_hotkey_bridge
+        initial_time = time.monotonic()
+        pressed_vks: dict[int, float] = {vk_code: initial_time for vk_code in watched_vks if is_win32_vk_down(vk_code)}
+        pending_poll_vks: set[int] = set()
+        raw_input_active = False
+        listener_hwnd: int | None = None
+        ready_event = Event()
 
-        now = time.monotonic()
-        previous_down = self._pressed_hook_vks.get(vk_code)
-        self._pressed_hook_vks[vk_code] = now
-        if previous_down is not None and (now - previous_down < _HELD_REPEAT_STALE_SECONDS or is_win32_vk_down(vk_code)):
-            return
+        def _on_ready(ready_state: tuple[int | None, bool]) -> None:
+            nonlocal listener_hwnd, raw_input_active
+            hwnd, raw_input_ok = ready_state
+            listener_hwnd = hwnd
+            raw_input_active = raw_input_ok
+            if hwnd is not None and not raw_input_ok:
+                logger.warning('Win32 Raw Input keyboard registration failed; using GetAsyncKeyState polling for global hotkeys.')
+            ready_event.set()
 
-        candidates = self._win32_hook_bindings.get((get_win32_active_modifiers(), vk_code))
+        def _on_raw_key(key_event: tuple[int, bool, bool]) -> None:
+            vk_code, is_key_down, is_extended = key_event
+            if vk_code in _WIN32_MODIFIER_VKS or vk_code not in watched_vks:
+                return
+            if not is_key_down:
+                pressed_vks.pop(vk_code, None)
+                pending_poll_vks.discard(vk_code)
+                return
+
+            now = time.monotonic()
+            previous_down = pressed_vks.get(vk_code)
+            pressed_vks[vk_code] = now
+            pending_poll_vks.discard(vk_code)
+            if previous_down is not None and now - previous_down < _HELD_REPEAT_STALE_SECONDS:
+                return
+            if isValid(bridge):
+                bridge.hotkey_triggered.emit(vk_code, get_win32_active_modifiers(), is_extended)
+
+        def _on_poll_tick() -> None:
+            now = time.monotonic()
+            for vk_code in watched_vks:
+                if not is_win32_vk_down(vk_code):
+                    pressed_vks.pop(vk_code, None)
+                    pending_poll_vks.discard(vk_code)
+                    continue
+                if vk_code in pressed_vks:
+                    pressed_vks[vk_code] = now
+                    continue
+                if raw_input_active and vk_code not in pending_poll_vks:
+                    pending_poll_vks.add(vk_code)
+                    continue
+                pending_poll_vks.discard(vk_code)
+                pressed_vks[vk_code] = now
+                if isValid(bridge):
+                    bridge.hotkey_triggered.emit(vk_code, get_win32_active_modifiers(), None)
+
+        listener_thread = Thread(
+            target=run_win32_raw_keyboard_message_loop,
+            args=(_on_raw_key, _on_poll_tick, _on_ready),
+            kwargs={'poll_interval_ms': _WIN32_POLL_INTERVAL_MS},
+            name='Win32GlobalHotkeys',
+            daemon=True,
+        )
+        listener_thread.start()
+        ready_event.wait(timeout=_WIN32_LISTENER_READY_TIMEOUT_SECONDS)
+        if listener_hwnd is None:
+            listener_thread.join(timeout=_WIN32_LISTENER_JOIN_TIMEOUT_SECONDS)
+            return False
+        self._win32_listener_hwnd = listener_hwnd
+        self._win32_listener_thread = listener_thread
+        return True
+
+    def _on_win32_hotkey_triggered(self, vk_code: int, mod_flags: int, is_extended: object) -> None:
+        """Dispatch a Win32 global key trigger on the Qt GUI thread."""
+        if not self._shortcuts_initialized or gui_closed__event.is_set() or not isValid(self):
+            return
+        candidates = self._win32_hotkey_bindings.get((mod_flags, vk_code))
         if candidates is None:
             return
+        extended_flag = is_extended if isinstance(is_extended, bool) else None
         for extended_req, handler in candidates:
-            if extended_req is None or extended_req == is_extended:
-                QTimer.singleShot(0, handler)
+            if extended_req is None or extended_flag is None or extended_req == extended_flag:
+                handler()
                 break
 
     def _sync_shortcut_action_labels(self) -> None:

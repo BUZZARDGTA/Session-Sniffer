@@ -2,6 +2,7 @@
 
 import contextlib
 import ctypes
+import itertools
 import sys
 from ctypes import wintypes
 from pathlib import Path
@@ -18,13 +19,23 @@ _PROCESS_TERMINATE = 0x0001
 _GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT = 0x00000002
 _GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS = 0x00000004
 _SIGABRT = 22
-_WH_KEYBOARD_LL = 13
-_WM_KEYDOWN = 0x0100
-_WM_KEYUP = 0x0101
-_WM_SYSKEYDOWN = 0x0104
-_WM_SYSKEYUP = 0x0105
-_LLKHF_EXTENDED = 0x01
-_LLKHF_UP = 0x80
+_WM_DESTROY = 0x0002
+_WM_CLOSE = 0x0010
+_WM_INPUT = 0x00FF
+_WM_TIMER = 0x0113
+_HWND_MESSAGE = -3
+_HID_USAGE_PAGE_GENERIC = 0x01
+_HID_USAGE_GENERIC_KEYBOARD = 0x06
+_RIDEV_REMOVE = 0x00000001
+_RIDEV_INPUTSINK = 0x00000100
+_RID_INPUT = 0x10000003
+_RIM_TYPEKEYBOARD = 1
+_RI_KEY_BREAK = 0x01
+_RI_KEY_E0 = 0x02
+_RAW_KEYBOARD_OVERRUN_VK = 0xFF
+_RAW_INPUT_BUFFER_SIZE = 64
+_RAW_INPUT_ERROR = 0xFFFFFFFF
+_RAW_INPUT_POLL_TIMER_ID = 1
 _VK_SHIFT = 0x10
 _VK_CONTROL = 0x11
 _VK_MENU = 0x12
@@ -100,15 +111,66 @@ class _ShellExecuteInfoW(ctypes.Structure):
     ]
 
 
-class _KbdLlHookStruct(ctypes.Structure):
-    """ctypes definition for KBDLLHOOKSTRUCT structure."""
+class _RawInputDevice(ctypes.Structure):
+    """ctypes definition for RAWINPUTDEVICE structure."""
 
     _fields_ = [
-        ('vkCode', wintypes.DWORD),
-        ('scanCode', wintypes.DWORD),
-        ('flags', wintypes.DWORD),
-        ('time', wintypes.DWORD),
-        ('dwExtraInfo', ctypes.c_size_t),
+        ('usUsagePage', wintypes.USHORT),
+        ('usUsage', wintypes.USHORT),
+        ('dwFlags', wintypes.DWORD),
+        ('hwndTarget', wintypes.HWND),
+    ]
+
+
+class _RawInputHeader(ctypes.Structure):
+    """ctypes definition for RAWINPUTHEADER structure."""
+
+    _fields_ = [
+        ('dwType', wintypes.DWORD),
+        ('dwSize', wintypes.DWORD),
+        ('hDevice', wintypes.HANDLE),
+        ('wParam', wintypes.WPARAM),
+    ]
+
+
+class _RawKeyboard(ctypes.Structure):
+    """ctypes definition for RAWKEYBOARD structure."""
+
+    _fields_ = [
+        ('MakeCode', wintypes.USHORT),
+        ('Flags', wintypes.USHORT),
+        ('Reserved', wintypes.USHORT),
+        ('VKey', wintypes.USHORT),
+        ('Message', wintypes.UINT),
+        ('ExtraInformation', wintypes.ULONG),
+    ]
+
+
+class _RawInputKeyboard(ctypes.Structure):
+    """ctypes definition for keyboard RAWINPUT structure."""
+
+    _fields_ = [
+        ('header', _RawInputHeader),
+        ('keyboard', _RawKeyboard),
+    ]
+
+
+class _WndClassExW(ctypes.Structure):
+    """ctypes definition for WNDCLASSEXW structure."""
+
+    _fields_ = [
+        ('cbSize', wintypes.UINT),
+        ('style', wintypes.UINT),
+        ('lpfnWndProc', ctypes.c_void_p),
+        ('cbClsExtra', ctypes.c_int),
+        ('cbWndExtra', ctypes.c_int),
+        ('hInstance', wintypes.HINSTANCE),
+        ('hIcon', wintypes.HICON),
+        ('hCursor', wintypes.HANDLE),
+        ('hbrBackground', wintypes.HBRUSH),
+        ('lpszMenuName', wintypes.LPCWSTR),
+        ('lpszClassName', wintypes.LPCWSTR),
+        ('hIconSm', wintypes.HICON),
     ]
 
 
@@ -126,10 +188,7 @@ _crt_state: dict[str, Any] = {
     'c_sigabrt_handler': None,
     'prev_sigabrt_handler': 0,
 }
-_keyboard_hook_state: dict[str, Any] = {
-    'handle': None,
-    'c_proc': None,
-}
+_raw_input_class_counter = itertools.count(1)
 _wav_memory_state: dict[str, Any] = {
     'active_buffer': None,
 }
@@ -145,9 +204,10 @@ if sys.platform == 'win32':
     )
     _PURECALL_HANDLER_TYPE = ctypes.CFUNCTYPE(None)
     _SIGNAL_HANDLER_TYPE = ctypes.CFUNCTYPE(None, ctypes.c_int)
-    _LOW_LEVEL_KEYBOARD_PROC_TYPE = ctypes.WINFUNCTYPE(
+    _WNDPROC_TYPE = ctypes.WINFUNCTYPE(
         ctypes.c_ssize_t,
-        ctypes.c_int,
+        wintypes.HWND,
+        wintypes.UINT,
         wintypes.WPARAM,
         wintypes.LPARAM,
     )
@@ -165,16 +225,57 @@ if sys.platform == 'win32':
     _user32 = ctypes.windll.user32
     _user32.MessageBoxW.argtypes = [wintypes.HWND, wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.UINT]
     _user32.MessageBoxW.restype = ctypes.c_int
-    _user32.SetWindowsHookExW.argtypes = [ctypes.c_int, _LOW_LEVEL_KEYBOARD_PROC_TYPE, wintypes.HINSTANCE, wintypes.DWORD]
-    _user32.SetWindowsHookExW.restype = wintypes.HANDLE
-    _user32.UnhookWindowsHookEx.argtypes = [wintypes.HANDLE]
-    _user32.UnhookWindowsHookEx.restype = wintypes.BOOL
-    _user32.CallNextHookEx.argtypes = [wintypes.HANDLE, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM]
-    _user32.CallNextHookEx.restype = ctypes.c_ssize_t
     _user32.GetAsyncKeyState.argtypes = [ctypes.c_int]
     _user32.GetAsyncKeyState.restype = wintypes.SHORT
     _user32.VkKeyScanW.argtypes = [wintypes.WCHAR]
     _user32.VkKeyScanW.restype = wintypes.SHORT
+    _user32.RegisterRawInputDevices.argtypes = [ctypes.POINTER(_RawInputDevice), wintypes.UINT, wintypes.UINT]
+    _user32.RegisterRawInputDevices.restype = wintypes.BOOL
+    _user32.GetRawInputData.argtypes = [
+        wintypes.HANDLE,
+        wintypes.UINT,
+        wintypes.LPVOID,
+        ctypes.POINTER(wintypes.UINT),
+        wintypes.UINT,
+    ]
+    _user32.GetRawInputData.restype = wintypes.UINT
+    _user32.RegisterClassExW.argtypes = [ctypes.POINTER(_WndClassExW)]
+    _user32.RegisterClassExW.restype = wintypes.ATOM
+    _user32.UnregisterClassW.argtypes = [wintypes.LPCWSTR, wintypes.HINSTANCE]
+    _user32.UnregisterClassW.restype = wintypes.BOOL
+    _user32.CreateWindowExW.argtypes = [
+        wintypes.DWORD,
+        wintypes.LPCWSTR,
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        wintypes.HWND,
+        wintypes.HMENU,
+        wintypes.HINSTANCE,
+        wintypes.LPVOID,
+    ]
+    _user32.CreateWindowExW.restype = wintypes.HWND
+    _user32.DestroyWindow.argtypes = [wintypes.HWND]
+    _user32.DestroyWindow.restype = wintypes.BOOL
+    _user32.DefWindowProcW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+    _user32.DefWindowProcW.restype = ctypes.c_ssize_t
+    _user32.PostMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+    _user32.PostMessageW.restype = wintypes.BOOL
+    _user32.PostQuitMessage.argtypes = [ctypes.c_int]
+    _user32.PostQuitMessage.restype = None
+    _user32.GetMessageW.argtypes = [ctypes.POINTER(wintypes.MSG), wintypes.HWND, wintypes.UINT, wintypes.UINT]
+    _user32.GetMessageW.restype = wintypes.BOOL
+    _user32.TranslateMessage.argtypes = [ctypes.POINTER(wintypes.MSG)]
+    _user32.TranslateMessage.restype = wintypes.BOOL
+    _user32.DispatchMessageW.argtypes = [ctypes.POINTER(wintypes.MSG)]
+    _user32.DispatchMessageW.restype = ctypes.c_ssize_t
+    _user32.SetTimer.argtypes = [wintypes.HWND, ctypes.c_size_t, wintypes.UINT, wintypes.LPVOID]
+    _user32.SetTimer.restype = ctypes.c_size_t
+    _user32.KillTimer.argtypes = [wintypes.HWND, ctypes.c_size_t]
+    _user32.KillTimer.restype = wintypes.BOOL
 
     _kernel32 = ctypes.windll.kernel32
     _kernel32.GetModuleHandleW.argtypes = [wintypes.LPCWSTR]
@@ -230,7 +331,7 @@ else:
     _INVALID_PARAM_HANDLER_TYPE = None
     _PURECALL_HANDLER_TYPE = None
     _SIGNAL_HANDLER_TYPE = None
-    _LOW_LEVEL_KEYBOARD_PROC_TYPE = None
+    _WNDPROC_TYPE = None
 
 
 def get_com_vtable_entry(pointer: wintypes.LPVOID, method_index: int) -> int:
@@ -406,40 +507,131 @@ def get_win32_active_modifiers() -> int:
     return modifiers
 
 
-def uninstall_win32_keyboard_hook() -> None:
-    """Uninstall the active low-level Win32 keyboard hook (`WH_KEYBOARD_LL`), if installed."""
+def stop_win32_message_window(hwnd: int) -> None:
+    """Post `WM_CLOSE` to a message-only Win32 window so its message loop exits cleanly."""
+    if sys.platform == 'win32' and hwnd:
+        _user32.PostMessageW(hwnd, _WM_CLOSE, 0, 0)
+
+
+def run_win32_raw_keyboard_message_loop(
+    on_raw_key: Callable[[tuple[int, bool, bool]], None],
+    on_poll_tick: Callable[[], None],
+    on_ready: Callable[[tuple[int | None, bool]], None],
+    *,
+    poll_interval_ms: int = 20,
+) -> None:
+    """Run a message-only Win32 window receiving non-consuming Raw Input keyboard events and periodic timer ticks."""
     if sys.platform != 'win32':
+        on_ready((None, False))
         return
-    handle = _keyboard_hook_state['handle']
-    _keyboard_hook_state['handle'] = None
-    _keyboard_hook_state['c_proc'] = None
-    if handle:
-        _user32.UnhookWindowsHookEx(handle)
 
+    raw_buffer = ctypes.create_string_buffer(_RAW_INPUT_BUFFER_SIZE)
+    raw_input_registered = False
 
-def install_win32_keyboard_hook(on_key_event: Callable[[tuple[int, bool, bool]], None]) -> bool:
-    """Install a non-consuming Win32 `WH_KEYBOARD_LL` hook forwarding `(vk_code, is_key_down, is_extended)`."""
-    if sys.platform != 'win32':
-        return False
-    uninstall_win32_keyboard_hook()
+    def _unregister_raw_keyboard() -> None:
+        nonlocal raw_input_registered
+        if not raw_input_registered:
+            return
+        raw_input_registered = False
+        unregister_device = _RawInputDevice(
+            _HID_USAGE_PAGE_GENERIC,
+            _HID_USAGE_GENERIC_KEYBOARD,
+            _RIDEV_REMOVE,
+            None,
+        )
+        _user32.RegisterRawInputDevices(
+            ctypes.byref(unregister_device),
+            1,
+            ctypes.sizeof(_RawInputDevice),
+        )
 
-    def _low_level_keyboard_proc(n_code: int, w_param: int, l_param: int) -> int:
-        if n_code >= 0 and l_param:
-            info = _KbdLlHookStruct.from_address(l_param)
-            is_key_up = bool(info.flags & _LLKHF_UP) or w_param in (_WM_KEYUP, _WM_SYSKEYUP)
-            is_key_down = not is_key_up and w_param in (_WM_KEYDOWN, _WM_SYSKEYDOWN)
-            if is_key_down or is_key_up:
-                on_key_event((int(info.vkCode), is_key_down, bool(info.flags & _LLKHF_EXTENDED)))
-        return int(_user32.CallNextHookEx(None, n_code, w_param, l_param))
+    def _window_proc(hwnd: int, message: int, w_param: int, l_param: int) -> int:
+        if message == _WM_INPUT and l_param:
+            data_size = wintypes.UINT(_RAW_INPUT_BUFFER_SIZE)
+            bytes_read = int(
+                _user32.GetRawInputData(
+                    wintypes.HANDLE(l_param),
+                    _RID_INPUT,
+                    raw_buffer,
+                    ctypes.byref(data_size),
+                    ctypes.sizeof(_RawInputHeader),
+                ),
+            )
+            if bytes_read != _RAW_INPUT_ERROR and bytes_read >= ctypes.sizeof(_RawInputKeyboard):
+                raw_input = _RawInputKeyboard.from_buffer(raw_buffer)
+                if raw_input.header.dwType == _RIM_TYPEKEYBOARD:
+                    vk_code = int(raw_input.keyboard.VKey)
+                    if vk_code != _RAW_KEYBOARD_OVERRUN_VK:
+                        flags = int(raw_input.keyboard.Flags)
+                        on_raw_key((vk_code, not bool(flags & _RI_KEY_BREAK), bool(flags & _RI_KEY_E0)))
+        elif message == _WM_TIMER and w_param == _RAW_INPUT_POLL_TIMER_ID:
+            on_poll_tick()
+            return 0
+        elif message == _WM_CLOSE:
+            _user32.KillTimer(hwnd, _RAW_INPUT_POLL_TIMER_ID)
+            _unregister_raw_keyboard()
+            _user32.DestroyWindow(hwnd)
+            return 0
+        elif message == _WM_DESTROY:
+            _user32.PostQuitMessage(0)
+            return 0
+        return int(_user32.DefWindowProcW(hwnd, message, w_param, l_param))
 
-    c_proc = _LOW_LEVEL_KEYBOARD_PROC_TYPE(_low_level_keyboard_proc)
+    c_wnd_proc = _WNDPROC_TYPE(_window_proc)
     module_handle = _kernel32.GetModuleHandleW(None)
-    hook_handle = _user32.SetWindowsHookExW(_WH_KEYBOARD_LL, c_proc, module_handle, 0)
-    if not hook_handle:
-        return False
-    _keyboard_hook_state['c_proc'] = c_proc
-    _keyboard_hook_state['handle'] = hook_handle
-    return True
+    class_name = f'SessionSnifferRawInputWindow_{next(_raw_input_class_counter)}'
+    wnd_class = _WndClassExW(
+        cbSize=ctypes.sizeof(_WndClassExW),
+        lpfnWndProc=ctypes.cast(c_wnd_proc, ctypes.c_void_p).value,
+        hInstance=module_handle,
+        lpszClassName=class_name,
+    )
+    if not _user32.RegisterClassExW(ctypes.byref(wnd_class)):
+        on_ready((None, False))
+        return
+
+    try:
+        hwnd = _user32.CreateWindowExW(
+            0,
+            class_name,
+            None,
+            0,
+            0,
+            0,
+            0,
+            0,
+            wintypes.HWND(_HWND_MESSAGE),
+            None,
+            module_handle,
+            None,
+        )
+        if not hwnd:
+            on_ready((None, False))
+            return
+
+        keyboard_device = _RawInputDevice(
+            _HID_USAGE_PAGE_GENERIC,
+            _HID_USAGE_GENERIC_KEYBOARD,
+            _RIDEV_INPUTSINK,
+            hwnd,
+        )
+        raw_input_registered = bool(
+            _user32.RegisterRawInputDevices(
+                ctypes.byref(keyboard_device),
+                1,
+                ctypes.sizeof(_RawInputDevice),
+            ),
+        )
+        _user32.SetTimer(hwnd, _RAW_INPUT_POLL_TIMER_ID, poll_interval_ms, None)
+        on_ready((int(hwnd), raw_input_registered))
+
+        win_message = wintypes.MSG()
+        while _user32.GetMessageW(ctypes.byref(win_message), None, 0, 0) > 0:
+            _user32.TranslateMessage(ctypes.byref(win_message))
+            _user32.DispatchMessageW(ctypes.byref(win_message))
+    finally:
+        _unregister_raw_keyboard()
+        _user32.UnregisterClassW(class_name, module_handle)
 
 
 def iter_win32_toolhelp_processes() -> list[tuple[int, int, str]]:
