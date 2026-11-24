@@ -804,3 +804,28 @@ def populate_resolver_ip_tools_menu(parent: QWidget, menu: QMenu, entry_ip: str,
         add_icon_menu_action(menu, 'info.svg', tr('IP Lookup Details\u2026'), lambda: show_detailed_ip_lookup(entry_ip))
         create_ping_menu(parent, menu, [entry_ip])
         add_icon_menu_action(menu, 'radar.svg', tr('Scan Ports\u2026'), lambda: scan_ports_ip(entry_ip))
+
+
+_MIN_PRINTABLE_ASCII = 32
+_INVALID_FILENAME_CHARS: frozenset[str] = frozenset('<>:"/\\|?*')
+_WINDOWS_RESERVED_FILENAMES: frozenset[str] = frozenset(
+    {'CON', 'PRN', 'AUX', 'NUL', *(f'COM{i}' for i in range(1, 10)), *(f'LPT{i}' for i in range(1, 10))},
+)
+
+
+def validate_tree_item_name(parent: QWidget, name: str) -> bool:
+    """Validate a single UserIP tree file/folder name, showing a warning dialog when invalid."""
+    is_valid = (
+        bool(name)
+        and name not in ('.', '..')
+        and not name.endswith(('.', ' '))
+        and not any(ord(character) < _MIN_PRINTABLE_ASCII or character in _INVALID_FILENAME_CHARS for character in name)
+        and name.partition('.')[0].upper() not in _WINDOWS_RESERVED_FILENAMES
+    )
+    if not is_valid:
+        QMessageBox.warning(
+            parent,
+            TITLE,
+            tr('Invalid name "{name}". Avoid path separators and invalid filename characters.', name=name),
+        )
+    return is_valid

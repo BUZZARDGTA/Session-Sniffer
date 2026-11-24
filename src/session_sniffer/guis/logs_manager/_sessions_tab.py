@@ -838,7 +838,13 @@ class SessionsLogTab(QWidget):
             f"{tr('Log Files')} (*.log);;{tr('Text Files')} (*.txt);;{tr('All Files')} (*)",
         )
         if path:
-            Path(path).write_text(self._current_rendered_text or self._viewer.toPlainText(), encoding='utf-8')
+            export_name = self._current_file.name if self._current_file is not None else Path(path).name
+            try:
+                Path(path).write_text(self._current_rendered_text or self._viewer.toPlainText(), encoding='utf-8')
+            except OSError as e:
+                logger.warning('Failed to export session log to "%s": %s', path, e)
+                QMessageBox.critical(self, tr('Export Error'), tr('Failed to export "{name}":\n{error}', name=export_name, error=e))
+                return
             QMessageBox.information(self, TITLE, tr('Saved to {path}', path=path))
 
     def _render_session_file(self, file_path: Path) -> str | None:

@@ -1,5 +1,6 @@
 """UserIP Databases Manager dialog for browsing, editing, and managing UserIP database files and entries."""
 
+import logging
 from typing import TYPE_CHECKING, ClassVar, override
 
 from PySide6.QtCore import QByteArray, QModelIndex, QSignalBlocker, QSize, Qt, QUrl
@@ -77,6 +78,8 @@ if TYPE_CHECKING:
     from PySide6.QtGui import QStandardItem
 
     from session_sniffer.models.userip_settings_model import UserIPEntryModel, UserIPSettingsModel
+
+logger = logging.getLogger(__name__)
 
 
 def _get_entry_table_header_tooltips() -> dict[str, str]:
@@ -638,7 +641,15 @@ class UserIPDatabasesManager(
             self._rebuild_fs_watch()
             return
 
-        self._disk_snapshot = path.read_text('utf-8')
+        try:
+            self._disk_snapshot = path.read_text('utf-8')
+        except (OSError, UnicodeDecodeError) as e:
+            logger.warning('Failed to read UserIP database "%s": %s', path, e)
+            self._set_status(tr('Failed to read "{name}": {error}', name=path.name, error=e))
+            self._settings_container.setVisible(False)
+            self._disk_snapshot = ''
+            self._rebuild_fs_watch()
+            return
         db_model = load_userip_database_model(path)
 
         # Load settings panel

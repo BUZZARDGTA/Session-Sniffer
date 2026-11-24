@@ -188,7 +188,11 @@ def parse_userip_json_file(
     """Parse, validate, and auto-repair a UserIP `.json` database file."""
     if raw_text is None:
         validate_file(json_path)
-        raw_text = json_path.read_text(encoding='utf-8')
+        try:
+            raw_text = json_path.read_text(encoding='utf-8')
+        except (OSError, UnicodeDecodeError) as e:
+            logger.warning('Failed to read UserIP database "%s": %s; skipping file.', json_path.name, e)
+            return None, None, None
     try:
         raw_data: object = json.loads(raw_text)
     except json.JSONDecodeError as e:
@@ -521,7 +525,7 @@ def _load_raw_userip_db(db_path: Path, *, action_label: str) -> tuple[UserIPSett
         return cached_model.settings, cached_model.entries
     try:
         raw_data: object = json.loads(db_path.read_text(encoding='utf-8'))
-    except (OSError, json.JSONDecodeError) as e:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
         logger.warning('Failed to read UserIP database "%s" for %s: %s', db_path, action_label, e)
         return None
 

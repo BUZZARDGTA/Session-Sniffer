@@ -293,7 +293,7 @@ class ComboRulesManager:
         try:
             content = file_path.read_text(encoding='utf-8')
             cls.rules = TypeAdapter(list[ComboRule]).validate_json(content)
-        except ValidationError, json.JSONDecodeError, OSError:
+        except ValidationError, json.JSONDecodeError, UnicodeDecodeError, OSError:
             logger.exception('Failed to load combo rules from %s, starting with empty rules', file_path)
             cls.rules = []
         cls._last_file_signature = get_file_signature(file_path)

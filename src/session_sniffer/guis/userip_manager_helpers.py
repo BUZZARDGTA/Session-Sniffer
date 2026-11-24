@@ -609,7 +609,7 @@ def load_userip_database_model(path: Path) -> UserIPDatabaseFile:
         return cached_model
     try:
         content = path.read_text(encoding='utf-8')
-    except OSError as e:
+    except (OSError, UnicodeDecodeError) as e:
         logger.warning('Failed to read UserIP database "%s": %s', path, e)
         return UserIPDatabaseFile(settings=(default_settings or NEW_DATABASE_SETTINGS).model_copy(), entries=[])
     return parse_userip_database_content(content, default_settings=default_settings)

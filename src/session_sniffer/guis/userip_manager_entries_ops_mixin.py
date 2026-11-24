@@ -140,7 +140,7 @@ class UserIPEntriesOperationsMixin(QDialog):
             return
         try:
             current_text = self._current_path.read_text('utf-8')
-        except OSError:
+        except (OSError, UnicodeDecodeError):
             return
         if current_text == self._disk_snapshot:
             if databases_rebuilt or build_version_changed:

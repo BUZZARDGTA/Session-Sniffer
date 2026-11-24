@@ -3,6 +3,7 @@
 import logging
 import shutil
 import zipfile
+from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
@@ -123,7 +124,20 @@ class UserIPImportExportMixin(QDialog):
         if not dest_path:
             return
 
-        shutil.copy2(str(path), dest_path)
+        dest = Path(dest_path)
+        try:
+            if dest.exists() and path.samefile(dest):
+                QMessageBox.warning(
+                    self,
+                    TITLE,
+                    tr('Cannot export "{name}" over itself. Please choose a different destination.', name=path.name),
+                )
+                return
+            shutil.copy2(str(path), dest_path)
+        except OSError as e:
+            logger.warning('Failed to export UserIP database "%s" to "%s": %s', path, dest_path, e)
+            QMessageBox.critical(self, tr('Export Error'), tr('Failed to export "{name}":\n{error}', name=path.name, error=e))
+            return
         self._set_status(tr('Exported "{name}" to {dest}', name=path.name, dest=dest_path))
 
     def _export_selected_database(self) -> None:
@@ -314,6 +328,13 @@ class UserIPImportExportMixin(QDialog):
                 overlay.set_status(tr('Processing "{name}"\u2026', name=src.name))
                 dest = target_dir / src.name
 
+                is_same_file = False
+                with suppress(OSError):
+                    is_same_file = dest.exists() and src.samefile(dest)
+                if is_same_file:
+                    skipped += 1
+                    continue
+
                 if dest.exists():
                     with overlay.suspended():
                         msg_box = QMessageBox(self)
@@ -331,7 +352,14 @@ class UserIPImportExportMixin(QDialog):
                         skipped += 1
                         continue
                     if clicked is merge_button:
-                        src_text = run_with_active_loading(src.read_text, 'utf-8')
+                        try:
+                            src_text = run_with_active_loading(src.read_text, 'utf-8')
+                        except (OSError, UnicodeDecodeError) as e:
+                            logger.warning('Failed to read UserIP database "%s" for merge: %s', src, e)
+                            with overlay.suspended():
+                                QMessageBox.critical(self, tr('Import Error'), tr('Failed to import "{name}":\n{error}', name=src.name, error=e))
+                            skipped += 1
+                            continue
                         result = self._merge_content_into_disk(src_text, dest, src.name, overlay=overlay)
                         if result is None:
                             skipped += 1
@@ -354,7 +382,14 @@ class UserIPImportExportMixin(QDialog):
                     with userip_database_write(dest_file):
                         shutil.copy2(str(src_file), str(dest_file))
 
-                run_with_active_loading(_copy_db_file)
+                try:
+                    run_with_active_loading(_copy_db_file)
+                except OSError as e:
+                    logger.warning('Failed to import UserIP database "%s" to "%s": %s', src, dest, e)
+                    with overlay.suspended():
+                        QMessageBox.critical(self, tr('Import Error'), tr('Failed to import "{name}":\n{error}', name=src.name, error=e))
+                    skipped += 1
+                    continue
                 modified_on_disk = True
                 imported += 1
 

@@ -1,10 +1,12 @@
 """CSV log tab — reusable for UserIP_Logging.csv and Detection_Logging.csv."""
 
 import csv
+import logging
 import shutil
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from ipaddress import IPv4Address
+from pathlib import Path
 from typing import TYPE_CHECKING, override
 
 from PySide6.QtCore import QItemSelectionModel, QModelIndex, QPoint, QSignalBlocker, Qt, Signal
@@ -65,7 +67,8 @@ from session_sniffer.i18n import tr, tr_plural
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
-    from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 _DEFAULT_HEADER_BASE_WIDTHS: dict[str, int] = {
@@ -769,15 +772,28 @@ class CsvLogTab(QWidget):
         )
         if not path:
             return
-        if self.isVisible():
-            run_blocking_with_loading(
-                self.window(),
-                tr('Exporting CSV Log\u2026'),
-                tr('Copying {filename}\u2026', filename=self._file_path.name),
-                lambda: shutil.copy2(self._file_path, path),
-            )
-        else:
-            shutil.copy2(self._file_path, path)
+        dest = Path(path)
+        try:
+            if dest.exists() and self._file_path.samefile(dest):
+                QMessageBox.warning(
+                    self,
+                    TITLE,
+                    tr('Cannot export "{name}" over itself. Please choose a different destination.', name=self._file_path.name),
+                )
+                return
+            if self.isVisible():
+                run_blocking_with_loading(
+                    self.window(),
+                    tr('Exporting CSV Log\u2026'),
+                    tr('Copying {filename}\u2026', filename=self._file_path.name),
+                    lambda: shutil.copy2(self._file_path, path),
+                )
+            else:
+                shutil.copy2(self._file_path, path)
+        except OSError as e:
+            logger.warning('Failed to export CSV log "%s" to "%s": %s', self._file_path, path, e)
+            QMessageBox.critical(self, tr('Export Error'), tr('Failed to export "{name}":\n{error}', name=self._file_path.name, error=e))
+            return
         self._show_status(tr('Exported to {path}', path=path))
 
     def _delete_selected_rows(self) -> None:

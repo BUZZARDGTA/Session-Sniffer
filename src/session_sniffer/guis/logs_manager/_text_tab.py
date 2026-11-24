@@ -1,5 +1,6 @@
 """Plain-text log tab — for debug.log and crash.log."""
 
+import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -43,6 +44,7 @@ if TYPE_CHECKING:
     from PySide6.QtGui import QTextCursor
 
 _LOG_ENTRY_HEADER_REGEX = re.compile(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} - ([A-Z]+) - ')
+logger = logging.getLogger(__name__)
 
 SEVERITY_FILTER_CHOICES: tuple[tuple[str, frozenset[str] | None], ...] = (
     ('All Severities', None),
@@ -449,7 +451,12 @@ class TextLogTab(QWidget):
         )
         if not path:
             return
-        Path(path).write_text(text, encoding='utf-8')
+        try:
+            Path(path).write_text(text, encoding='utf-8')
+        except OSError as e:
+            logger.warning('Failed to export log "%s" to "%s": %s', self._file_path, path, e)
+            QMessageBox.critical(self, tr('Export Error'), tr('Failed to export "{name}":\n{error}', name=self._file_path.name, error=e))
+            return
         QMessageBox.information(self, TITLE, tr('Saved to {path}', path=path))
 
     def _purge_file(self) -> None:

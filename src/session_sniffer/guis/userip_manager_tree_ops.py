@@ -53,6 +53,7 @@ from session_sniffer.guis._userip_tree_batch_ops import (
     partition_selected_tree_paths,
     populate_multi_tree_context_menu,
     reset_selected_default_databases,
+    validate_tree_item_name,
 )
 from session_sniffer.guis.delegates import ElidedTextTooltipDelegate
 from session_sniffer.guis.loading_overlay import has_active_loading_overlay, run_with_active_loading
@@ -852,7 +853,7 @@ class TreeOperationsMixin(QDialog):
         name = name.strip()
         if name.lower().endswith('.json'):
             name = name[:-5]
-        if not name:
+        if not name or not validate_tree_item_name(self, name):
             return
         name += '.json'
 
@@ -861,9 +862,14 @@ class TreeOperationsMixin(QDialog):
             QMessageBox.warning(self, TITLE, tr('"{name}" already exists in that location.', name=name))
             return
 
-        with userip_databases_lock():
-            save_userip_database_model(new_path, UserIPDatabaseFile(settings=NEW_DATABASE_SETTINGS))
-            refresh_userip_and_wake_renderer()
+        try:
+            with userip_databases_lock():
+                save_userip_database_model(new_path, UserIPDatabaseFile(settings=NEW_DATABASE_SETTINGS))
+                refresh_userip_and_wake_renderer()
+        except OSError as e:
+            logger.warning('Failed to create UserIP database "%s": %s', new_path, e)
+            QMessageBox.critical(self, TITLE, tr('Failed to create database "{name}":\n{error}', name=name, error=e))
+            return
         self._rebuild_fs_watch()
 
         self._set_status(tr('Created new database: {name}', name=name))
@@ -878,12 +884,20 @@ class TreeOperationsMixin(QDialog):
             return
 
         folder_name = name.strip()
+        if not validate_tree_item_name(self, folder_name):
+            return
         new_path = target_dir / folder_name
         if new_path.exists():
             QMessageBox.warning(self, TITLE, tr('"{name}" already exists in that location.', name=folder_name))
             return
 
-        new_path.mkdir(parents=True, exist_ok=True)
+        try:
+            target_dir.mkdir(parents=True, exist_ok=True)
+            new_path.mkdir()
+        except OSError as e:
+            logger.warning('Failed to create UserIP folder "%s": %s', new_path, e)
+            QMessageBox.critical(self, TITLE, tr('Failed to create folder "{name}":\n{error}', name=folder_name, error=e))
+            return
 
         self._set_status(tr('Created new folder: {name}', name=folder_name))
 
@@ -947,9 +961,11 @@ class TreeOperationsMixin(QDialog):
         if path.is_file():
             if new_name.lower().endswith('.json'):
                 new_name = new_name[:-5]
-            if not new_name:
+            if not new_name or not validate_tree_item_name(self, new_name):
                 return
             new_name += '.json'
+        elif not validate_tree_item_name(self, new_name):
+            return
 
         new_path = path.parent / new_name
         if new_path.exists():

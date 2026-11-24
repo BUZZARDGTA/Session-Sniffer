@@ -109,7 +109,7 @@ def _ensure_loaded_locked(*, force_stat: bool = False) -> None:
 
     try:
         data = UserIPGroupsData.model_validate_json(USERIP_GROUPS_PATH.read_text(encoding='utf-8'))
-    except (OSError, ValidationError) as e:
+    except (OSError, UnicodeDecodeError, ValidationError) as e:
         logger.warning('Failed to load UserIP groups from %s: %s', USERIP_GROUPS_PATH, e)
         return
 
