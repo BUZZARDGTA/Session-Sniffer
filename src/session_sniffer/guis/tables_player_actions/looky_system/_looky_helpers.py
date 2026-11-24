@@ -1,12 +1,14 @@
 """Shared Looky System pre-flight validation for player action dialogs."""
 
 import html
+import time
 from dataclasses import dataclass
 from http import HTTPStatus
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 import requests
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QRectF, Qt, QTimer
+from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -31,7 +33,6 @@ from session_sniffer.guis.stylesheets import (
     LOOKY_ACTION_BUTTON_STYLESHEET,
     LOOKY_CRAWLER_HEADER_STYLESHEET,
     LOOKY_PRIMARY_ACTION_BUTTON_STYLESHEET,
-    LOOKY_PROGRESS_BAR_STYLESHEET,
     LOOKY_STATUS_LABEL_STYLESHEET,
 )
 from session_sniffer.guis.theming import themed_qss
@@ -57,7 +58,21 @@ from session_sniffer.settings.settings import Settings
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from PySide6.QtGui import QHideEvent, QPaintEvent, QShowEvent
+
     from session_sniffer.guis.tables_player_actions._ip_lookup_dialog import StandaloneIPLookup
+
+_PROGRESS_BAR_HEIGHT = 14
+_INDETERMINATE_FRAME_INTERVAL_MS = 16
+_INDETERMINATE_CYCLE_SECONDS = 1.4
+_INDETERMINATE_CHUNK_RATIO = 0.42
+_LOOKY_TRACK_BACKGROUND = QColor('#1a1325')
+_LOOKY_TRACK_BORDER = QColor('#3b2060')
+_LOOKY_CHUNK_GRADIENT_STOPS: tuple[tuple[float, QColor], ...] = (
+    (0.0, QColor('#6d28d9')),
+    (0.5, QColor('#a855f7')),
+    (1.0, QColor('#ec4899')),
+)
 
 _PHASE_DETAILS: dict[str, str] = {
     LOOKY_PHASE_IP_BATCHES: 'Checking which usernames Looky has recorded on your database IP addresses.',
@@ -66,11 +81,132 @@ _PHASE_DETAILS: dict[str, str] = {
 }
 
 
+class LookyProgressBar(QProgressBar):
+    """Custom-painted Looky progress bar with width-independent indeterminate animation.
+
+    Qt's `QStyleSheetStyle` animates indeterminate `QProgressBar` widgets using an
+    unbounded step counter modulo the widget width, which causes the chunk to jump
+    rapidly back and forth whenever a dialog is resized after staying open. Driving
+    the marquee from a normalized `[0.0, 1.0)` wall-clock phase avoids any speedup
+    or jitter during window resizes.
+    """
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        """Initialize the Looky progress bar in indeterminate mode."""
+        super().__init__(parent)
+        self._phase: float = 0.0
+        self._last_tick: float | None = None
+        self._animation_timer = QTimer(self)
+        self._animation_timer.setInterval(_INDETERMINATE_FRAME_INTERVAL_MS)
+        self._animation_timer.timeout.connect(self._advance_animation)
+        self.setTextVisible(False)
+        self.setFixedHeight(_PROGRESS_BAR_HEIGHT)
+        self.setRange(0, 0)
+
+    def _is_indeterminate(self) -> bool:
+        return not self.minimum() and not self.maximum()
+
+    def _sync_animation_state(self) -> None:
+        if self.isVisible() and self._is_indeterminate():
+            if not self._animation_timer.isActive():
+                self._last_tick = time.monotonic()
+                self._animation_timer.start()
+        else:
+            if self._animation_timer.isActive():
+                self._animation_timer.stop()
+            self._last_tick = None
+
+    def _advance_animation(self) -> None:
+        now = time.monotonic()
+        if self._last_tick is not None:
+            elapsed = max(0.0, now - self._last_tick)
+            self._phase = (self._phase + elapsed / _INDETERMINATE_CYCLE_SECONDS) % 1.0
+        self._last_tick = now
+        self.update()
+
+    @override
+    def setRange(self, minimum: int, maximum: int) -> None:
+        super().setRange(minimum, maximum)
+        self._sync_animation_state()
+        self.update()
+
+    @override
+    def setMinimum(self, minimum: int) -> None:
+        super().setMinimum(minimum)
+        self._sync_animation_state()
+        self.update()
+
+    @override
+    def setMaximum(self, maximum: int) -> None:
+        super().setMaximum(maximum)
+        self._sync_animation_state()
+        self.update()
+
+    @override
+    def showEvent(self, event: QShowEvent) -> None:
+        super().showEvent(event)
+        self._sync_animation_state()
+
+    @override
+    def hideEvent(self, event: QHideEvent) -> None:
+        super().hideEvent(event)
+        self._sync_animation_state()
+
+    @override
+    def paintEvent(self, arg__1: QPaintEvent) -> None:
+        del arg__1
+        track_rect = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+        track_radius = track_rect.height() / 2.0
+        painter = QPainter(self)
+        try:
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            painter.setBrush(_LOOKY_TRACK_BACKGROUND)
+            painter.setPen(QPen(_LOOKY_TRACK_BORDER, 1.0))
+            painter.drawRoundedRect(track_rect, track_radius, track_radius)
+
+            inner_rect = track_rect.adjusted(1.0, 1.0, -1.0, -1.0)
+            if inner_rect.width() <= 0.0 or inner_rect.height() <= 0.0:
+                return
+            inner_radius = max(0.0, inner_rect.height() / 2.0)
+            is_rtl = self.layoutDirection() == Qt.LayoutDirection.RightToLeft
+
+            if self._is_indeterminate():
+                chunk_width = inner_rect.width() * _INDETERMINATE_CHUNK_RATIO
+                travel = inner_rect.width() + chunk_width
+                chunk_left = (inner_rect.right() - self._phase * travel) if is_rtl else (inner_rect.left() - chunk_width + self._phase * travel)
+            else:
+                value_range = self.maximum() - self.minimum()
+                progress_ratio = max(0.0, min(1.0, (self.value() - self.minimum()) / value_range)) if value_range > 0 else 0.0
+                chunk_width = inner_rect.width() * progress_ratio
+                if chunk_width <= 0.0:
+                    return
+                chunk_left = (inner_rect.right() - chunk_width) if is_rtl else inner_rect.left()
+
+            chunk_rect = QRectF(chunk_left, inner_rect.top(), chunk_width, inner_rect.height())
+            clip_path = QPainterPath()
+            clip_path.addRoundedRect(inner_rect, inner_radius, inner_radius)
+            chunk_path = QPainterPath()
+            chunk_path.addRoundedRect(chunk_rect, inner_radius, inner_radius)
+
+            gradient_start = chunk_rect.right() if is_rtl else chunk_rect.left()
+            gradient_end = chunk_rect.left() if is_rtl else chunk_rect.right()
+            linear_gradient = QLinearGradient(gradient_start, 0.0, gradient_end, 0.0)
+            for stop_point, stop_color in _LOOKY_CHUNK_GRADIENT_STOPS:
+                linear_gradient.setColorAt(stop_point, stop_color)
+
+            painter.save()
+            painter.setClipPath(clip_path)
+            painter.fillPath(chunk_path, linear_gradient)
+            painter.restore()
+        finally:
+            painter.end()
+
+
 @dataclass(frozen=True, slots=True)
 class LookyProgressWidgets:
     """The three mutable widgets built by `build_looky_progress_widgets`."""
 
-    progress_bar: QProgressBar
+    progress_bar: LookyProgressBar
     status_label: QLabel
     try_again_button: QPushButton
     button_box: QDialogButtonBox
@@ -79,16 +215,12 @@ class LookyProgressWidgets:
 def build_looky_progress_widgets(layout: QVBoxLayout, dialog: QDialog) -> LookyProgressWidgets:
     """Add a shared progress / status / try-again / close block to `layout`.
 
-    Appends an indeterminate `QProgressBar`, a hidden `QLabel` for status text,
+    Appends an indeterminate `LookyProgressBar`, a hidden `QLabel` for status text,
     a hidden `QPushButton` for retries, and a Close `QDialogButtonBox` wired to
-    `dialog.reject`. Returns the three mutable widgets so callers can hide,
+    `dialog.reject`. Returns the mutable widgets so callers can hide,
     show, and update them from signal handlers.
     """
-    progress_bar = QProgressBar()
-    progress_bar.setRange(0, 0)
-    progress_bar.setTextVisible(False)
-    progress_bar.setFixedHeight(14)
-    progress_bar.setStyleSheet(LOOKY_PROGRESS_BAR_STYLESHEET)
+    progress_bar = LookyProgressBar()
     layout.addWidget(progress_bar)
 
     status_label = QLabel()

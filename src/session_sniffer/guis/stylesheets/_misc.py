@@ -676,19 +676,6 @@ LOOKY_CRAWLER_LOG_STYLESHEET = (
     '}'
 )
 
-LOOKY_PROGRESS_BAR_STYLESHEET = (
-    'QProgressBar {'
-    '    background-color: #1a1325;'
-    '    border: 1px solid #3b2060;'
-    '    border-radius: 7px;'
-    '}'
-    'QProgressBar::chunk {'
-    '    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,'
-    '        stop:0 #6d28d9, stop:0.5 #a855f7, stop:1 #ec4899);'
-    '    border-radius: 7px;'
-    '}'
-)
-
 LOOKY_STATUS_LABEL_STYLESHEET = 'font-size: 10pt; padding: 4px;'
 
 
