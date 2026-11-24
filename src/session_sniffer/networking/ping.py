@@ -60,6 +60,28 @@ _ICMP_ECHO_REPLY_TYPE: Final[int] = 0
 _ICMP_ECHO_REQUEST_TYPE: Final[int] = 8
 
 
+def resolve_ipv4_host(target_host: str) -> str:
+    """Resolve an IPv4 address or hostname to an IPv4 address string.
+
+    Raises:
+        OSError: If *target_host* is empty, contains invalid characters/labels, or cannot be resolved.
+    """
+    cleaned_host = target_host.strip()
+    if not cleaned_host or '\x00' in cleaned_host:
+        error_message = f'Invalid host or IP address: {target_host!r}'
+        raise OSError(error_message)
+    try:
+        socket.inet_aton(cleaned_host)
+    except OSError:
+        pass
+    else:
+        return cleaned_host
+    try:
+        return socket.gethostbyname(cleaned_host)
+    except UnicodeError as e:
+        raise OSError(str(e)) from e
+
+
 def _compute_icmp_checksum(data: bytes) -> int:
     """Compute the 16-bit RFC 1071 Internet checksum for an ICMP packet."""
     padded = data + b'\x00' if len(data) % 2 else data
@@ -250,7 +272,7 @@ class IcmpEchoEngine:
             )
 
         try:
-            resolved_ip = socket.gethostbyname(target_ip)
+            resolved_ip = resolve_ipv4_host(target_ip)
         except OSError as e:
             return PingProbeResult(
                 sequence=sequence,
@@ -393,25 +415,21 @@ class IcmpEchoEngine:
                 payload_bytes=payload_bytes,
             )
 
-        resolved_ip = target_ip
         try:
-            destination_address = int.from_bytes(socket.inet_aton(target_ip), 'little')
-        except OSError:
-            try:
-                resolved_ip = socket.gethostbyname(target_ip)
-                destination_address = int.from_bytes(socket.inet_aton(resolved_ip), 'little')
-            except OSError as e:
-                return PingProbeResult(
-                    sequence=sequence,
-                    target_host=target_ip,
-                    target_ip=target_ip,
-                    port=None,
-                    is_successful=False,
-                    round_trip_time_ms=None,
-                    time_to_live=None,
-                    status_message=tr('Invalid host or IP address: {error}', error=e),
-                    payload_bytes=payload_bytes,
-                )
+            resolved_ip = resolve_ipv4_host(target_ip)
+            destination_address = int.from_bytes(socket.inet_aton(resolved_ip), 'little')
+        except OSError as e:
+            return PingProbeResult(
+                sequence=sequence,
+                target_host=target_ip,
+                target_ip=target_ip,
+                port=None,
+                is_successful=False,
+                round_trip_time_ms=None,
+                time_to_live=None,
+                status_message=tr('Invalid host or IP address: {error}', error=e),
+                payload_bytes=payload_bytes,
+            )
 
         timeout_milliseconds = max(100, int(timeout_seconds * 1000))
 
@@ -472,17 +490,31 @@ def probe_tcp_port(
     sequence: int = 1,
 ) -> PingProbeResult:
     """Attempt a single TCP connection to target_ip:port using standard Python sockets."""
+    try:
+        resolved_ip = resolve_ipv4_host(target_ip)
+    except OSError as e:
+        return PingProbeResult(
+            sequence=sequence,
+            target_host=target_ip,
+            target_ip=target_ip,
+            port=port,
+            is_successful=False,
+            round_trip_time_ms=None,
+            time_to_live=None,
+            status_message=tr('Invalid host or IP address: {error}', error=e),
+        )
+
     start_time = time.perf_counter()
     tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     tcp_socket.settimeout(timeout_seconds)
 
     try:
-        tcp_socket.connect((target_ip, port))
+        tcp_socket.connect((resolved_ip, port))
         round_trip_time_ms = (time.perf_counter() - start_time) * 1000.0
         return PingProbeResult(
             sequence=sequence,
             target_host=target_ip,
-            target_ip=target_ip,
+            target_ip=resolved_ip,
             port=port,
             is_successful=True,
             round_trip_time_ms=round_trip_time_ms,
@@ -493,7 +525,7 @@ def probe_tcp_port(
         return PingProbeResult(
             sequence=sequence,
             target_host=target_ip,
-            target_ip=target_ip,
+            target_ip=resolved_ip,
             port=port,
             is_successful=False,
             round_trip_time_ms=None,
@@ -504,7 +536,7 @@ def probe_tcp_port(
         return PingProbeResult(
             sequence=sequence,
             target_host=target_ip,
-            target_ip=target_ip,
+            target_ip=resolved_ip,
             port=port,
             is_successful=False,
             round_trip_time_ms=None,
@@ -515,7 +547,7 @@ def probe_tcp_port(
         return PingProbeResult(
             sequence=sequence,
             target_host=target_ip,
-            target_ip=target_ip,
+            target_ip=resolved_ip,
             port=port,
             is_successful=False,
             round_trip_time_ms=None,
@@ -537,19 +569,34 @@ def probe_udp_port(
     """Attempt a single UDP probe to target_ip:port using a connected datagram socket."""
     payload_data = b'x' * max(0, payload_size)
     payload_bytes = len(payload_data)
+    try:
+        resolved_ip = resolve_ipv4_host(target_ip)
+    except OSError as e:
+        return PingProbeResult(
+            sequence=sequence,
+            target_host=target_ip,
+            target_ip=target_ip,
+            port=port,
+            is_successful=False,
+            round_trip_time_ms=None,
+            time_to_live=None,
+            status_message=tr('Invalid host or IP address: {error}', error=e),
+            payload_bytes=payload_bytes,
+        )
+
     start_time = time.perf_counter()
     udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     udp_socket.settimeout(timeout_seconds)
 
     try:
-        udp_socket.connect((target_ip, port))
+        udp_socket.connect((resolved_ip, port))
         udp_socket.send(payload_data)
         data, _ = udp_socket.recvfrom(1024)
         round_trip_time_ms = (time.perf_counter() - start_time) * 1000.0
         return PingProbeResult(
             sequence=sequence,
             target_host=target_ip,
-            target_ip=target_ip,
+            target_ip=resolved_ip,
             port=port,
             is_successful=True,
             round_trip_time_ms=round_trip_time_ms,
@@ -562,7 +609,7 @@ def probe_udp_port(
         return PingProbeResult(
             sequence=sequence,
             target_host=target_ip,
-            target_ip=target_ip,
+            target_ip=resolved_ip,
             port=port,
             is_successful=True,
             round_trip_time_ms=round_trip_time_ms,
@@ -574,7 +621,7 @@ def probe_udp_port(
         return PingProbeResult(
             sequence=sequence,
             target_host=target_ip,
-            target_ip=target_ip,
+            target_ip=resolved_ip,
             port=port,
             is_successful=False,
             round_trip_time_ms=None,
@@ -586,7 +633,7 @@ def probe_udp_port(
         return PingProbeResult(
             sequence=sequence,
             target_host=target_ip,
-            target_ip=target_ip,
+            target_ip=resolved_ip,
             port=port,
             is_successful=False,
             round_trip_time_ms=None,

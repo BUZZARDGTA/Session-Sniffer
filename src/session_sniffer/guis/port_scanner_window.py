@@ -2,7 +2,6 @@
 
 import contextlib
 import csv
-import socket
 import webbrowser
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -58,7 +57,7 @@ from session_sniffer.guis.utils import (
     set_clipboard_text,
 )
 from session_sniffer.i18n import tr, tr_plural
-from session_sniffer.networking.ping import PingMode
+from session_sniffer.networking.ping import PingMode, resolve_ipv4_host
 from session_sniffer.networking.port_scanner import (
     DEFAULT_SCAN_THREADS,
     DEFAULT_SCAN_TIMEOUT_SECONDS,
@@ -117,7 +116,7 @@ class PortScannerWorkerThread(CrashingQThread):
         config = self._scan_config
         if not config.target_ip:
             try:
-                resolved_ip = socket.gethostbyname(config.target_host)
+                resolved_ip = resolve_ipv4_host(config.target_host)
             except OSError as e:
                 if not self._abort_signal.is_set() and not self.isInterruptionRequested():
                     self.scan_failed.emit(str(e))
