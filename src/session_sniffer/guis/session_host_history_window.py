@@ -8,7 +8,6 @@ from PySide6.QtGui import QAction, QIcon
 
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.guis._main_window_shortcuts_mixin import append_shortcut_tooltip
-from session_sniffer.guis.live_language import register_language_refresh
 from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.utils import (
     format_menu_usernames,
@@ -98,28 +97,20 @@ def setup_session_host_actions(
     callbacks: SessionHostActionCallbacks,
 ) -> None:
     """Populate common session host control actions."""
-    redetect_host_action = QAction(QIcon(str(ICONS_DIR_PATH / 'refresh-cw.svg')), '', menu)
+    redetect_hotkey = Settings.get_active_shortcut('redetect_host_hotkey')
+    redetect_host_action = QAction(QIcon(str(ICONS_DIR_PATH / 'refresh-cw.svg')), tr('Re-detect Host'), menu)
+    redetect_host_action.setToolTip(
+        append_shortcut_tooltip(tr('Clear the current host and immediately re-trigger host detection'), redetect_hotkey, is_global=True),
+    )
     redetect_host_action.triggered.connect(callbacks.redetect_host)
     menu.addAction(redetect_host_action)
 
-    clear_host_action = QAction(QIcon(str(ICONS_DIR_PATH / 'x.svg')), '', menu)
+    clear_host_action = QAction(QIcon(str(ICONS_DIR_PATH / 'x.svg')), tr('Clear Session Host'), menu)
+    clear_host_action.setToolTip(tr('Manually clear the currently detected session host'))
     clear_host_action.triggered.connect(callbacks.clear_host)
     menu.addAction(clear_host_action)
 
-    diagnostics_action = QAction(QIcon(str(ICONS_DIR_PATH / 'bug.svg')), '', menu)
+    diagnostics_action = QAction(QIcon(str(ICONS_DIR_PATH / 'bug.svg')), tr('Host Diagnostics…'), menu)
+    diagnostics_action.setToolTip(tr('Show detailed diagnostics and debug information from the last session host detection'))
     diagnostics_action.triggered.connect(callbacks.show_diagnostics)
     menu.addAction(diagnostics_action)
-
-    def _apply_translations() -> None:
-        redetect_hotkey = Settings.get_active_shortcut('redetect_host_hotkey')
-        redetect_host_action.setText(tr('Re-detect Host'))
-        redetect_host_action.setToolTip(
-            append_shortcut_tooltip(tr('Clear the current host and immediately re-trigger host detection'), redetect_hotkey, is_global=True),
-        )
-        clear_host_action.setText(tr('Clear Session Host'))
-        clear_host_action.setToolTip(tr('Manually clear the currently detected session host'))
-        diagnostics_action.setText(tr('Host Diagnostics…'))
-        diagnostics_action.setToolTip(tr('Show detailed diagnostics and debug information from the last session host detection'))
-
-    _apply_translations()
-    register_language_refresh(menu, _apply_translations)
