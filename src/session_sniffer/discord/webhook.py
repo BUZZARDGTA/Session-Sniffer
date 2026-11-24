@@ -39,7 +39,7 @@ class _WebhookShutdownSignal(Enum):
 SHUTDOWN_SIGNAL = _WebhookShutdownSignal.SIGNAL
 
 WEBHOOK_URL_RE: Final = re.compile(
-    r'^https://(?:(?:canary|ptb)\.)?discord(?:app)?\.com/api/webhooks/\d+/[\w-]+/?$',
+    r'^https://(?:(?:canary|ptb)\.)?discord(?:app)?\.com/api/webhooks/[0-9]+/[A-Za-z0-9_-]+/?$',
 )
 
 _REQUEST_TIMEOUT_SECONDS = 10.0
@@ -314,7 +314,7 @@ def _http_request(
         'Content-Type': 'application/json',
         'User-Agent': f'SessionSniffer ({TITLE})',
     }
-    parsed = urllib.parse.urlsplit(url)
+    parsed = urllib.parse.urlsplit(url.strip())
     path = parsed.path or '/'
     if parsed.query:
         path += '?' + parsed.query
