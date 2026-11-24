@@ -52,14 +52,22 @@ Always inspect the corresponding desktop implementation and QSS before editing `
 `website/sync_assets.py` is the bridge between the desktop app and `website/`. Whenever synced data changes:
 
 1. Update `SHARED_APP_MESSAGE_KEYS` / `SHARED_APP_PLURAL_SINGULAR_KEYS` in `website/sync_assets.py` whenever a desktop UI string shown in the website preview is added, renamed, or removed (and remove obsolete keys outright per `No Backward Compatibility` in `core.md`).
-2. Update `SYNCED_ICONS` / `SYNCED_COUNTRY_FLAGS` in `website/sync_assets.py` whenever icons in `resources/icons/` or flags in `resources/images/country_flags/` used by the website change.
-3. Run `python website/sync_assets.py` to regenerate:
+2. **No Inline Icon SVGs (Export Every Icon to an `.svg` File):**
+   * **Never** inline raw `<svg>` icon paths or shapes directly in `website/*.html` or `website/*.js`. Every icon rendered on the website must live in its own standalone `.svg` file and be referenced via `<svg class="icon ..." aria-hidden="true"><use href="#icon-<name>"></use></svg>` (or `createIconSvg('<name>', ...)` in JS).
+   * **Shared desktop + website icons:** Keep in `resources/icons/<name>.svg` and list in `SYNCED_ICONS` in `website/sync_assets.py` (and remove obsolete entries when no longer used by the website).
+   * **Website-only icons** (brand/OS/platform/social logos or website-only UI icons not used in the desktop app): Export as standalone `.svg` files in `website/icons/<name>.svg` — never add unused icons to `resources/icons/` (which PyInstaller bundles into the desktop executable) and never duplicate an icon already present in `resources/icons/`.
+     * Stroke icons use `viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"`.
+     * Solid filled brand logos use `viewBox="0 0 24 24" fill="currentColor"`.
+     * `website/sync_assets.py` automatically discovers all `website/icons/*.svg` files and compiles them alongside `app_icon` and `SYNCED_ICONS` into the shared inline SVG sprite in `website/assets/app-data.generated.js`.
+     * Delete unused `.svg` files from `website/icons/` outright per `No Backward Compatibility` in `core.md`, and always enforce CRLF (`\r\n`) line endings.
+3. Update `SYNCED_COUNTRY_FLAGS` in `website/sync_assets.py` whenever flags in `resources/images/country_flags/` used by the website change.
+4. Run `python website/sync_assets.py` to regenerate:
    * `website/assets/themes.generated.css`
    * `website/assets/app-data.generated.js`
    * `website/assets/i18n/<lang>.js` (all 32 non-English bundles)
    * `website/assets/app_icon.svg` and `website/assets/flags/*.png`
-4. Never edit generated files under `website/assets/` by hand when `python website/sync_assets.py` can regenerate them cleanly.
-5. Whenever website-specific copy in `website/translations/en.json` changes, update all 32 `website/translations/<lang>.json` catalogs in the same task so `sync_assets.py` validation stays green.
+5. Never edit generated files under `website/assets/` by hand when `python website/sync_assets.py` can regenerate them cleanly.
+6. Whenever website-specific copy in `website/translations/en.json` changes, update all 32 `website/translations/<lang>.json` catalogs in the same task so `sync_assets.py` validation stays green.
 
 ## Styling, Themes, RTL & Verification
 
