@@ -259,7 +259,10 @@ class WebServer:
             logger.debug('Authorization rejected for %s: missing username/password separator.', request.path)
             return False
 
-        authorized = hmac.compare_digest(username, self.auth_username or '') and hmac.compare_digest(password, self.auth_password or '')
+        authorized = hmac.compare_digest(username.encode('utf-8'), (self.auth_username or '').encode('utf-8')) and hmac.compare_digest(
+            password.encode('utf-8'),
+            (self.auth_password or '').encode('utf-8'),
+        )
         if not authorized:
             logger.debug('Authorization rejected for %s: credential mismatch.', request.path)
         return authorized
