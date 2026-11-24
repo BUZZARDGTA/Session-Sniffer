@@ -47,7 +47,7 @@ def is_bare_typing_hotkey(chord: str) -> bool:
 
     if has_primary_modifier or is_numpad or not portable:
         return False
-    if portable.startswith('f') and portable[1:].isdigit() and 1 <= int(portable[1:]) <= _MAX_FUNCTION_KEY_NUMBER:
+    if portable.startswith('f') and portable[1:].isascii() and portable[1:].isdigit() and 1 <= int(portable[1:]) <= _MAX_FUNCTION_KEY_NUMBER:
         return False
     return portable not in _STANDALONE_GLOBAL_HOTKEY_KEYS
 

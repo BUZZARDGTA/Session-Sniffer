@@ -763,7 +763,7 @@ class PortScannerTabWidget(QWidget):
         if not isinstance(canonical_proto, str):
             canonical_proto = 'TCP'
         proto_display = proto_item.text() if proto_item else tr('TCP')
-        port_num = int(port_str) if port_str.isdigit() else 0
+        port_num = int(port_str) if port_str.isascii() and port_str.isdigit() else 0
 
         menu = QMenu(self)
         menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)

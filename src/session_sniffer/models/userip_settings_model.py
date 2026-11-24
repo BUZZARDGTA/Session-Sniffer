@@ -347,8 +347,8 @@ class UserIPEntryModel(BaseModel):
             detections_count = 0
         elif isinstance(raw_detections, (int, float)):
             detections_count = max(0, int(raw_detections))
-        elif isinstance(raw_detections, str) and raw_detections.strip().isdigit():
-            detections_count = int(raw_detections.strip())
+        elif isinstance(raw_detections, str) and (stripped_detections := raw_detections.strip()).isascii() and stripped_detections.isdigit():
+            detections_count = int(stripped_detections)
         else:
             detections_count = 0
 

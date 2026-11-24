@@ -144,7 +144,7 @@ def _prompt_port_ping(parent: QWidget, target: str | list[str], *, mode: PingMod
 
     port_string = port_string.strip()
 
-    if not port_string.isdigit():
+    if not (port_string.isascii() and port_string.isdigit()):
         QMessageBox.warning(parent, tr('Error'), tr('No valid port number provided.'))
         return
 

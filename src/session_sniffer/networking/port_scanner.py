@@ -251,7 +251,7 @@ def parse_port_specification(port_string: str) -> list[int]:
             continue
         if '-' in token:
             parts = token.split('-', 1)
-            if not parts[0].isdigit() or not parts[1].isdigit():
+            if not (parts[0].isascii() and parts[0].isdigit()) or not (parts[1].isascii() and parts[1].isdigit()):
                 error_message = tr("Invalid port range format: '{token}'", token=token)
                 raise ValueError(error_message)
             start_port = int(parts[0])
@@ -268,7 +268,7 @@ def parse_port_specification(port_string: str) -> list[int]:
                 raise ValueError(error_message)
             ports.update(range(start_port, end_port + 1))
         else:
-            if not token.isdigit():
+            if not (token.isascii() and token.isdigit()):
                 error_message = tr("Invalid port number: '{token}'", token=token)
                 raise ValueError(error_message)
             port = int(token)

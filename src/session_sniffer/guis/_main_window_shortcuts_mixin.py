@@ -119,7 +119,7 @@ def _resolve_portable_key_triggers(
         return _resolve_single_char_triggers(portable_key, mod_flags=mod_flags)
 
     triggers: tuple[tuple[int, bool | None], ...] | None = None
-    if portable_key.startswith('f') and portable_key[1:].isdigit() and 1 <= (fn_num := int(portable_key[1:])) <= _MAX_F_KEY_NUMBER:
+    if portable_key.startswith('f') and portable_key[1:].isascii() and portable_key[1:].isdigit() and 1 <= (fn_num := int(portable_key[1:])) <= _MAX_F_KEY_NUMBER:
         triggers = ((0x70 + fn_num - 1, None),)
     elif portable_key == 'pause':
         triggers = ((0x13, None), (0x03, None)) if (mod_flags & WIN32_MOD_CONTROL) else ((0x13, None),)
