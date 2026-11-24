@@ -329,6 +329,7 @@
     "Candidate {ip} packet count ({exchanged}) exceeds maximum allowed threshold ({limit}).": "候选节点 {ip} 的数据包数量 ({exchanged}) 超过了允许的上限阈值 ({limit})。",
     "Cannot delete the active session log file while GUI session logging is enabled.": "启用 GUI 会话日志记录时，无法删除当前活动的会话日志文件。",
     "Cannot export \"{name}\" over itself. Please choose a different destination.": "无法将“{name}”导出并覆盖其自身。请选择其他目标位置。",
+    "Cannot import \"{name}\" because a folder with the same name already exists in the destination.": "无法导入“{name}”，因为目标位置已存在同名文件夹。",
     "Cannot keep & merge multiple entries from the same conflict group — select at most one winner per group": "无法对同一冲突组中的多个条目执行保留并合并 — 每个冲突组最多只能选择一个保留条目",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group": "无法保留同一冲突组中的多个条目 — 每个冲突组最多只能选择一个保留条目",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group.": "无法保留同一冲突组中的多个条目 — 每个冲突组最多只能选择一个保留条目。",
@@ -1031,6 +1032,7 @@
     "Failed to configure hotspot credentials": "配置热点凭据失败",
     "Failed to create database \"{name}\":\n{error}": "创建数据库“{name}”失败：\n{error}",
     "Failed to create folder \"{name}\":\n{error}": "创建文件夹“{name}”失败：\n{error}",
+    "Failed to delete \"{name}\":\n{error}": "删除“{name}”失败：\n{error}",
     "Failed to disable Internet Connection Sharing": "禁用 Internet 连接共享失败",
     "Failed to download the update.\n\n{error}": "下载更新失败。\n\n{error}",
     "Failed to export \"{name}\":\n{error}": "导出“{name}”失败：\n{error}",
@@ -1046,6 +1048,7 @@
     "Failed to import themes from clipboard:\n\n{error}": "从剪贴板导入主题失败：\n\n{error}",
     "Failed to import themes:\n\n{error}": "导入主题失败：\n\n{error}",
     "Failed to initiate check-ping request": "发起检查 Ping 请求失败",
+    "Failed to move \"{name}\":\n{error}": "移动“{name}”失败：\n{error}",
     "Failed to purge {filename}:\n{error}": "清空 {filename} 失败：\n{error}",
     "Failed to query hotspot state": "查询热点状态失败",
     "Failed to read \"{name}\": {error}": "读取“{name}”失败：{error}",
@@ -2383,6 +2386,8 @@
     "Selected:": "已选择：",
     "Selection Highlight": "选中高亮",
     "Selection Required": "需要选择",
+    "Selection contains duplicate item names: {names} (+{extra} more). Nothing was moved.": "所选内容包含重复的项目名称：{names}（另有 {extra} 项）。未移动任何项目。",
+    "Selection contains duplicate item names: {names}. Nothing was moved.": "所选内容包含重复的项目名称：{names}。未移动任何项目。",
     "Send ICMP echo, TCP connect, UDP reachability, or Web latency probes": "发送 ICMP 回显、TCP 连接、UDP 可达性或 Web 延迟探测",
     "Send a one-time test message to this webhook URL": "向此 Webhook URL 发送一条一次性测试消息",
     "Sending request...": "正在发送请求...",
@@ -3415,6 +3420,9 @@
     },
     "Exported {count} selected database to {path}": {
       "other": "已将所选的 {count} 个数据库导出到 {path}"
+    },
+    "Failed to move {count} item:\n{error}": {
+      "other": "移动 {count} 个项目失败：\n{error}"
     },
     "Filtered Game & Relay Server ({count})": {
       "other": "已过滤的游戏与中继服务器 ({count})"

@@ -3,6 +3,7 @@
 import html
 import logging
 import shutil
+import sys
 import zipfile
 from dataclasses import dataclass, field
 from ipaddress import IPv4Address
@@ -207,6 +208,60 @@ def set_databases_enabled_batch(hooks: TreeBatchHooks, db_paths: Sequence[Path],
     hooks.on_mutated(status_msg)
 
 
+def _plan_batch_move(dialog: QDialog, movable: Sequence[Path], dest: Path) -> list[tuple[Path, Path]] | None:
+    """Validate destination paths for a batch move and return `(old, new)` pairs, or `None` on validation error."""
+    to_move: list[tuple[Path, Path]] = []
+    collisions: list[str] = []
+    seen_dest_names: set[str] = set()
+    duplicate_names: list[str] = []
+    seen_duplicate_keys: set[str] = set()
+    case_insensitive_fs = sys.platform in ('win32', 'darwin')
+    for path in movable:
+        if dest == path or path in dest.parents:
+            QMessageBox.warning(dialog, TITLE, tr('Cannot move "{name}" into itself.', name=path.name))
+            return None
+        if path.parent == dest:
+            continue
+        dest_key = path.name.casefold() if case_insensitive_fs else path.name
+        if dest_key in seen_dest_names:
+            if dest_key not in seen_duplicate_keys:
+                seen_duplicate_keys.add(dest_key)
+                duplicate_names.append(path.name)
+            continue
+        seen_dest_names.add(dest_key)
+        new_path = dest / path.name
+        if new_path.exists():
+            collisions.append(path.name)
+        else:
+            to_move.append((path, new_path))
+
+    if duplicate_names:
+        names = ', '.join(f'"{name}"' for name in duplicate_names[:_MAX_LISTED_COLLISIONS])
+        if len(duplicate_names) > _MAX_LISTED_COLLISIONS:
+            duplicate_text = tr(
+                'Selection contains duplicate item names: {names} (+{extra} more). Nothing was moved.',
+                names=names,
+                extra=len(duplicate_names) - _MAX_LISTED_COLLISIONS,
+            )
+        else:
+            duplicate_text = tr('Selection contains duplicate item names: {names}. Nothing was moved.', names=names)
+        QMessageBox.warning(dialog, TITLE, duplicate_text)
+        return None
+    if collisions:
+        names = ', '.join(f'"{name}"' for name in collisions[:_MAX_LISTED_COLLISIONS])
+        if len(collisions) > _MAX_LISTED_COLLISIONS:
+            collision_text = tr(
+                'Destination already contains {names} (+{extra} more). Nothing was moved.',
+                names=names,
+                extra=len(collisions) - _MAX_LISTED_COLLISIONS,
+            )
+        else:
+            collision_text = tr('Destination already contains {names}. Nothing was moved.', names=names)
+        QMessageBox.warning(dialog, TITLE, collision_text)
+        return None
+    return to_move
+
+
 def move_selected_tree_items(hooks: TreeBatchHooks, selected_paths: Sequence[Path]) -> None:
     """Move all movable top-level items in *selected_paths* into a chosen directory."""
     pruned = prune_nested_tree_paths(selected_paths)
@@ -231,31 +286,8 @@ def move_selected_tree_items(hooks: TreeBatchHooks, selected_paths: Sequence[Pat
         QMessageBox.warning(hooks.dialog, TITLE, tr('Destination must be within the UserIP Databases directory.'))
         return
 
-    to_move: list[tuple[Path, Path]] = []
-    collisions: list[str] = []
-    for path in movable:
-        if dest == path or path in dest.parents:
-            QMessageBox.warning(hooks.dialog, TITLE, tr('Cannot move "{name}" into itself.', name=path.name))
-            return
-        if path.parent == dest:
-            continue
-        new_path = dest / path.name
-        if new_path.exists():
-            collisions.append(path.name)
-        else:
-            to_move.append((path, new_path))
-
-    if collisions:
-        names = ', '.join(f'"{name}"' for name in collisions[:_MAX_LISTED_COLLISIONS])
-        if len(collisions) > _MAX_LISTED_COLLISIONS:
-            collision_text = tr(
-                'Destination already contains {names} (+{extra} more). Nothing was moved.',
-                names=names,
-                extra=len(collisions) - _MAX_LISTED_COLLISIONS,
-            )
-        else:
-            collision_text = tr('Destination already contains {names}. Nothing was moved.', names=names)
-        QMessageBox.warning(hooks.dialog, TITLE, collision_text)
+    to_move = _plan_batch_move(hooks.dialog, movable, dest)
+    if to_move is None:
         return
     if not to_move:
         hooks.set_status(tr('Selected items are already in that folder.'))
@@ -264,28 +296,57 @@ def move_selected_tree_items(hooks: TreeBatchHooks, selected_paths: Sequence[Pat
     for old_path, _ in to_move:
         hooks.unwatch_path(old_path)
 
-    def _move_batch() -> None:
+    def _move_batch() -> tuple[list[tuple[Path, Path]], int, OSError | None]:
+        moved_pairs: list[tuple[Path, Path]] = []
+        failed_count = 0
+        first_error: OSError | None = None
         with userip_databases_lock():
             for old_path, new_path in to_move:
-                shutil.move(str(old_path), str(new_path))
+                try:
+                    shutil.move(str(old_path), str(new_path))
+                except OSError as e:
+                    logger.warning('Failed to move UserIP item "%s" to "%s": %s', old_path, new_path, e)
+                    failed_count += 1
+                    if first_error is None:
+                        first_error = e
+                    continue
                 rebind_in_app_userip_db_path(old_path, new_path)
-            refresh_userip_and_wake_renderer()
+                moved_pairs.append((old_path, new_path))
+            if moved_pairs:
+                refresh_userip_and_wake_renderer()
+        return moved_pairs, failed_count, first_error
 
-    if hooks.dialog.isVisible():
+    moved_pairs, failed_count, first_error = (
         run_blocking_with_loading(
             hooks.dialog,
             tr('Moving Databases\u2026'),
             tr_plural('Moving {count} item\u2026', 'Moving {count} items\u2026', len(to_move)),
             _move_batch,
         )
-    else:
-        _move_batch()
+        if hooks.dialog.isVisible()
+        else _move_batch()
+    )
 
-    for old_path, new_path in to_move:
+    for old_path, new_path in moved_pairs:
         hooks.rebind_open_path(old_path, new_path)
 
+    if failed_count and first_error is not None:
+        QMessageBox.warning(
+            hooks.dialog,
+            TITLE,
+            tr_plural(
+                'Failed to move {count} item:\n{error}',
+                'Failed to move {count} items:\n{error}',
+                failed_count,
+                error=first_error,
+            ),
+        )
+    if not moved_pairs:
+        hooks.on_mutated('')
+        return
+
     dest_label = tr('root') if rel_dest == Path() else str(rel_dest)
-    moved_part = tr_plural('Moved {count} item', 'Moved {count} items', len(to_move))
+    moved_part = tr_plural('Moved {count} item', 'Moved {count} items', len(moved_pairs))
     if skipped_defaults:
         kept_note = tr_plural(
             '{count} default database kept in root',
@@ -318,21 +379,31 @@ def move_single_tree_item(hooks: TreeBatchHooks, path: Path) -> None:
 
     hooks.unwatch_path(path)
 
-    def _move_one() -> None:
+    def _move_one() -> OSError | None:
         with userip_databases_lock():
-            shutil.move(str(path), str(new_path))
+            try:
+                shutil.move(str(path), str(new_path))
+            except OSError as e:
+                logger.warning('Failed to move UserIP item "%s" to "%s": %s', path, new_path, e)
+                return e
             rebind_in_app_userip_db_path(path, new_path)
             refresh_userip_and_wake_renderer()
+        return None
 
-    if hooks.dialog.isVisible():
+    move_error = (
         run_blocking_with_loading(
             hooks.dialog,
             tr('Moving Database\u2026'),
             tr('Moving "{name}"\u2026', name=path.name),
             _move_one,
         )
-    else:
-        _move_one()
+        if hooks.dialog.isVisible()
+        else _move_one()
+    )
+    if move_error is not None:
+        hooks.on_mutated('')
+        QMessageBox.warning(hooks.dialog, TITLE, tr('Failed to move "{name}":\n{error}', name=path.name, error=move_error))
+        return
     hooks.rebind_open_path(path, new_path)
 
     dest_label = tr('root') if rel_dest == Path() else str(rel_dest)
@@ -342,7 +413,10 @@ def move_single_tree_item(hooks: TreeBatchHooks, path: Path) -> None:
 def delete_single_tree_path(hooks: TreeBatchHooks, path: Path) -> None:
     """Delete a single file or folder after user confirmation."""
     if path.is_dir():
-        children = list(path.iterdir())
+        try:
+            children = list(path.iterdir())
+        except OSError:
+            children = []
         message = (
             tr_plural(
                 'Folder "{name}" is not empty ({count} item).\n\nDelete it and all its contents?',
@@ -367,26 +441,36 @@ def delete_single_tree_path(hooks: TreeBatchHooks, path: Path) -> None:
         return
 
     hooks.unwatch_path(path)
-    hooks.clear_if_open_deleted(path)
 
-    def _delete_one() -> None:
+    def _delete_one() -> OSError | None:
         with userip_databases_lock():
-            if path.is_dir():
-                shutil.rmtree(path)
-            else:
-                path.unlink()
+            try:
+                if path.is_dir():
+                    shutil.rmtree(path)
+                else:
+                    path.unlink()
+            except OSError as e:
+                logger.warning('Failed to delete UserIP item "%s": %s', path, e)
+                return e
             refresh_userip_and_wake_renderer()
+        return None
 
-    if hooks.dialog.isVisible():
+    delete_error = (
         run_blocking_with_loading(
             hooks.dialog,
             tr('Deleting Database\u2026'),
             tr('Removing "{name}"\u2026', name=path.name),
             _delete_one,
         )
-    else:
-        _delete_one()
+        if hooks.dialog.isVisible()
+        else _delete_one()
+    )
+    if delete_error is not None:
+        hooks.on_mutated('')
+        QMessageBox.warning(hooks.dialog, TITLE, tr('Failed to delete "{name}":\n{error}', name=path.name, error=delete_error))
+        return
 
+    hooks.clear_if_open_deleted(path)
     hooks.on_mutated(tr('Deleted: {name}', name=path.name))
 
 
@@ -813,15 +897,20 @@ _WINDOWS_RESERVED_FILENAMES: frozenset[str] = frozenset(
 )
 
 
-def validate_tree_item_name(parent: QWidget, name: str) -> bool:
-    """Validate a single UserIP tree file/folder name, showing a warning dialog when invalid."""
-    is_valid = (
+def is_valid_tree_item_name(name: str) -> bool:
+    """Return `True` when *name* is a safe, cross-platform single file or folder name."""
+    return (
         bool(name)
         and name not in ('.', '..')
         and not name.endswith(('.', ' '))
         and not any(ord(character) < _MIN_PRINTABLE_ASCII or character in _INVALID_FILENAME_CHARS for character in name)
         and name.partition('.')[0].upper() not in _WINDOWS_RESERVED_FILENAMES
     )
+
+
+def validate_tree_item_name(parent: QWidget, name: str) -> bool:
+    """Validate a single UserIP tree file/folder name, showing a warning dialog when invalid."""
+    is_valid = is_valid_tree_item_name(name)
     if not is_valid:
         QMessageBox.warning(
             parent,

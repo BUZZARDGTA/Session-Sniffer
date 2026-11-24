@@ -329,6 +329,7 @@
     "Candidate {ip} packet count ({exchanged}) exceeds maximum allowed threshold ({limit}).": "候選節點 {ip} 的封包數量 ({exchanged}) 超出了允許的上限閾值 ({limit})。",
     "Cannot delete the active session log file while GUI session logging is enabled.": "啟用 GUI 工作階段日誌記錄時，無法刪除目前使用中的工作階段日誌檔案。",
     "Cannot export \"{name}\" over itself. Please choose a different destination.": "無法將「{name}」匯出並覆寫其自身。請選擇其他目標位置。",
+    "Cannot import \"{name}\" because a folder with the same name already exists in the destination.": "無法匯入「{name}」，因為目標位置已存在同名資料夾。",
     "Cannot keep & merge multiple entries from the same conflict group — select at most one winner per group": "無法對同一衝突群組中的多個項目執行保留並合併 — 每個群組最多只能選取一個保留項目",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group": "無法保留同一衝突群組中的多個項目 — 每個群組最多只能選取一個保留項目",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group.": "無法保留同一衝突群組中的多個項目 — 每個群組最多只能選取一個保留項目。",
@@ -1031,6 +1032,7 @@
     "Failed to configure hotspot credentials": "設定熱點認證失敗",
     "Failed to create database \"{name}\":\n{error}": "建立資料庫「{name}」失敗：\n{error}",
     "Failed to create folder \"{name}\":\n{error}": "建立資料夾「{name}」失敗：\n{error}",
+    "Failed to delete \"{name}\":\n{error}": "刪除「{name}」失敗：\n{error}",
     "Failed to disable Internet Connection Sharing": "停用網際網路連線共用失敗",
     "Failed to download the update.\n\n{error}": "下載更新失敗。\n\n{error}",
     "Failed to export \"{name}\":\n{error}": "匯出「{name}」失敗：\n{error}",
@@ -1046,6 +1048,7 @@
     "Failed to import themes from clipboard:\n\n{error}": "從剪貼簿匯入佈景主題失敗：\n\n{error}",
     "Failed to import themes:\n\n{error}": "匯入佈景主題失敗：\n\n{error}",
     "Failed to initiate check-ping request": "啟動 Ping 檢查請求失敗",
+    "Failed to move \"{name}\":\n{error}": "移動「{name}」失敗：\n{error}",
     "Failed to purge {filename}:\n{error}": "清空 {filename} 失敗：\n{error}",
     "Failed to query hotspot state": "查詢熱點狀態失敗",
     "Failed to read \"{name}\": {error}": "讀取「{name}」失敗：{error}",
@@ -2383,6 +2386,8 @@
     "Selected:": "已選取：",
     "Selection Highlight": "選取醒目提示",
     "Selection Required": "需要選取項目",
+    "Selection contains duplicate item names: {names} (+{extra} more). Nothing was moved.": "選取項目包含重複的名稱：{names}（另有 {extra} 項）。未移動任何項目。",
+    "Selection contains duplicate item names: {names}. Nothing was moved.": "選取項目包含重複的名稱：{names}。未移動任何項目。",
     "Send ICMP echo, TCP connect, UDP reachability, or Web latency probes": "傳送 ICMP 回應、TCP 連線、UDP 可達性或 Web 延遲探測",
     "Send a one-time test message to this webhook URL": "傳送一次性測試訊息至此 Webhook URL",
     "Sending request...": "正在傳送要求...",
@@ -3415,6 +3420,9 @@
     },
     "Exported {count} selected database to {path}": {
       "other": "已將選取的 {count} 個資料庫匯出至 {path}"
+    },
+    "Failed to move {count} item:\n{error}": {
+      "other": "移動 {count} 個項目失敗：\n{error}"
     },
     "Filtered Game & Relay Server ({count})": {
       "other": "已過濾的遊戲與中繼伺服器 ({count})"

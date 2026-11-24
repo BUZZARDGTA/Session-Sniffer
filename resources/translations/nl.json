@@ -329,6 +329,7 @@
     "Candidate {ip} packet count ({exchanged}) exceeds maximum allowed threshold ({limit}).": "Het aantal pakketten van kandidaat {ip} ({exchanged}) overschrijdt de maximaal toegestane drempel ({limit}).",
     "Cannot delete the active session log file while GUI session logging is enabled.": "Kan het actieve sessielogboekbestand niet verwijderen terwijl GUI-sessielogboekregistratie is ingeschakeld.",
     "Cannot export \"{name}\" over itself. Please choose a different destination.": "Kan \"{name}\" niet over zichzelf exporteren. Kies een andere bestemming.",
+    "Cannot import \"{name}\" because a folder with the same name already exists in the destination.": "Kan \"{name}\" niet importeren omdat er al een map met dezelfde naam op de bestemming bestaat.",
     "Cannot keep & merge multiple entries from the same conflict group — select at most one winner per group": "Kan niet meerdere vermeldingen uit dezelfde conflictgroep behouden & samenvoegen — selecteer maximaal één winnaar per groep",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group": "Kan niet meerdere vermeldingen uit dezelfde conflictgroep behouden — selecteer maximaal één winnaar per groep",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group.": "Kan niet meerdere vermeldingen uit dezelfde conflictgroep behouden — selecteer maximaal één winnaar per groep.",
@@ -1031,6 +1032,7 @@
     "Failed to configure hotspot credentials": "Configureren van hotspot-inloggegevens mislukt",
     "Failed to create database \"{name}\":\n{error}": "Kan database \"{name}\" niet maken:\n{error}",
     "Failed to create folder \"{name}\":\n{error}": "Kan map \"{name}\" niet maken:\n{error}",
+    "Failed to delete \"{name}\":\n{error}": "Kan \"{name}\" niet verwijderen:\n{error}",
     "Failed to disable Internet Connection Sharing": "Uitschakelen van Internet Connection Sharing mislukt",
     "Failed to download the update.\n\n{error}": "Downloaden van de update mislukt.\n\n{error}",
     "Failed to export \"{name}\":\n{error}": "Kan \"{name}\" niet exporteren:\n{error}",
@@ -1046,6 +1048,7 @@
     "Failed to import themes from clipboard:\n\n{error}": "Importeren van thema's vanaf het klembord mislukt:\n\n{error}",
     "Failed to import themes:\n\n{error}": "Importeren van thema's mislukt:\n\n{error}",
     "Failed to initiate check-ping request": "Starten van check-ping-verzoek mislukt",
+    "Failed to move \"{name}\":\n{error}": "Kan \"{name}\" niet verplaatsen:\n{error}",
     "Failed to purge {filename}:\n{error}": "Leegmaken van {filename} mislukt:\n{error}",
     "Failed to query hotspot state": "Opvragen van hotspotstatus mislukt",
     "Failed to read \"{name}\": {error}": "Kan \"{name}\" niet lezen: {error}",
@@ -2383,6 +2386,8 @@
     "Selected:": "Geselecteerd:",
     "Selection Highlight": "Selectiemarkering",
     "Selection Required": "Selectie vereist",
+    "Selection contains duplicate item names: {names} (+{extra} more). Nothing was moved.": "Selectie bevat dubbele itemnamen: {names} (+{extra} meer). Er is niets verplaatst.",
+    "Selection contains duplicate item names: {names}. Nothing was moved.": "Selectie bevat dubbele itemnamen: {names}. Er is niets verplaatst.",
     "Send ICMP echo, TCP connect, UDP reachability, or Web latency probes": "ICMP-echo-, TCP-connect-, UDP-bereikbaarheids- of weblatentietests verzenden",
     "Send a one-time test message to this webhook URL": "Een eenmalig testbericht naar deze webhook-URL sturen",
     "Sending request...": "Verzoek verzenden...",
@@ -3489,6 +3494,10 @@
     "Exported {count} selected database to {path}": {
       "one": "{count} geselecteerde database geëxporteerd naar {path}",
       "other": "{count} geselecteerde databases geëxporteerd naar {path}"
+    },
+    "Failed to move {count} item:\n{error}": {
+      "one": "Kan {count} item niet verplaatsen:\n{error}",
+      "other": "Kan {count} items niet verplaatsen:\n{error}"
     },
     "Filtered Game & Relay Server ({count})": {
       "one": "Gefilterde game- & relayserver ({count})",

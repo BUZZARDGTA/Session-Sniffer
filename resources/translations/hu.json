@@ -329,6 +329,7 @@
     "Candidate {ip} packet count ({exchanged}) exceeds maximum allowed threshold ({limit}).": "A(z) {ip} jelölt csomagszáma ({exchanged}) meghaladja a megengedett maximális küszöböt ({limit}).",
     "Cannot delete the active session log file while GUI session logging is enabled.": "Az aktív munkamenet-naplófájl nem törölhető, amíg a GUI munkamenet-naplózás engedélyezve van.",
     "Cannot export \"{name}\" over itself. Please choose a different destination.": "A(z) „{name}” nem exportálható önmagára. Kérjük, válasszon másik célhelyet.",
+    "Cannot import \"{name}\" because a folder with the same name already exists in the destination.": "A(z) „{name}” nem importálható, mert a célhelyen már létezik azonos nevű mappa.",
     "Cannot keep & merge multiple entries from the same conflict group — select at most one winner per group": "Nem lehet több bejegyzést megtartani és egyesíteni ugyanabból az ütközési csoportból — csoportonként legfeljebb egy győztest válasszon",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group": "Nem lehet több bejegyzést megtartani ugyanabból az ütközési csoportból — csoportonként legfeljebb egy nyertest válasszon",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group.": "Nem lehet több bejegyzést megtartani ugyanabból az ütközési csoportból — csoportonként legfeljebb egy győztest válasszon.",
@@ -1031,6 +1032,7 @@
     "Failed to configure hotspot credentials": "Nem sikerült beállítani a hotspot hitelesítő adatait",
     "Failed to create database \"{name}\":\n{error}": "Nem sikerült létrehozni a(z) „{name}” adatbázist:\n{error}",
     "Failed to create folder \"{name}\":\n{error}": "Nem sikerült létrehozni a(z) „{name}” mappát:\n{error}",
+    "Failed to delete \"{name}\":\n{error}": "Nem sikerült törölni a(z) „{name}” elemet:\n{error}",
     "Failed to disable Internet Connection Sharing": "Nem sikerült letiltani az Internetkapcsolat megosztását",
     "Failed to download the update.\n\n{error}": "Nem sikerült letölteni a frissítést.\n\n{error}",
     "Failed to export \"{name}\":\n{error}": "Nem sikerült exportálni a(z) „{name}” fájlt:\n{error}",
@@ -1046,6 +1048,7 @@
     "Failed to import themes from clipboard:\n\n{error}": "Nem sikerült importálni a témákat a vágólapról:\n\n{error}",
     "Failed to import themes:\n\n{error}": "Nem sikerült importálni a témákat:\n\n{error}",
     "Failed to initiate check-ping request": "Nem sikerült elindítani a check-ping kérést",
+    "Failed to move \"{name}\":\n{error}": "Nem sikerült áthelyezni a(z) „{name}” elemet:\n{error}",
     "Failed to purge {filename}:\n{error}": "Nem sikerült kiüríteni a(z) {filename} fájlt:\n{error}",
     "Failed to query hotspot state": "Nem sikerült lekérdezni a hotspot állapotát",
     "Failed to read \"{name}\": {error}": "Nem sikerült beolvasni a(z) „{name}” fájlt: {error}",
@@ -2383,6 +2386,8 @@
     "Selected:": "Kijelölve:",
     "Selection Highlight": "Kijelölés kiemelése",
     "Selection Required": "Kijelölés szükséges",
+    "Selection contains duplicate item names: {names} (+{extra} more). Nothing was moved.": "A kijelölés azonos nevű elemeket tartalmaz: {names} (+{extra} további). Nem történt áthelyezés.",
+    "Selection contains duplicate item names: {names}. Nothing was moved.": "A kijelölés azonos nevű elemeket tartalmaz: {names}. Nem történt áthelyezés.",
     "Send ICMP echo, TCP connect, UDP reachability, or Web latency probes": "ICMP echo, TCP csatlakozás, UDP elérhetőség vagy webes késleltetési próbák küldése",
     "Send a one-time test message to this webhook URL": "Egyszeri tesztüzenet küldése erre a webhook URL-re",
     "Sending request...": "Kérés küldése...",
@@ -3489,6 +3494,10 @@
     "Exported {count} selected database to {path}": {
       "one": "{count} kijelölt adatbázis exportálva ide: {path}",
       "other": "{count} kijelölt adatbázis exportálva ide: {path}"
+    },
+    "Failed to move {count} item:\n{error}": {
+      "one": "Nem sikerült áthelyezni {count} elemet:\n{error}",
+      "other": "Nem sikerült áthelyezni {count} elemet:\n{error}"
     },
     "Filtered Game & Relay Server ({count})": {
       "one": "Szűrt játék- és relészerver ({count})",

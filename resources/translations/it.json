@@ -329,6 +329,7 @@
     "Candidate {ip} packet count ({exchanged}) exceeds maximum allowed threshold ({limit}).": "Il conteggio pacchetti del candidato {ip} ({exchanged}) supera la soglia massima consentita ({limit}).",
     "Cannot delete the active session log file while GUI session logging is enabled.": "Impossibile eliminare il file di registro della sessione attiva mentre la registrazione della sessione GUI è abilitata.",
     "Cannot export \"{name}\" over itself. Please choose a different destination.": "Impossibile esportare \"{name}\" su sé stesso. Scegli una destinazione diversa.",
+    "Cannot import \"{name}\" because a folder with the same name already exists in the destination.": "Impossibile importare \"{name}\" perché nella destinazione esiste già una cartella con lo stesso nome.",
     "Cannot keep & merge multiple entries from the same conflict group — select at most one winner per group": "Impossibile mantenere e unire più voci dallo stesso gruppo di conflitto — seleziona al massimo un vincitore per gruppo",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group": "Impossibile mantenere più voci dallo stesso gruppo di conflitto — seleziona al massimo un vincitore per gruppo",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group.": "Impossibile mantenere più voci dallo stesso gruppo di conflitto — seleziona al massimo un vincitore per gruppo.",
@@ -1031,6 +1032,7 @@
     "Failed to configure hotspot credentials": "Impossibile configurare le credenziali dell'hotspot",
     "Failed to create database \"{name}\":\n{error}": "Impossibile creare il database \"{name}\":\n{error}",
     "Failed to create folder \"{name}\":\n{error}": "Impossibile creare la cartella \"{name}\":\n{error}",
+    "Failed to delete \"{name}\":\n{error}": "Impossibile eliminare \"{name}\":\n{error}",
     "Failed to disable Internet Connection Sharing": "Impossibile disabilitare la Condivisione connessione Internet",
     "Failed to download the update.\n\n{error}": "Impossibile scaricare l'aggiornamento.\n\n{error}",
     "Failed to export \"{name}\":\n{error}": "Impossibile esportare \"{name}\":\n{error}",
@@ -1046,6 +1048,7 @@
     "Failed to import themes from clipboard:\n\n{error}": "Impossibile importare i temi dagli appunti:\n\n{error}",
     "Failed to import themes:\n\n{error}": "Impossibile importare i temi:\n\n{error}",
     "Failed to initiate check-ping request": "Impossibile avviare la richiesta check-ping",
+    "Failed to move \"{name}\":\n{error}": "Impossibile spostare \"{name}\":\n{error}",
     "Failed to purge {filename}:\n{error}": "Impossibile svuotare {filename}:\n{error}",
     "Failed to query hotspot state": "Impossibile interrogare lo stato dell'hotspot",
     "Failed to read \"{name}\": {error}": "Impossibile leggere \"{name}\": {error}",
@@ -2383,6 +2386,8 @@
     "Selected:": "Selezionati:",
     "Selection Highlight": "Evidenziazione selezione",
     "Selection Required": "Selezione richiesta",
+    "Selection contains duplicate item names: {names} (+{extra} more). Nothing was moved.": "La selezione contiene nomi di elementi duplicati: {names} (+{extra} altri). Non è stato spostato nulla.",
+    "Selection contains duplicate item names: {names}. Nothing was moved.": "La selezione contiene nomi di elementi duplicati: {names}. Non è stato spostato nulla.",
     "Send ICMP echo, TCP connect, UDP reachability, or Web latency probes": "Invia sonde ICMP echo, TCP connect, raggiungibilità UDP o latenza Web",
     "Send a one-time test message to this webhook URL": "Invia un messaggio di prova singolo a questo URL webhook",
     "Sending request...": "Invio richiesta...",
@@ -3489,6 +3494,10 @@
     "Exported {count} selected database to {path}": {
       "one": "Esportato {count} database selezionato in {path}",
       "other": "Esportati {count} database selezionati in {path}"
+    },
+    "Failed to move {count} item:\n{error}": {
+      "one": "Impossibile spostare {count} elemento:\n{error}",
+      "other": "Impossibile spostare {count} elementi:\n{error}"
     },
     "Filtered Game & Relay Server ({count})": {
       "one": "Server di gioco & relay filtrato ({count})",

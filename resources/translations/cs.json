@@ -329,6 +329,7 @@
     "Candidate {ip} packet count ({exchanged}) exceeds maximum allowed threshold ({limit}).": "Počet paketů kandidáta {ip} ({exchanged}) překračuje maximální povolený práh ({limit}).",
     "Cannot delete the active session log file while GUI session logging is enabled.": "Nelze odstranit aktivní soubor protokolu relace, pokud je zapnuto protokolování relací v GUI.",
     "Cannot export \"{name}\" over itself. Please choose a different destination.": "Soubor „{name}“ nelze exportovat sám přes sebe. Zvolte prosím jiný cíl.",
+    "Cannot import \"{name}\" because a folder with the same name already exists in the destination.": "Nelze importovat „{name}“, protože v cíli již existuje složka se stejným názvem.",
     "Cannot keep & merge multiple entries from the same conflict group — select at most one winner per group": "Nelze ponechat a sloučit více záznamů ze stejné konfliktní skupiny — vyberte nejvýše jeden vítězný záznam na skupinu",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group": "Nelze ponechat více záznamů ze stejné konfliktní skupiny — vyberte nejvýše jeden vítězný záznam na skupinu",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group.": "Nelze ponechat více záznamů ze stejné konfliktní skupiny — vyberte nejvýše jeden vítězný záznam na skupinu.",
@@ -1031,6 +1032,7 @@
     "Failed to configure hotspot credentials": "Nepodařilo se nastavit přihlašovací údaje hotspotu",
     "Failed to create database \"{name}\":\n{error}": "Nepodařilo se vytvořit databázi „{name}“:\n{error}",
     "Failed to create folder \"{name}\":\n{error}": "Nepodařilo se vytvořit složku „{name}“:\n{error}",
+    "Failed to delete \"{name}\":\n{error}": "Odstranění položky „{name}“ selhalo:\n{error}",
     "Failed to disable Internet Connection Sharing": "Nepodařilo se vypnout Sdílení připojení k internetu",
     "Failed to download the update.\n\n{error}": "Nepodařilo se stáhnout aktualizaci.\n\n{error}",
     "Failed to export \"{name}\":\n{error}": "Export položky „{name}“ selhal:\n{error}",
@@ -1046,6 +1048,7 @@
     "Failed to import themes from clipboard:\n\n{error}": "Nepodařilo se importovat motivy ze schránky:\n\n{error}",
     "Failed to import themes:\n\n{error}": "Nepodařilo se importovat motivy:\n\n{error}",
     "Failed to initiate check-ping request": "Nepodařilo se zahájit požadavek check-ping",
+    "Failed to move \"{name}\":\n{error}": "Přesunutí položky „{name}“ selhalo:\n{error}",
     "Failed to purge {filename}:\n{error}": "Nepodařilo se vyčistit {filename}:\n{error}",
     "Failed to query hotspot state": "Nepodařilo se zjistit stav hotspotu",
     "Failed to read \"{name}\": {error}": "Nepodařilo se přečíst „{name}“: {error}",
@@ -2383,6 +2386,8 @@
     "Selected:": "Vybráno:",
     "Selection Highlight": "Zvýraznění výběru",
     "Selection Required": "Je vyžadován výběr",
+    "Selection contains duplicate item names: {names} (+{extra} more). Nothing was moved.": "Výběr obsahuje duplicitní názvy položek: {names} (+{extra} dalších). Nic nebylo přesunuto.",
+    "Selection contains duplicate item names: {names}. Nothing was moved.": "Výběr obsahuje duplicitní názvy položek: {names}. Nic nebylo přesunuto.",
     "Send ICMP echo, TCP connect, UDP reachability, or Web latency probes": "Odesílat sondy ICMP echo, TCP connect, dostupnosti UDP nebo webové latence",
     "Send a one-time test message to this webhook URL": "Odeslat jednorázovou testovací zprávu na tuto URL adresu webhooku",
     "Sending request...": "Odesílání požadavku...",
@@ -3563,6 +3568,11 @@
       "one": "Exportována {count} vybraná databáze do {path}",
       "few": "Exportovány {count} vybrané databáze do {path}",
       "other": "Exportováno {count} vybraných databází do {path}"
+    },
+    "Failed to move {count} item:\n{error}": {
+      "one": "Nepodařilo se přesunout {count} položku:\n{error}",
+      "few": "Nepodařilo se přesunout {count} položky:\n{error}",
+      "other": "Nepodařilo se přesunout {count} položek:\n{error}"
     },
     "Filtered Game & Relay Server ({count})": {
       "one": "Filtrovaný herní a relay server ({count})",

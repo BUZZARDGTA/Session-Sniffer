@@ -329,6 +329,7 @@
     "Candidate {ip} packet count ({exchanged}) exceeds maximum allowed threshold ({limit}).": "A contagem de pacotes do candidato {ip} ({exchanged}) excede o limite máximo permitido ({limit}).",
     "Cannot delete the active session log file while GUI session logging is enabled.": "Não é possível excluir o arquivo de log da sessão ativa enquanto o registro de sessão da GUI estiver habilitado.",
     "Cannot export \"{name}\" over itself. Please choose a different destination.": "Não é possível exportar \"{name}\" sobre si mesmo. Escolha um destino diferente.",
+    "Cannot import \"{name}\" because a folder with the same name already exists in the destination.": "Não é possível importar \"{name}\" porque já existe uma pasta com o mesmo nome no destino.",
     "Cannot keep & merge multiple entries from the same conflict group — select at most one winner per group": "Não é possível manter e mesclar várias entradas do mesmo grupo de conflito — selecione no máximo um vencedor por grupo",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group": "Não é possível manter várias entradas do mesmo grupo de conflito — selecione no máximo um vencedor por grupo",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group.": "Não é possível manter várias entradas do mesmo grupo de conflito — selecione no máximo um vencedor por grupo.",
@@ -1031,6 +1032,7 @@
     "Failed to configure hotspot credentials": "Falha ao configurar as credenciais do hotspot",
     "Failed to create database \"{name}\":\n{error}": "Falha ao criar o banco de dados \"{name}\":\n{error}",
     "Failed to create folder \"{name}\":\n{error}": "Falha ao criar a pasta \"{name}\":\n{error}",
+    "Failed to delete \"{name}\":\n{error}": "Falha ao excluir \"{name}\":\n{error}",
     "Failed to disable Internet Connection Sharing": "Falha ao desativar o Compartilhamento de Conexão com a Internet",
     "Failed to download the update.\n\n{error}": "Falha ao baixar a atualização.\n\n{error}",
     "Failed to export \"{name}\":\n{error}": "Falha ao exportar \"{name}\":\n{error}",
@@ -1046,6 +1048,7 @@
     "Failed to import themes from clipboard:\n\n{error}": "Falha ao importar os temas da área de transferência:\n\n{error}",
     "Failed to import themes:\n\n{error}": "Falha ao importar os temas:\n\n{error}",
     "Failed to initiate check-ping request": "Falha ao iniciar a solicitação de check-ping",
+    "Failed to move \"{name}\":\n{error}": "Falha ao mover \"{name}\":\n{error}",
     "Failed to purge {filename}:\n{error}": "Falha ao limpar {filename}:\n{error}",
     "Failed to query hotspot state": "Falha ao consultar o estado do hotspot",
     "Failed to read \"{name}\": {error}": "Falha ao ler \"{name}\": {error}",
@@ -2383,6 +2386,8 @@
     "Selected:": "Selecionado:",
     "Selection Highlight": "Realce da seleção",
     "Selection Required": "Seleção obrigatória",
+    "Selection contains duplicate item names: {names} (+{extra} more). Nothing was moved.": "A seleção contém nomes de itens duplicados: {names} (+{extra} mais). Nada foi movido.",
+    "Selection contains duplicate item names: {names}. Nothing was moved.": "A seleção contém nomes de itens duplicados: {names}. Nada foi movido.",
     "Send ICMP echo, TCP connect, UDP reachability, or Web latency probes": "Enviar sondagens de eco ICMP, conexão TCP, acessibilidade UDP ou latência Web",
     "Send a one-time test message to this webhook URL": "Enviar uma mensagem de teste única para esta URL de webhook",
     "Sending request...": "Enviando solicitação...",
@@ -3489,6 +3494,10 @@
     "Exported {count} selected database to {path}": {
       "one": "{count} banco de dados selecionado exportado para {path}",
       "other": "{count} bancos de dados selecionados exportados para {path}"
+    },
+    "Failed to move {count} item:\n{error}": {
+      "one": "Falha ao mover {count} item:\n{error}",
+      "other": "Falha ao mover {count} itens:\n{error}"
     },
     "Filtered Game & Relay Server ({count})": {
       "one": "Servidor de jogo e relay filtrado ({count})",

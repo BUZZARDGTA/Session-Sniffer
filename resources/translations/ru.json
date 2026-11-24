@@ -329,6 +329,7 @@
     "Candidate {ip} packet count ({exchanged}) exceeds maximum allowed threshold ({limit}).": "Количество пакетов кандидата {ip} ({exchanged}) превышает максимально допустимый порог ({limit}).",
     "Cannot delete the active session log file while GUI session logging is enabled.": "Нельзя удалить активный файл журнала сессии, пока включено журналирование сессий в GUI.",
     "Cannot export \"{name}\" over itself. Please choose a different destination.": "Нельзя экспортировать «{name}» поверх самого себя. Выберите другое место назначения.",
+    "Cannot import \"{name}\" because a folder with the same name already exists in the destination.": "Невозможно импортировать «{name}», так как в папке назначения уже существует папка с таким же именем.",
     "Cannot keep & merge multiple entries from the same conflict group — select at most one winner per group": "Нельзя оставить и объединить несколько записей из одной группы конфликтов — выберите не более одного победителя на группу",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group": "Нельзя оставить несколько записей из одной группы конфликтов — выберите не более одного победителя на группу",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group.": "Нельзя оставить несколько записей из одной группы конфликтов — выберите не более одного победителя на группу.",
@@ -1031,6 +1032,7 @@
     "Failed to configure hotspot credentials": "Не удалось настроить учётные данные точки доступа",
     "Failed to create database \"{name}\":\n{error}": "Не удалось создать базу данных «{name}»:\n{error}",
     "Failed to create folder \"{name}\":\n{error}": "Не удалось создать папку «{name}»:\n{error}",
+    "Failed to delete \"{name}\":\n{error}": "Не удалось удалить «{name}»:\n{error}",
     "Failed to disable Internet Connection Sharing": "Не удалось отключить общий доступ к подключению к Интернету",
     "Failed to download the update.\n\n{error}": "Не удалось загрузить обновление.\n\n{error}",
     "Failed to export \"{name}\":\n{error}": "Не удалось экспортировать «{name}»:\n{error}",
@@ -1046,6 +1048,7 @@
     "Failed to import themes from clipboard:\n\n{error}": "Не удалось импортировать темы из буфера обмена:\n\n{error}",
     "Failed to import themes:\n\n{error}": "Не удалось импортировать темы:\n\n{error}",
     "Failed to initiate check-ping request": "Не удалось инициировать запрос check-ping",
+    "Failed to move \"{name}\":\n{error}": "Не удалось переместить «{name}»:\n{error}",
     "Failed to purge {filename}:\n{error}": "Не удалось очистить {filename}:\n{error}",
     "Failed to query hotspot state": "Не удалось запросить состояние точки доступа",
     "Failed to read \"{name}\": {error}": "Не удалось прочитать «{name}»: {error}",
@@ -2383,6 +2386,8 @@
     "Selected:": "Выбрано:",
     "Selection Highlight": "Подсветка выделения",
     "Selection Required": "Требуется выбор",
+    "Selection contains duplicate item names: {names} (+{extra} more). Nothing was moved.": "Выбор содержит повторяющиеся имена элементов: {names} (+ ещё {extra}). Ничего не перемещено.",
+    "Selection contains duplicate item names: {names}. Nothing was moved.": "Выбор содержит повторяющиеся имена элементов: {names}. Ничего не перемещено.",
     "Send ICMP echo, TCP connect, UDP reachability, or Web latency probes": "Отправлять пробы ICMP-эхо, TCP-подключения, доступности UDP или веб-задержки",
     "Send a one-time test message to this webhook URL": "Отправить разовое тестовое сообщение на этот URL вебхука",
     "Sending request...": "Отправка запроса...",
@@ -3637,6 +3642,12 @@
       "few": "Экспортированы {count} выбранные базы данных в {path}",
       "many": "Экспортировано {count} выбранных баз данных в {path}",
       "other": "Экспортировано {count} выбранных баз данных в {path}"
+    },
+    "Failed to move {count} item:\n{error}": {
+      "one": "Не удалось переместить {count} элемент:\n{error}",
+      "few": "Не удалось переместить {count} элемента:\n{error}",
+      "many": "Не удалось переместить {count} элементов:\n{error}",
+      "other": "Не удалось переместить {count} элемента:\n{error}"
     },
     "Filtered Game & Relay Server ({count})": {
       "one": "Отфильтрованный игровой/релей-сервер ({count})",

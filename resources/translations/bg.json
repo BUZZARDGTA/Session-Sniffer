@@ -329,6 +329,7 @@
     "Candidate {ip} packet count ({exchanged}) exceeds maximum allowed threshold ({limit}).": "Броят пакети ({exchanged}) на кандидата {ip} надвишава максимално допустимия праг ({limit}).",
     "Cannot delete the active session log file while GUI session logging is enabled.": "Активният журнален файл на сесията не може да бъде изтрит, докато е включено записването на сесии в графичния интерфейс.",
     "Cannot export \"{name}\" over itself. Please choose a different destination.": "Не може да експортирате „{name}“ върху самия него. Моля, изберете друга дестинация.",
+    "Cannot import \"{name}\" because a folder with the same name already exists in the destination.": "„{name}“ не може да бъде импортиран, защото в целта вече съществува папка със същото име.",
     "Cannot keep & merge multiple entries from the same conflict group — select at most one winner per group": "Не можете да запазите и обедините няколко записа от една и съща конфликтна група — изберете най-много един победител на група",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group": "Не можете да запазите няколко записа от една и съща конфликтна група — изберете най-много един победител на група",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group.": "Не можете да запазите няколко записа от една и съща конфликтна група — изберете най-много един победител на група.",
@@ -1031,6 +1032,7 @@
     "Failed to configure hotspot credentials": "Неуспешно конфигуриране на данните за достъп до точката за достъп",
     "Failed to create database \"{name}\":\n{error}": "Неуспешно създаване на базата данни „{name}“:\n{error}",
     "Failed to create folder \"{name}\":\n{error}": "Неуспешно създаване на папката „{name}“:\n{error}",
+    "Failed to delete \"{name}\":\n{error}": "Неуспешно изтриване на „{name}“:\n{error}",
     "Failed to disable Internet Connection Sharing": "Неуспешно изключване на споделянето на интернет връзката",
     "Failed to download the update.\n\n{error}": "Неуспешно изтегляне на обновлението.\n\n{error}",
     "Failed to export \"{name}\":\n{error}": "Неуспешно експортиране на „{name}“:\n{error}",
@@ -1046,6 +1048,7 @@
     "Failed to import themes from clipboard:\n\n{error}": "Неуспешно импортиране на темите от клипборда:\n\n{error}",
     "Failed to import themes:\n\n{error}": "Неуспешно импортиране на темите:\n\n{error}",
     "Failed to initiate check-ping request": "Неуспешно стартиране на заявка за check-ping",
+    "Failed to move \"{name}\":\n{error}": "Неуспешно преместване на „{name}“:\n{error}",
     "Failed to purge {filename}:\n{error}": "Неуспешно изчистване на {filename}:\n{error}",
     "Failed to query hotspot state": "Неуспешна проверка на състоянието на точката за достъп",
     "Failed to read \"{name}\": {error}": "Неуспешно четене на „{name}“: {error}",
@@ -2383,6 +2386,8 @@
     "Selected:": "Избрани:",
     "Selection Highlight": "Осветяване при избор",
     "Selection Required": "Необходим е избор",
+    "Selection contains duplicate item names: {names} (+{extra} more). Nothing was moved.": "Изборът съдържа дублиращи се имена на елементи: {names} (+{extra} още). Нищо не беше преместено.",
+    "Selection contains duplicate item names: {names}. Nothing was moved.": "Изборът съдържа дублиращи се имена на елементи: {names}. Нищо не беше преместено.",
     "Send ICMP echo, TCP connect, UDP reachability, or Web latency probes": "Изпращане на сонди за ICMP echo, TCP свързване, UDP достъпност или уеб латентност",
     "Send a one-time test message to this webhook URL": "Изпращане на еднократно тестово съобщение до този webhook URL",
     "Sending request...": "Изпращане на заявката...",
@@ -3489,6 +3494,10 @@
     "Exported {count} selected database to {path}": {
       "one": "Експортирана е {count} избрана база данни в {path}",
       "other": "Експортирани са {count} избрани бази данни в {path}"
+    },
+    "Failed to move {count} item:\n{error}": {
+      "one": "Неуспешно преместване на {count} елемент:\n{error}",
+      "other": "Неуспешно преместване на {count} елемента:\n{error}"
     },
     "Filtered Game & Relay Server ({count})": {
       "one": "Филтриран сървър на играта и реле ({count})",

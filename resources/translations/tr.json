@@ -329,6 +329,7 @@
     "Candidate {ip} packet count ({exchanged}) exceeds maximum allowed threshold ({limit}).": "{ip} adayının paket sayısı ({exchanged}) izin verilen en yüksek eşiği ({limit}) aşıyor.",
     "Cannot delete the active session log file while GUI session logging is enabled.": "GUI oturum günlük kaydı etkinken etkin oturum günlük dosyası silinemez.",
     "Cannot export \"{name}\" over itself. Please choose a different destination.": "\"{name}\" kendi üzerine dışa aktarılamaz. Lütfen farklı bir hedef seçin.",
+    "Cannot import \"{name}\" because a folder with the same name already exists in the destination.": "Hedefte aynı ada sahip bir klasör zaten bulunduğundan \"{name}\" içe aktarılamıyor.",
     "Cannot keep & merge multiple entries from the same conflict group — select at most one winner per group": "Aynı çakışma grubundan birden fazla girdi tutulup birleştirilemez — grup başına en fazla bir kazanan seçin",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group": "Aynı çakışma grubundan birden fazla girdi tutulamaz — grup başına en fazla bir kazanan seçin",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group.": "Aynı çakışma grubundan birden fazla girdi tutulamaz — grup başına en fazla bir kazanan seçin.",
@@ -1031,6 +1032,7 @@
     "Failed to configure hotspot credentials": "Etkin nokta kimlik bilgileri yapılandırılamadı",
     "Failed to create database \"{name}\":\n{error}": "\"{name}\" veritabanı oluşturulamadı:\n{error}",
     "Failed to create folder \"{name}\":\n{error}": "\"{name}\" klasörü oluşturulamadı:\n{error}",
+    "Failed to delete \"{name}\":\n{error}": "\"{name}\" silinemedi:\n{error}",
     "Failed to disable Internet Connection Sharing": "İnternet Bağlantısı Paylaşımı devre dışı bırakılamadı",
     "Failed to download the update.\n\n{error}": "Güncelleme indirilemedi.\n\n{error}",
     "Failed to export \"{name}\":\n{error}": "\"{name}\" dışa aktarılamadı:\n{error}",
@@ -1046,6 +1048,7 @@
     "Failed to import themes from clipboard:\n\n{error}": "Temalar panodan içe aktarılamadı:\n\n{error}",
     "Failed to import themes:\n\n{error}": "Temalar içe aktarılamadı:\n\n{error}",
     "Failed to initiate check-ping request": "Check-ping isteği başlatılamadı",
+    "Failed to move \"{name}\":\n{error}": "\"{name}\" taşınamadı:\n{error}",
     "Failed to purge {filename}:\n{error}": "{filename} temizlenemedi:\n{error}",
     "Failed to query hotspot state": "Etkin nokta durumu sorgulanamadı",
     "Failed to read \"{name}\": {error}": "\"{name}\" okunamadı: {error}",
@@ -2383,6 +2386,8 @@
     "Selected:": "Seçili:",
     "Selection Highlight": "Seçim Vurgusu",
     "Selection Required": "Seçim Gerekli",
+    "Selection contains duplicate item names: {names} (+{extra} more). Nothing was moved.": "Seçim yinelenen öğe adları içeriyor: {names} (+{extra} daha). Hiçbir şey taşınmadı.",
+    "Selection contains duplicate item names: {names}. Nothing was moved.": "Seçim yinelenen öğe adları içeriyor: {names}. Hiçbir şey taşınmadı.",
     "Send ICMP echo, TCP connect, UDP reachability, or Web latency probes": "ICMP yankı, TCP bağlantı, UDP erişilebilirlik veya Web gecikme yoklamaları gönder",
     "Send a one-time test message to this webhook URL": "Bu webhook URL'sine tek seferlik bir test mesajı gönder",
     "Sending request...": "İstek gönderiliyor...",
@@ -3489,6 +3494,10 @@
     "Exported {count} selected database to {path}": {
       "one": "Seçili {count} veritabanı {path} konumuna dışa aktarıldı",
       "other": "Seçili {count} veritabanı {path} konumuna dışa aktarıldı"
+    },
+    "Failed to move {count} item:\n{error}": {
+      "one": "{count} öğe taşınamadı:\n{error}",
+      "other": "{count} öğe taşınamadı:\n{error}"
     },
     "Filtered Game & Relay Server ({count})": {
       "one": "Filtrelenen Oyun ve Aktarım Sunucusu ({count})",

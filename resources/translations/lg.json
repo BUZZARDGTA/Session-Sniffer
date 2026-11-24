@@ -329,6 +329,7 @@
     "Candidate {ip} packet count ({exchanged}) exceeds maximum allowed threshold ({limit}).": "Omuwendo gwa pakiti z'ekiteeberezebwa {ip} ({exchanged}) gusukkiridde ekkomo erikkirizibwa ({limit}).",
     "Cannot delete the active session log file while GUI session logging is enabled.": "Tosobola kusangula fayiro ya log y'olutuula oluliko ng'okuwandiika log y'olutuula mu GUI kuteekeddwako.",
     "Cannot export \"{name}\" over itself. Please choose a different destination.": "Tosobola kufulunya \"{name}\" ku yo yennyini. Nsaba olonde ekifo ekirala.",
+    "Cannot import \"{name}\" because a folder with the same name already exists in the destination.": "Tewasobola kuyingiza \"{name}\" kubanga eterekero eririna erinnya lye limu liri mu kifo ekigendererwa.",
     "Cannot keep & merge multiple entries from the same conflict group — select at most one winner per group": "Tosobola kukuuma na kugatta biwandiiko bingi okuva mu kibinja ekimu eky'okukontana — londa ekisinga kimu kyokka mu buli kibinja",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group": "Tosobola kukuuma biwandiiko bingi okuva mu kibinja ekimu eky'okukontana — londa ekisinga kimu kyokka mu buli kibinja",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group.": "Tosobola kukuuma biwandiiko bingi okuva mu kibinja ekimu eky'okukontana — londa ekimu kyokka mu buli kibinja.",
@@ -1031,6 +1032,7 @@
     "Failed to configure hotspot credentials": "Okutegeka ebikwata ku hotspot kulemye",
     "Failed to create database \"{name}\":\n{error}": "Okukola etterekero \"{name}\" kulemye:\n{error}",
     "Failed to create folder \"{name}\":\n{error}": "Okukola fooluda \"{name}\" kulemye:\n{error}",
+    "Failed to delete \"{name}\":\n{error}": "Okusangula \"{name}\" kulemye:\n{error}",
     "Failed to disable Internet Connection Sharing": "Okuggyako Internet Connection Sharing kulemye",
     "Failed to download the update.\n\n{error}": "Okuwanula ekintu ekipya kulemye.\n\n{error}",
     "Failed to export \"{name}\":\n{error}": "Okufulunya \"{name}\" kulemye:\n{error}",
@@ -1046,6 +1048,7 @@
     "Failed to import themes from clipboard:\n\n{error}": "Okuyingiza endabika okuva ku clipboard kulemye:\n\n{error}",
     "Failed to import themes:\n\n{error}": "Okuyingiza endabika kulemye:\n\n{error}",
     "Failed to initiate check-ping request": "Okutandika okusaba kwa check-ping kulemye",
+    "Failed to move \"{name}\":\n{error}": "Okusengula \"{name}\" kulemye:\n{error}",
     "Failed to purge {filename}:\n{error}": "Okusangula byonna mu {filename} kulemye:\n{error}",
     "Failed to query hotspot state": "Okubuuza embeera ya hotspot kulemye",
     "Failed to read \"{name}\": {error}": "Okusoma \"{name}\" kulemye: {error}",
@@ -2383,6 +2386,8 @@
     "Selected:": "Ebilondeddwa:",
     "Selection Highlight": "Ekikwatawo Okulonda",
     "Selection Required": "Okulonda Kwetaagisa",
+    "Selection contains duplicate item names: {names} (+{extra} more). Nothing was moved.": "Ebyalondeddwa birimu amannya ageefaananya: {names} (+{extra} ebirala). Tewali kyasenguddwa.",
+    "Selection contains duplicate item names: {names}. Nothing was moved.": "Ebyalondeddwa birimu amannya ageefaananya: {names}. Tewali kyasenguddwa.",
     "Send ICMP echo, TCP connect, UDP reachability, or Web latency probes": "Weereza ICMP echo, okugatta kwa TCP, okutuukirira kwa UDP, oba ebipima obukwafu bw'omukutu",
     "Send a one-time test message to this webhook URL": "Weereza obubaka bw'okugezesa omulundi gumu ku URL ya webhook eno",
     "Sending request...": "Eweereza okusaba...",
@@ -3489,6 +3494,10 @@
     "Exported {count} selected database to {path}": {
       "one": "Etterekero {count} erirondeddwa lifulumiziddwa mu {path}",
       "other": "Amaterekero {count} agarondeddwa gafulumiziddwa mu {path}"
+    },
+    "Failed to move {count} item:\n{error}": {
+      "one": "Okusengula ekintu {count} kulemye:\n{error}",
+      "other": "Okusengula ebintu {count} kulemye:\n{error}"
     },
     "Filtered Game & Relay Server ({count})": {
       "one": "Ssaava y'Omuzannyo & Relay Esengejjeddwa ({count})",

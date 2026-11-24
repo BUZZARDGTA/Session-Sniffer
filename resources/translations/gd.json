@@ -329,6 +329,7 @@
     "Candidate {ip} packet count ({exchanged}) exceeds maximum allowed threshold ({limit}).": "Tha cunntas phacaidean an tagaire {ip} ({exchanged}) nas àirde na an tairsgeach as motha ceadaichte ({limit}).",
     "Cannot delete the active session log file while GUI session logging is enabled.": "Chan urrainnear faidhle loga an t-seisein ghnìomhaich a sguabadh às fhad 's a tha logadh seisein GUI an comas.",
     "Cannot export \"{name}\" over itself. Please choose a different destination.": "Chan urrainnear \"{name}\" às-phortadh thairis air fhèin. Tagh ceann-uidhe eile.",
+    "Cannot import \"{name}\" because a folder with the same name already exists in the destination.": "Cha ghabh \"{name}\" ion-phortadh oir tha pasgan leis an aon ainm sa cheann-uidhe mu thràth.",
     "Cannot keep & merge multiple entries from the same conflict group — select at most one winner per group": "Chan urrainnear iomadh innteart on aon bhuidheann còmhstri a chumail & a cho-aontachadh — tagh aon bhuannaiche aig a' char as motha sa bhuidheann",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group": "Chan urrainnear iomadh innteart on aon bhuidheann còmhstri a chumail — tagh aon bhuannaiche aig a' char as motha sa bhuidheann",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group.": "Chan urrainnear iomadh innteart on aon bhuidheann còmhstri a chumail — tagh aon bhuannaiche aig a' char as motha sa bhuidheann.",
@@ -1031,6 +1032,7 @@
     "Failed to configure hotspot credentials": "Dh'fhàillig rèiteachadh teisteanasan a' bhaile-lìn",
     "Failed to create database \"{name}\":\n{error}": "Dh'fhàillig cruthachadh an stòir-dàta \"{name}\":\n{error}",
     "Failed to create folder \"{name}\":\n{error}": "Dh'fhàillig cruthachadh a' phasgain \"{name}\":\n{error}",
+    "Failed to delete \"{name}\":\n{error}": "Dh'fhàillig sguabadh às \"{name}\":\n{error}",
     "Failed to disable Internet Connection Sharing": "Dh'fhàillig cur à comas Co-roinneadh Ceangal Eadar-lìon",
     "Failed to download the update.\n\n{error}": "Dh'fhàillig luchdachadh a-nuas an ùrachaidh.\n\n{error}",
     "Failed to export \"{name}\":\n{error}": "Dh'fhàillig às-phortadh \"{name}\":\n{error}",
@@ -1046,6 +1048,7 @@
     "Failed to import themes from clipboard:\n\n{error}": "Dh'fhàillig ion-phortadh tèamannan on stòr-bhòrd:\n\n{error}",
     "Failed to import themes:\n\n{error}": "Dh'fhàillig ion-phortadh chuspairean:\n{error}",
     "Failed to initiate check-ping request": "Dh'fhàillig tòiseachadh iarrtas sgrùdadh-ping",
+    "Failed to move \"{name}\":\n{error}": "Dh'fhàillig gluasad \"{name}\":\n{error}",
     "Failed to purge {filename}:\n{error}": "Dh'fhàillig glanadh {filename}:\n{error}",
     "Failed to query hotspot state": "Dh'fhàillig ceist staide a' bhaile-lìn",
     "Failed to read \"{name}\": {error}": "Dh'fhàillig leughadh \"{name}\": {error}",
@@ -2383,6 +2386,8 @@
     "Selected:": "Air a thaghadh:",
     "Selection Highlight": "Comharrachadh an Taghaidh",
     "Selection Required": "Feum air Taghadh",
+    "Selection contains duplicate item names: {names} (+{extra} more). Nothing was moved.": "Tha ainmean dùblaichte san taghadh: {names} (+{extra} a bharrachd). Cha deach dad a ghluasad.",
+    "Selection contains duplicate item names: {names}. Nothing was moved.": "Tha ainmean dùblaichte san taghadh: {names}. Cha deach dad a ghluasad.",
     "Send ICMP echo, TCP connect, UDP reachability, or Web latency probes": "Cuir pròban mac-talla ICMP, ceangal TCP, ruigsinneachd UDP, no dàil Lìn",
     "Send a one-time test message to this webhook URL": "Cuir teachdaireachd deuchainn aon-ùine gun URL dubhan-lìn seo",
     "Sending request...": "A' cur iarrtas...",
@@ -3637,6 +3642,12 @@
       "two": "{count} stòr-dàta taghte air an às-phortadh gu {path}",
       "few": "{count} stòran-dàta taghte air an às-phortadh gu {path}",
       "other": "{count} stòr-dàta taghte air às-phortadh gu {path}"
+    },
+    "Failed to move {count} item:\n{error}": {
+      "one": "Dh'fhàillig gluasad {count} nì:\n{error}",
+      "two": "Dh'fhàillig gluasad {count} nì:\n{error}",
+      "few": "Dh'fhàillig gluasad {count} nithean:\n{error}",
+      "other": "Dh'fhàillig gluasad {count} nì:\n{error}"
     },
     "Filtered Game & Relay Server ({count})": {
       "one": "Frithealaiche Geama & Ath-chraolaidh Criathraichte ({count})",

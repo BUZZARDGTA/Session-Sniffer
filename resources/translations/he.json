@@ -329,6 +329,7 @@
     "Candidate {ip} packet count ({exchanged}) exceeds maximum allowed threshold ({limit}).": "ספירת החבילות של המועמד {ip} ({exchanged}) חורגת מהסף המרבי המותר ({limit}).",
     "Cannot delete the active session log file while GUI session logging is enabled.": "לא ניתן למחוק את קובץ יומן הסשן הפעיל בזמן שרישום יומן סשן ב-GUI מופעל.",
     "Cannot export \"{name}\" over itself. Please choose a different destination.": "לא ניתן לייצא את \"{name}\" על גבי עצמו. אנא בחר יעד אחר.",
+    "Cannot import \"{name}\" because a folder with the same name already exists in the destination.": "לא ניתן לייבא את \"{name}\" מכיוון שתיקייה באותו שם כבר קיימת ביעד.",
     "Cannot keep & merge multiple entries from the same conflict group — select at most one winner per group": "לא ניתן לשמור ולמזג מספר רשומות מאותה קבוצת התנגשות — בחר לכל היותר זוכה אחד לכל קבוצה",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group": "לא ניתן לשמור מספר רשומות מאותה קבוצת התנגשות — בחר לכל היותר זוכה אחד לכל קבוצה",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group.": "לא ניתן לשמור מספר רשומות מאותה קבוצת התנגשות — בחר זוכה אחד לכל היותר עבור כל קבוצה.",
@@ -1031,6 +1032,7 @@
     "Failed to configure hotspot credentials": "הגדרת פרטי הגישה של הנקודה החמה נכשלה",
     "Failed to create database \"{name}\":\n{error}": "יצירת מסד הנתונים \"{name}\" נכשלה:\n{error}",
     "Failed to create folder \"{name}\":\n{error}": "יצירת התיקייה \"{name}\" נכשלה:\n{error}",
+    "Failed to delete \"{name}\":\n{error}": "מחיקת \"{name}\" נכשלה:\n{error}",
     "Failed to disable Internet Connection Sharing": "השבתת שיתוף החיבור לאינטרנט נכשלה",
     "Failed to download the update.\n\n{error}": "הורדת העדכון נכשלה.\n\n{error}",
     "Failed to export \"{name}\":\n{error}": "שגיאה בייצוא \"{name}\":\n{error}",
@@ -1046,6 +1048,7 @@
     "Failed to import themes from clipboard:\n\n{error}": "ייבוא ערכות הנושא מהלוח נכשל:\n\n{error}",
     "Failed to import themes:\n\n{error}": "ייבוא ערכות הנושא נכשל:\n\n{error}",
     "Failed to initiate check-ping request": "איתחול בקשת בדיקת ה-Ping נכשל",
+    "Failed to move \"{name}\":\n{error}": "העברת \"{name}\" נכשלה:\n{error}",
     "Failed to purge {filename}:\n{error}": "מחיקת התוכן של {filename} נכשלה:\n{error}",
     "Failed to query hotspot state": "תשאול מצב הנקודה החמה נכשל",
     "Failed to read \"{name}\": {error}": "שגיאה בקריאת \"{name}\": {error}",
@@ -2383,6 +2386,8 @@
     "Selected:": "נבחרו:",
     "Selection Highlight": "הדגשת בחירה",
     "Selection Required": "נדרשת בחירה",
+    "Selection contains duplicate item names: {names} (+{extra} more). Nothing was moved.": "הבחירה מכילה שמות פריטים כפולים: {names} (+{extra} נוספים). דבר לא הועבר.",
+    "Selection contains duplicate item names: {names}. Nothing was moved.": "הבחירה מכילה שמות פריטים כפולים: {names}. דבר לא הועבר.",
     "Send ICMP echo, TCP connect, UDP reachability, or Web latency probes": "שלח בדיקות Ping של ICMP echo, חיבור TCP, זמינות UDP או השהיית אינטרנט",
     "Send a one-time test message to this webhook URL": "שלח הודעת בדיקה חד-פעמית לכתובת Webhook זו",
     "Sending request...": "שולח בקשה...",
@@ -3637,6 +3642,12 @@
       "two": "יוצאו {count} מסדי נתונים נבחרים אל {path}",
       "many": "יוצאו {count} מסדי נתונים נבחרים אל {path}",
       "other": "יוצאו {count} מסדי נתונים נבחרים אל {path}"
+    },
+    "Failed to move {count} item:\n{error}": {
+      "one": "העברת פריט אחד ({count}) נכשלה:\n{error}",
+      "two": "העברת {count} פריטים נכשלה:\n{error}",
+      "many": "העברת {count} פריטים נכשלה:\n{error}",
+      "other": "העברת {count} פריטים נכשלה:\n{error}"
     },
     "Filtered Game & Relay Server ({count})": {
       "one": "שרת משחק וממסר מסונן ({count})",

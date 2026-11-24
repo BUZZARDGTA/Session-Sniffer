@@ -329,6 +329,7 @@
     "Candidate {ip} packet count ({exchanged}) exceeds maximum allowed threshold ({limit}).": "Kandidāta {ip} pakešu skaits ({exchanged}) pārsniedz maksimāli pieļaujamo slieksni ({limit}).",
     "Cannot delete the active session log file while GUI session logging is enabled.": "Nevar dzēst aktīvās sesijas žurnāla failu, kamēr ir iespējota GUI sesijas žurnalēšana.",
     "Cannot export \"{name}\" over itself. Please choose a different destination.": "Nevar eksportēt \"{name}\" pāri tam pašam failam. Lūdzu, izvēlieties citu galamērķi.",
+    "Cannot import \"{name}\" because a folder with the same name already exists in the destination.": "Nevar importēt \"{name}\", jo galamērķī jau pastāv mape ar tādu pašu nosaukumu.",
     "Cannot keep & merge multiple entries from the same conflict group — select at most one winner per group": "Nevar paturēt un apvienot vairākus ierakstus no vienas konflikta grupas — atlasiet ne vairāk kā vienu uzvarētāju katrā grupā",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group": "Nevar paturēt vairākus ierakstus no vienas konflikta grupas — atlasiet ne vairāk kā vienu uzvarētāju katrā grupā",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group.": "Nevar paturēt vairākus ierakstus no vienas konflikta grupas — atlasiet ne vairāk kā vienu uzvarētāju katrā grupā.",
@@ -1031,6 +1032,7 @@
     "Failed to configure hotspot credentials": "Neizdevās konfigurēt tīklāja akreditācijas datus",
     "Failed to create database \"{name}\":\n{error}": "Neizdevās izveidot datubāzi \"{name}\":\n{error}",
     "Failed to create folder \"{name}\":\n{error}": "Neizdevās izveidot mapi \"{name}\":\n{error}",
+    "Failed to delete \"{name}\":\n{error}": "Neizdevās izdzēst \"{name}\":\n{error}",
     "Failed to disable Internet Connection Sharing": "Neizdevās atspējot Internet Connection Sharing",
     "Failed to download the update.\n\n{error}": "Neizdevās lejupielādēt atjauninājumu.\n\n{error}",
     "Failed to export \"{name}\":\n{error}": "Neizdevās eksportēt \"{name}\":\n{error}",
@@ -1046,6 +1048,7 @@
     "Failed to import themes from clipboard:\n\n{error}": "Neizdevās importēt motīvus no starpliktuves:\n\n{error}",
     "Failed to import themes:\n\n{error}": "Neizdevās importēt tēmas:\n\n{error}",
     "Failed to initiate check-ping request": "Neizdevās uzsākt check-ping pieprasījumu",
+    "Failed to move \"{name}\":\n{error}": "Neizdevās pārvietot \"{name}\":\n{error}",
     "Failed to purge {filename}:\n{error}": "Neizdevās iztīrīt {filename}:\n{error}",
     "Failed to query hotspot state": "Neizdevās nolasīt tīklāja stāvokli",
     "Failed to read \"{name}\": {error}": "Neizdevās nolasīt \"{name}\": {error}",
@@ -2383,6 +2386,8 @@
     "Selected:": "Atlasīti:",
     "Selection Highlight": "Atlases izcēlums",
     "Selection Required": "Nepieciešama atlase",
+    "Selection contains duplicate item names: {names} (+{extra} more). Nothing was moved.": "Atlasē ir dublēti vienumu nosaukumi: {names} (vēl +{extra}). Nekas netika pārvietots.",
+    "Selection contains duplicate item names: {names}. Nothing was moved.": "Atlasē ir dublēti vienumu nosaukumi: {names}. Nekas netika pārvietots.",
     "Send ICMP echo, TCP connect, UDP reachability, or Web latency probes": "Sūtīt ICMP atbalss, TCP savienojuma, UDP sasniedzamības vai tīmekļa aiztures zondes",
     "Send a one-time test message to this webhook URL": "Nosūtīt vienreizēju testa ziņojumu uz šo Webhook URL",
     "Sending request...": "Nosūta pieprasījumu...",
@@ -3563,6 +3568,11 @@
       "zero": "Eksportēts {count} atlasīto datubāžu uz {path}",
       "one": "Eksportēta {count} atlasītā datubāze uz {path}",
       "other": "Eksportētas {count} atlasītās datubāzes uz {path}"
+    },
+    "Failed to move {count} item:\n{error}": {
+      "zero": "Neizdevās pārvietot {count} vienumu:\n{error}",
+      "one": "Neizdevās pārvietot {count} vienumu:\n{error}",
+      "other": "Neizdevās pārvietot {count} vienumus:\n{error}"
     },
     "Filtered Game & Relay Server ({count})": {
       "zero": "Filtrētie spēles un releja serveri ({count})",

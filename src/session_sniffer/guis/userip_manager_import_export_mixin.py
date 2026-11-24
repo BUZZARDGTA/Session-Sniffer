@@ -3,6 +3,7 @@
 import logging
 import shutil
 import zipfile
+import zlib
 from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
@@ -18,7 +19,7 @@ from PySide6.QtWidgets import QDialog, QFileDialog, QMessageBox
 
 from session_sniffer.constants.local import USERIP_DATABASES_BACKUP_DIR_PATH, USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
-from session_sniffer.guis._userip_tree_batch_ops import export_json_databases_to_zip, export_selected_tree_paths_as_zip
+from session_sniffer.guis._userip_tree_batch_ops import export_json_databases_to_zip, export_selected_tree_paths_as_zip, is_valid_tree_item_name
 from session_sniffer.guis.loading_overlay import (
     LoadingOverlay,
     loading_overlay_scope,
@@ -45,6 +46,34 @@ from session_sniffer.player import backup_userip_databases
 from session_sniffer.player.userip_loader import find_userip_insert_index, userip_database_write, userip_databases_lock
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_zip_member_dest(member_filename: str, databases_root: Path) -> Path | None:
+    """Validate a ZIP member path and return its destination under `USERIP_DATABASES_DIR_PATH`, or `None` if unsafe."""
+    normalized = member_filename.replace('\\', '/')
+    if normalized.startswith('/'):
+        return None
+    parts = [part for part in normalized.split('/') if part]
+    if not parts or not all(is_valid_tree_item_name(part) for part in parts):
+        return None
+    candidate = USERIP_DATABASES_DIR_PATH.joinpath(*parts)
+    try:
+        resolved = candidate.resolve()
+    except OSError:
+        return None
+    if not resolved.is_relative_to(databases_root):
+        return None
+    return USERIP_DATABASES_DIR_PATH / resolved.relative_to(databases_root)
+
+
+def _has_file_ancestor(dest: Path, root: Path) -> bool:
+    """Return `True` if any parent directory of *dest* under *root* already exists as a regular file."""
+    current = dest.parent
+    while current not in (root, current.parent):
+        if current.is_file():
+            return True
+        current = current.parent
+    return False
 
 
 class UserIPImportExportMixin(QDialog):
@@ -335,6 +364,16 @@ class UserIPImportExportMixin(QDialog):
                     skipped += 1
                     continue
 
+                if dest.is_dir():
+                    with overlay.suspended():
+                        QMessageBox.critical(
+                            self,
+                            tr('Import Error'),
+                            tr('Cannot import "{name}" because a folder with the same name already exists in the destination.', name=src.name),
+                        )
+                    skipped += 1
+                    continue
+
                 if dest.exists():
                     with overlay.suspended():
                         msg_box = QMessageBox(self)
@@ -354,13 +393,13 @@ class UserIPImportExportMixin(QDialog):
                     if clicked is merge_button:
                         try:
                             src_text = run_with_active_loading(src.read_text, 'utf-8')
+                            result = self._merge_content_into_disk(src_text, dest, src.name, overlay=overlay)
                         except (OSError, UnicodeDecodeError) as e:
-                            logger.warning('Failed to read UserIP database "%s" for merge: %s', src, e)
+                            logger.warning('Failed to import/merge UserIP database "%s" into "%s": %s', src, dest, e)
                             with overlay.suspended():
                                 QMessageBox.critical(self, tr('Import Error'), tr('Failed to import "{name}":\n{error}', name=src.name, error=e))
                             skipped += 1
                             continue
-                        result = self._merge_content_into_disk(src_text, dest, src.name, overlay=overlay)
                         if result is None:
                             skipped += 1
                         else:
@@ -507,18 +546,41 @@ class UserIPImportExportMixin(QDialog):
                     reload_current_view = False
 
                     for member in json_members:
-                        resolved_dest = (USERIP_DATABASES_DIR_PATH / member.filename).resolve()
-                        if not resolved_dest.is_relative_to(databases_root):
+                        dest = _resolve_zip_member_dest(member.filename, databases_root)
+                        if dest is None or _has_file_ancestor(dest, USERIP_DATABASES_DIR_PATH):
+                            logger.warning('Skipping unsafe or colliding ZIP member path "%s".', member.filename)
                             skipped += 1
                             continue
-                        dest = USERIP_DATABASES_DIR_PATH / resolved_dest.relative_to(databases_root)
+                        if dest.is_dir():
+                            with overlay.suspended():
+                                QMessageBox.critical(
+                                    self,
+                                    tr('Import Error'),
+                                    tr('Cannot import "{name}" because a folder with the same name already exists in the destination.', name=member.filename),
+                                )
+                            skipped += 1
+                            continue
                         overlay.set_status(tr('Extracting "{name}"\u2026', name=member.filename))
-                        member_bytes = run_with_active_loading(zf.read, member.filename)
+                        try:
+                            member_bytes = run_with_active_loading(zf.read, member.filename)
+                        except (RuntimeError, zlib.error, zipfile.BadZipFile, OSError) as e:
+                            logger.warning('Failed to extract "%s" from ZIP "%s": %s', member.filename, zip_path, e)
+                            with overlay.suspended():
+                                QMessageBox.critical(self, tr('Import Error'), tr('Failed to import "{name}":\n{error}', name=member.filename, error=e))
+                            skipped += 1
+                            break
                         src_content = member_bytes.decode('utf-8', errors='replace')
 
                         if dest.exists() and not overwrite_all:
                             if merge_all:
-                                result = self._merge_content_into_disk(src_content, dest, member.filename, overlay=overlay)
+                                try:
+                                    result = self._merge_content_into_disk(src_content, dest, member.filename, overlay=overlay)
+                                except OSError as e:
+                                    logger.warning('Failed to merge ZIP member "%s" into "%s": %s', member.filename, dest, e)
+                                    with overlay.suspended():
+                                        QMessageBox.critical(self, tr('Import Error'), tr('Failed to import "{name}":\n{error}', name=member.filename, error=e))
+                                    skipped += 1
+                                    continue
                                 if result is None:
                                     skipped += 1
                                 else:
@@ -554,7 +616,14 @@ class UserIPImportExportMixin(QDialog):
                             elif clicked in (merge_button, merge_all_button):
                                 if clicked is merge_all_button:
                                     merge_all = True
-                                result = self._merge_content_into_disk(src_content, dest, member.filename, overlay=overlay)
+                                try:
+                                    result = self._merge_content_into_disk(src_content, dest, member.filename, overlay=overlay)
+                                except OSError as e:
+                                    logger.warning('Failed to merge ZIP member "%s" into "%s": %s', member.filename, dest, e)
+                                    with overlay.suspended():
+                                        QMessageBox.critical(self, tr('Import Error'), tr('Failed to import "{name}":\n{error}', name=member.filename, error=e))
+                                    skipped += 1
+                                    continue
                                 if result is None:
                                     skipped += 1
                                 else:
@@ -572,16 +641,33 @@ class UserIPImportExportMixin(QDialog):
                             dest_file.parent.mkdir(parents=True, exist_ok=True)
                             with userip_database_write(dest_file, content=raw_bytes):
                                 tmp_dest = dest_file.with_name(f'{dest_file.name}.tmp')
-                                tmp_dest.write_bytes(raw_bytes)
-                                tmp_dest.replace(dest_file)
+                                try:
+                                    tmp_dest.write_bytes(raw_bytes)
+                                    tmp_dest.replace(dest_file)
+                                except OSError:
+                                    with suppress(OSError):
+                                        tmp_dest.unlink(missing_ok=True)
+                                    raise
 
-                        run_with_active_loading(_write_member_file)
+                        try:
+                            run_with_active_loading(_write_member_file)
+                        except OSError as e:
+                            logger.warning('Failed to write ZIP member "%s" to "%s": %s', member.filename, dest, e)
+                            with overlay.suspended():
+                                QMessageBox.critical(self, tr('Import Error'), tr('Failed to import "{name}":\n{error}', name=member.filename, error=e))
+                            skipped += 1
+                            continue
                         modified_on_disk = True
                         imported += 1
 
             except zipfile.BadZipFile:
                 with overlay.suspended():
                     QMessageBox.critical(self, TITLE, tr('"{name}" is not a valid ZIP archive.', name=zip_path.name))
+                return
+            except OSError as e:
+                logger.warning('Failed to open ZIP archive "%s": %s', zip_path, e)
+                with overlay.suspended():
+                    QMessageBox.critical(self, tr('Import Error'), tr('Failed to import "{name}":\n{error}', name=zip_path.name, error=e))
                 return
 
             if modified_on_disk:

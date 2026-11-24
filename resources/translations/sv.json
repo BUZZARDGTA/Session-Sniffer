@@ -329,6 +329,7 @@
     "Candidate {ip} packet count ({exchanged}) exceeds maximum allowed threshold ({limit}).": "Paketantalet för kandidat {ip} ({exchanged}) överskrider den maximala tillåtna gränsen ({limit}).",
     "Cannot delete the active session log file while GUI session logging is enabled.": "Kan inte ta bort den aktiva sessionsloggfilen medan GUI-sessionsloggning är aktiverad.",
     "Cannot export \"{name}\" over itself. Please choose a different destination.": "Kan inte exportera \"{name}\" över sig själv. Välj en annan målplats.",
+    "Cannot import \"{name}\" because a folder with the same name already exists in the destination.": "Det går inte att importera \"{name}\" eftersom en mapp med samma namn redan finns på målet.",
     "Cannot keep & merge multiple entries from the same conflict group — select at most one winner per group": "Kan inte behålla & slå samman flera poster från samma konfliktgrupp — välj högst en vinnare per grupp",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group": "Kan inte behålla flera poster från samma konfliktgrupp — välj högst en vinnare per grupp",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group.": "Kan inte behålla flera poster från samma konfliktgrupp — välj högst en vinnare per grupp.",
@@ -1031,6 +1032,7 @@
     "Failed to configure hotspot credentials": "Misslyckades med att konfigurera autentiseringsuppgifter för hotspot",
     "Failed to create database \"{name}\":\n{error}": "Misslyckades med att skapa databasen \"{name}\":\n{error}",
     "Failed to create folder \"{name}\":\n{error}": "Misslyckades med att skapa mappen \"{name}\":\n{error}",
+    "Failed to delete \"{name}\":\n{error}": "Misslyckades med att ta bort \"{name}\":\n{error}",
     "Failed to disable Internet Connection Sharing": "Misslyckades med att inaktivera Internetdelning",
     "Failed to download the update.\n\n{error}": "Misslyckades med att hämta uppdateringen.\n\n{error}",
     "Failed to export \"{name}\":\n{error}": "Misslyckades med att exportera \"{name}\":\n{error}",
@@ -1046,6 +1048,7 @@
     "Failed to import themes from clipboard:\n\n{error}": "Misslyckades med att importera teman från urklipp:\n\n{error}",
     "Failed to import themes:\n\n{error}": "Misslyckades med att importera teman:\n\n{error}",
     "Failed to initiate check-ping request": "Misslyckades med att initiera check-ping-förfrågan",
+    "Failed to move \"{name}\":\n{error}": "Misslyckades med att flytta \"{name}\":\n{error}",
     "Failed to purge {filename}:\n{error}": "Misslyckades med att rensa {filename}:\n{error}",
     "Failed to query hotspot state": "Misslyckades med att fråga efter hotspot-status",
     "Failed to read \"{name}\": {error}": "Misslyckades med att läsa \"{name}\": {error}",
@@ -2383,6 +2386,8 @@
     "Selected:": "Markerade:",
     "Selection Highlight": "Markeringsfärg",
     "Selection Required": "Markering krävs",
+    "Selection contains duplicate item names: {names} (+{extra} more). Nothing was moved.": "Markeringen innehåller dubbletter av objektnamn: {names} (+{extra} till). Ingenting flyttades.",
+    "Selection contains duplicate item names: {names}. Nothing was moved.": "Markeringen innehåller dubbletter av objektnamn: {names}. Ingenting flyttades.",
     "Send ICMP echo, TCP connect, UDP reachability, or Web latency probes": "Skicka ICMP echo-, TCP-anslutnings-, UDP-nåbarhets- eller webb-latenssonderingar",
     "Send a one-time test message to this webhook URL": "Skicka ett engångstestmeddelande till denna webhook-URL",
     "Sending request...": "Skickar förfrågan...",
@@ -3489,6 +3494,10 @@
     "Exported {count} selected database to {path}": {
       "one": "Exporterade {count} markerad databas till {path}",
       "other": "Exporterade {count} markerade databaser till {path}"
+    },
+    "Failed to move {count} item:\n{error}": {
+      "one": "Misslyckades med att flytta {count} objekt:\n{error}",
+      "other": "Misslyckades med att flytta {count} objekt:\n{error}"
     },
     "Filtered Game & Relay Server ({count})": {
       "one": "Filtrerad spel- och reläserver ({count})",

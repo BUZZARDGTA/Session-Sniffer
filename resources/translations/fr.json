@@ -329,6 +329,7 @@
     "Candidate {ip} packet count ({exchanged}) exceeds maximum allowed threshold ({limit}).": "Le nombre de paquets du candidat {ip} ({exchanged}) dépasse le seuil maximal autorisé ({limit}).",
     "Cannot delete the active session log file while GUI session logging is enabled.": "Impossible de supprimer le fichier journal de la session active tant que la journalisation de session est activée.",
     "Cannot export \"{name}\" over itself. Please choose a different destination.": "Impossible d'exporter « {name} » sur lui-même. Veuillez choisir une autre destination.",
+    "Cannot import \"{name}\" because a folder with the same name already exists in the destination.": "Impossible d'importer « {name} » car un dossier portant le même nom existe déjà dans la destination.",
     "Cannot keep & merge multiple entries from the same conflict group — select at most one winner per group": "Impossible de conserver et fusionner plusieurs entrées d'un même groupe de conflit — sélectionnez au plus un gagnant par groupe",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group": "Impossible de conserver plusieurs entrées d'un même groupe de conflit — sélectionnez au plus un gagnant par groupe",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group.": "Impossible de conserver plusieurs entrées d'un même groupe de conflit — sélectionnez au plus un gagnant par groupe.",
@@ -1031,6 +1032,7 @@
     "Failed to configure hotspot credentials": "Échec de la configuration des identifiants du point d'accès",
     "Failed to create database \"{name}\":\n{error}": "Échec de la création de la base de données « {name} » :\n{error}",
     "Failed to create folder \"{name}\":\n{error}": "Échec de la création du dossier « {name} » :\n{error}",
+    "Failed to delete \"{name}\":\n{error}": "Échec de la suppression de « {name} » :\n{error}",
     "Failed to disable Internet Connection Sharing": "Échec de la désactivation du partage de connexion Internet",
     "Failed to download the update.\n\n{error}": "Échec du téléchargement de la mise à jour.\n\n{error}",
     "Failed to export \"{name}\":\n{error}": "Échec de l'exportation de « {name} » :\n{error}",
@@ -1046,6 +1048,7 @@
     "Failed to import themes from clipboard:\n\n{error}": "Échec de l'importation des thèmes depuis le presse-papiers :\n\n{error}",
     "Failed to import themes:\n\n{error}": "Échec de l'importation des thèmes :\n\n{error}",
     "Failed to initiate check-ping request": "Échec de l'initialisation de la requête check-ping",
+    "Failed to move \"{name}\":\n{error}": "Échec du déplacement de « {name} » :\n{error}",
     "Failed to purge {filename}:\n{error}": "Échec de la purge de {filename} :\n{error}",
     "Failed to query hotspot state": "Échec de l'interrogation de l'état du point d'accès",
     "Failed to read \"{name}\": {error}": "Échec de la lecture de « {name} » : {error}",
@@ -2383,6 +2386,8 @@
     "Selected:": "Sélectionnés :",
     "Selection Highlight": "Surbrillance de sélection",
     "Selection Required": "Sélection requise",
+    "Selection contains duplicate item names: {names} (+{extra} more). Nothing was moved.": "La sélection contient des noms d'éléments en double : {names} (+{extra} autres). Rien n'a été déplacé.",
+    "Selection contains duplicate item names: {names}. Nothing was moved.": "La sélection contient des noms d'éléments en double : {names}. Rien n'a été déplacé.",
     "Send ICMP echo, TCP connect, UDP reachability, or Web latency probes": "Envoyer des sondes d'écho ICMP, de connexion TCP, d'accessibilité UDP ou de latence web",
     "Send a one-time test message to this webhook URL": "Envoyer un message de test ponctuel à cette URL de webhook",
     "Sending request...": "Envoi de la requête...",
@@ -3489,6 +3494,10 @@
     "Exported {count} selected database to {path}": {
       "one": "{count} base de données sélectionnée exportée vers {path}",
       "other": "{count} bases de données sélectionnées exportées vers {path}"
+    },
+    "Failed to move {count} item:\n{error}": {
+      "one": "Échec du déplacement de {count} élément :\n{error}",
+      "other": "Échec du déplacement de {count} éléments :\n{error}"
     },
     "Filtered Game & Relay Server ({count})": {
       "one": "Serveur de jeu et de relais filtré ({count})",

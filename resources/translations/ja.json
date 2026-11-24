@@ -329,6 +329,7 @@
     "Candidate {ip} packet count ({exchanged}) exceeds maximum allowed threshold ({limit}).": "候補 {ip} のパケット数（{exchanged}）が許容上限しきい値（{limit}）を超えています。",
     "Cannot delete the active session log file while GUI session logging is enabled.": "GUI セッションログが有効になっている間は、現在使用中のセッションログファイルを削除できません。",
     "Cannot export \"{name}\" over itself. Please choose a different destination.": "「{name}」をそれ自身に上書きエクスポートすることはできません。別の保存先を選択してください。",
+    "Cannot import \"{name}\" because a folder with the same name already exists in the destination.": "移動先に同名のフォルダーがすでに存在するため、「{name}」をインポートできません。",
     "Cannot keep & merge multiple entries from the same conflict group — select at most one winner per group": "同じ競合グループ内の複数エントリを保持 && 結合することはできません — グループごとに最大 1 つまで選択してください",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group": "同じ競合グループ内の複数エントリを保持することはできません — グループごとに最大 1 つまで選択してください",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group.": "同じ競合グループ内の複数エントリを保持することはできません — グループごとに最大 1 つまで選択してください。",
@@ -1031,6 +1032,7 @@
     "Failed to configure hotspot credentials": "ホットスポット認証情報の設定に失敗しました",
     "Failed to create database \"{name}\":\n{error}": "データベース「{name}」の作成に失敗しました:\n{error}",
     "Failed to create folder \"{name}\":\n{error}": "フォルダ「{name}」の作成に失敗しました:\n{error}",
+    "Failed to delete \"{name}\":\n{error}": "「{name}」の削除に失敗しました:\n{error}",
     "Failed to disable Internet Connection Sharing": "インターネット接続の共有 (ICS) の無効化に失敗しました",
     "Failed to download the update.\n\n{error}": "アップデートのダウンロードに失敗しました。\n\n{error}",
     "Failed to export \"{name}\":\n{error}": "「{name}」のエクスポートに失敗しました:\n{error}",
@@ -1046,6 +1048,7 @@
     "Failed to import themes from clipboard:\n\n{error}": "クリップボードからのテーマのインポートに失敗しました:\n\n{error}",
     "Failed to import themes:\n\n{error}": "テーマのインポートに失敗しました:\n\n{error}",
     "Failed to initiate check-ping request": "Check-Host Ping リクエストの開始に失敗しました",
+    "Failed to move \"{name}\":\n{error}": "「{name}」の移動に失敗しました:\n{error}",
     "Failed to purge {filename}:\n{error}": "{filename} の完全消去に失敗しました:\n{error}",
     "Failed to query hotspot state": "ホットスポット状態の取得に失敗しました",
     "Failed to read \"{name}\": {error}": "「{name}」の読み込みに失敗しました: {error}",
@@ -2383,6 +2386,8 @@
     "Selected:": "選択中:",
     "Selection Highlight": "選択ハイライト",
     "Selection Required": "選択が必要です",
+    "Selection contains duplicate item names: {names} (+{extra} more). Nothing was moved.": "選択内容に重複する項目名が含まれています: {names}（他 +{extra} 件）。何も移動されませんでした。",
+    "Selection contains duplicate item names: {names}. Nothing was moved.": "選択内容に重複する項目名が含まれています: {names}。何も移動されませんでした。",
     "Send ICMP echo, TCP connect, UDP reachability, or Web latency probes": "ICMP エコー、TCP 接続、UDP 到達性、または Web レイテンシプローブを送信します",
     "Send a one-time test message to this webhook URL": "この Webhook URL に 1 回限りのテストメッセージを送信します",
     "Sending request...": "リクエストを送信中...",
@@ -3415,6 +3420,9 @@
     },
     "Exported {count} selected database to {path}": {
       "other": "選択した {count} 件のデータベースを {path} にエクスポートしました"
+    },
+    "Failed to move {count} item:\n{error}": {
+      "other": "{count} 件の項目の移動に失敗しました:\n{error}"
     },
     "Filtered Game & Relay Server ({count})": {
       "other": "フィルター済みゲーム / リレーサーバー ({count})"

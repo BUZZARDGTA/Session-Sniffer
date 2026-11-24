@@ -329,6 +329,7 @@
     "Candidate {ip} packet count ({exchanged}) exceeds maximum allowed threshold ({limit}).": "عدد حزم المرشّح {ip} ({exchanged}) يتجاوز الحد الأقصى المسموح به ({limit}).",
     "Cannot delete the active session log file while GUI session logging is enabled.": "لا يمكن حذف ملف سجل الجلسة النشط أثناء تمكين تسجيل الجلسات في GUI.",
     "Cannot export \"{name}\" over itself. Please choose a different destination.": "لا يمكن تصدير \"{name}\" فوق نفسه. يُرجى اختيار وجهة مختلفة.",
+    "Cannot import \"{name}\" because a folder with the same name already exists in the destination.": "يتعذّر استيراد \"{name}\" لأن مجلداً يحمل الاسم نفسه موجود بالفعل في الوجهة.",
     "Cannot keep & merge multiple entries from the same conflict group — select at most one winner per group": "لا يمكن الاحتفاظ بعدة إدخالات ودمجها من نفس مجموعة التعارض — حدد فائزاً واحداً على الأكثر لكل مجموعة",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group": "لا يمكن الاحتفاظ بعدة إدخالات من نفس مجموعة التعارض — اختر فائزاً واحداً على الأكثر لكل مجموعة",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group.": "لا يمكن الاحتفاظ بعدة إدخالات من نفس مجموعة التعارض — حدد فائزاً واحداً على الأكثر لكل مجموعة.",
@@ -1031,6 +1032,7 @@
     "Failed to configure hotspot credentials": "فشل تكوين بيانات اعتماد نقطة الاتصال",
     "Failed to create database \"{name}\":\n{error}": "فشل إنشاء قاعدة البيانات \"{name}\":\n{error}",
     "Failed to create folder \"{name}\":\n{error}": "فشل إنشاء المجلد \"{name}\":\n{error}",
+    "Failed to delete \"{name}\":\n{error}": "فشل حذف \"{name}\":\n{error}",
     "Failed to disable Internet Connection Sharing": "فشل تعطيل مشاركة اتصال الإنترنت",
     "Failed to download the update.\n\n{error}": "فشل تنزيل التحديث.\n\n{error}",
     "Failed to export \"{name}\":\n{error}": "فشل تصدير \"{name}\":\n{error}",
@@ -1046,6 +1048,7 @@
     "Failed to import themes from clipboard:\n\n{error}": "فشل استيراد السمات من الحافظة:\n\n{error}",
     "Failed to import themes:\n\n{error}": "فشل استيراد السمات:\n\n{error}",
     "Failed to initiate check-ping request": "فشل بدء طلب فحص Ping",
+    "Failed to move \"{name}\":\n{error}": "فشل نقل \"{name}\":\n{error}",
     "Failed to purge {filename}:\n{error}": "فشل تطهير {filename}:\n{error}",
     "Failed to query hotspot state": "فشل الاستعلام عن حالة نقطة الاتصال",
     "Failed to read \"{name}\": {error}": "فشل قراءة \"{name}\": {error}",
@@ -2383,6 +2386,8 @@
     "Selected:": "المحدد:",
     "Selection Highlight": "تمييز التحديد",
     "Selection Required": "التحديد مطلوب",
+    "Selection contains duplicate item names: {names} (+{extra} more). Nothing was moved.": "يحتوي التحديد على أسماء عناصر مكرّرة: {names} (+{extra} إضافي). لم يُنقَل شيء.",
+    "Selection contains duplicate item names: {names}. Nothing was moved.": "يحتوي التحديد على أسماء عناصر مكرّرة: {names}. لم يُنقَل شيء.",
     "Send ICMP echo, TCP connect, UDP reachability, or Web latency probes": "إرسال مسابر صدى ICMP، أو اتصال TCP، أو قابلية وصول UDP، أو زمن استجابة الويب",
     "Send a one-time test message to this webhook URL": "إرسال رسالة اختبار لمرة واحدة إلى رابط Webhook هذا",
     "Sending request...": "جارٍ إرسال الطلب...",
@@ -3785,6 +3790,14 @@
       "few": "تم تصدير {count} قواعد بيانات محددة إلى {path}",
       "many": "تم تصدير {count} قاعدة بيانات محددة إلى {path}",
       "other": "تم تصدير {count} قاعدة بيانات محددة إلى {path}"
+    },
+    "Failed to move {count} item:\n{error}": {
+      "zero": "فشل نقل {count} عنصر:\n{error}",
+      "one": "فشل نقل عنصر واحد ({count}):\n{error}",
+      "two": "فشل نقل عنصرين ({count}):\n{error}",
+      "few": "فشل نقل {count} عناصر:\n{error}",
+      "many": "فشل نقل {count} عنصراً:\n{error}",
+      "other": "فشل نقل {count} عنصر:\n{error}"
     },
     "Filtered Game & Relay Server ({count})": {
       "zero": "خوادم اللعبة والمرحّلات المُصفّاة ({count})",

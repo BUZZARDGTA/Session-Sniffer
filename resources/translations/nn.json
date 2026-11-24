@@ -329,6 +329,7 @@
     "Candidate {ip} packet count ({exchanged}) exceeds maximum allowed threshold ({limit}).": "Pakketalet til kandidaten {ip} ({exchanged}) overstig høgaste tillatne grense ({limit}).",
     "Cannot delete the active session log file while GUI session logging is enabled.": "Kan ikkje sletta den aktive øktloggfila medan GUI-øktlogging er aktivert.",
     "Cannot export \"{name}\" over itself. Please choose a different destination.": "Kan ikkje eksportera \"{name}\" over seg sjølv. Vel ei anna målplassering.",
+    "Cannot import \"{name}\" because a folder with the same name already exists in the destination.": "Kan ikkje importera \"{name}\" fordi det allereie finst ei mappe med same namn i målet.",
     "Cannot keep & merge multiple entries from the same conflict group — select at most one winner per group": "Kan ikkje halda på og slå saman fleire oppføringar frå den same konfliktgruppa — vel høgst éin vinnar per gruppe",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group": "Kan ikkje halda på fleire oppføringar frå den same konfliktgruppa — vel høgst éin vinnar per gruppe",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group.": "Kan ikkje halda på fleire oppføringar frå den same konfliktgruppa — vel høgst éin vinnar per gruppe.",
@@ -1031,6 +1032,7 @@
     "Failed to configure hotspot credentials": "Kunne ikkje setja opp påloggingsinfo for trådlaus sone",
     "Failed to create database \"{name}\":\n{error}": "Kunne ikkje oppretta databasen \"{name}\":\n{error}",
     "Failed to create folder \"{name}\":\n{error}": "Kunne ikkje oppretta mappa \"{name}\":\n{error}",
+    "Failed to delete \"{name}\":\n{error}": "Kunne ikkje sletta \"{name}\":\n{error}",
     "Failed to disable Internet Connection Sharing": "Kunne ikkje deaktivera Internet Connection Sharing",
     "Failed to download the update.\n\n{error}": "Kunne ikkje lasta ned oppdateringa.\n\n{error}",
     "Failed to export \"{name}\":\n{error}": "Kunne ikkje eksportera \"{name}\":\n{error}",
@@ -1046,6 +1048,7 @@
     "Failed to import themes from clipboard:\n\n{error}": "Kunne ikkje importera tema frå utklippstavla:\n\n{error}",
     "Failed to import themes:\n\n{error}": "Kunne ikkje importera tema:\n\n{error}",
     "Failed to initiate check-ping request": "Kunne ikkje starta check-ping-førespurnad",
+    "Failed to move \"{name}\":\n{error}": "Kunne ikkje flytta \"{name}\":\n{error}",
     "Failed to purge {filename}:\n{error}": "Kunne ikkje tøma {filename} heilt:\n{error}",
     "Failed to query hotspot state": "Kunne ikkje henta status for trådlaus sone",
     "Failed to read \"{name}\": {error}": "Kunne ikkje lesa \"{name}\": {error}",
@@ -2383,6 +2386,8 @@
     "Selected:": "Valde:",
     "Selection Highlight": "Utvalsutheving",
     "Selection Required": "Val er påkravd",
+    "Selection contains duplicate item names: {names} (+{extra} more). Nothing was moved.": "Utvalet inneheld dupliserte elementnamn: {names} (+{extra} fleire). Ingenting vart flytt.",
+    "Selection contains duplicate item names: {names}. Nothing was moved.": "Utvalet inneheld dupliserte elementnamn: {names}. Ingenting vart flytt.",
     "Send ICMP echo, TCP connect, UDP reachability, or Web latency probes": "Send ICMP-ekko, TCP-tilkopling, UDP-tilgjengelegheit eller nettbaserte forseinkingsmålingar",
     "Send a one-time test message to this webhook URL": "Send ei eingongs testmelding til denne webhook-URL-en",
     "Sending request...": "Sender førespurnad...",
@@ -3489,6 +3494,10 @@
     "Exported {count} selected database to {path}": {
       "one": "Eksporterte {count} vald database til {path}",
       "other": "Eksporterte {count} valde databasar til {path}"
+    },
+    "Failed to move {count} item:\n{error}": {
+      "one": "Kunne ikkje flytta {count} element:\n{error}",
+      "other": "Kunne ikkje flytta {count} element:\n{error}"
     },
     "Filtered Game & Relay Server ({count})": {
       "one": "Filtrert spel- og relétenar ({count})",

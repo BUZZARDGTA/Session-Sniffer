@@ -329,6 +329,7 @@
     "Candidate {ip} packet count ({exchanged}) exceeds maximum allowed threshold ({limit}).": "El conteo de paquetes del candidato {ip} ({exchanged}) supera el umbral máximo permitido ({limit}).",
     "Cannot delete the active session log file while GUI session logging is enabled.": "No se puede eliminar el archivo de registro de la sesión activa mientras el registro de sesión en la GUI esté activado.",
     "Cannot export \"{name}\" over itself. Please choose a different destination.": "No se puede exportar \"{name}\" sobre sí mismo. Elija un destino diferente.",
+    "Cannot import \"{name}\" because a folder with the same name already exists in the destination.": "No se puede importar \"{name}\" porque ya existe una carpeta con el mismo nombre en el destino.",
     "Cannot keep & merge multiple entries from the same conflict group — select at most one winner per group": "No se pueden conservar y combinar varias entradas del mismo grupo de conflicto — selecciona como máximo un ganador por grupo",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group": "No se pueden conservar varias entradas del mismo grupo de conflicto — selecciona como máximo un ganador por grupo",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group.": "No se pueden conservar varias entradas del mismo grupo de conflicto — selecciona como máximo un ganador por grupo.",
@@ -1031,6 +1032,7 @@
     "Failed to configure hotspot credentials": "No se pudieron configurar las credenciales del punto de acceso",
     "Failed to create database \"{name}\":\n{error}": "No se pudo crear la base de datos \"{name}\":\n{error}",
     "Failed to create folder \"{name}\":\n{error}": "No se pudo crear la carpeta \"{name}\":\n{error}",
+    "Failed to delete \"{name}\":\n{error}": "No se pudo eliminar \"{name}\":\n{error}",
     "Failed to disable Internet Connection Sharing": "No se pudo desactivar la Conexión compartida a Internet",
     "Failed to download the update.\n\n{error}": "No se pudo descargar la actualización.\n\n{error}",
     "Failed to export \"{name}\":\n{error}": "No se pudo exportar \"{name}\":\n{error}",
@@ -1046,6 +1048,7 @@
     "Failed to import themes from clipboard:\n\n{error}": "No se pudieron importar los temas desde el portapapeles:\n\n{error}",
     "Failed to import themes:\n\n{error}": "No se pudieron importar los temas:\n\n{error}",
     "Failed to initiate check-ping request": "No se pudo iniciar la solicitud check-ping",
+    "Failed to move \"{name}\":\n{error}": "No se pudo mover \"{name}\":\n{error}",
     "Failed to purge {filename}:\n{error}": "No se pudo purgar {filename}:\n{error}",
     "Failed to query hotspot state": "No se pudo consultar el estado del punto de acceso",
     "Failed to read \"{name}\": {error}": "No se pudo leer \"{name}\": {error}",
@@ -2383,6 +2386,8 @@
     "Selected:": "Seleccionado:",
     "Selection Highlight": "Resaltado de selección",
     "Selection Required": "Selección requerida",
+    "Selection contains duplicate item names: {names} (+{extra} more). Nothing was moved.": "La selección contiene nombres de elementos duplicados: {names} (+{extra} más). No se movió nada.",
+    "Selection contains duplicate item names: {names}. Nothing was moved.": "La selección contiene nombres de elementos duplicados: {names}. No se movió nada.",
     "Send ICMP echo, TCP connect, UDP reachability, or Web latency probes": "Enviar sondas de eco ICMP, conexión TCP, accesibilidad UDP o latencia web",
     "Send a one-time test message to this webhook URL": "Enviar un mensaje de prueba único a esta URL de webhook",
     "Sending request...": "Enviando solicitud...",
@@ -3489,6 +3494,10 @@
     "Exported {count} selected database to {path}": {
       "one": "Se exportó {count} base de datos seleccionada a {path}",
       "other": "Se exportaron {count} bases de datos seleccionadas a {path}"
+    },
+    "Failed to move {count} item:\n{error}": {
+      "one": "No se pudo mover {count} elemento:\n{error}",
+      "other": "No se pudieron mover {count} elementos:\n{error}"
     },
     "Filtered Game & Relay Server ({count})": {
       "one": "Servidor de juego y retransmisión filtrado ({count})",

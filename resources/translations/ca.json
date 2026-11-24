@@ -329,6 +329,7 @@
     "Candidate {ip} packet count ({exchanged}) exceeds maximum allowed threshold ({limit}).": "El recompte de paquets del candidat {ip} ({exchanged}) supera el llindar màxim permès ({limit}).",
     "Cannot delete the active session log file while GUI session logging is enabled.": "No es pot suprimir el fitxer de registre de la sessió activa mentre el registre de sessió de la GUI estigui activat.",
     "Cannot export \"{name}\" over itself. Please choose a different destination.": "No es pot exportar «{name}» sobre si mateix. Trieu una destinació diferent.",
+    "Cannot import \"{name}\" because a folder with the same name already exists in the destination.": "No es pot importar «{name}» perquè ja existeix una carpeta amb el mateix nom a la destinació.",
     "Cannot keep & merge multiple entries from the same conflict group — select at most one winner per group": "No es poden conservar i fusionar múltiples entrades del mateix grup de conflicte — seleccioneu com a màxim una guanyadora per grup",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group": "No es poden conservar múltiples entrades del mateix grup de conflicte — seleccioneu com a màxim una guanyadora per grup",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group.": "No es poden conservar múltiples entrades del mateix grup de conflicte — seleccioneu com a màxim una guanyadora per grup.",
@@ -1031,6 +1032,7 @@
     "Failed to configure hotspot credentials": "No s'han pogut configurar les credencials del punt d'accés",
     "Failed to create database \"{name}\":\n{error}": "No s'ha pogut crear la base de dades «{name}»:\n{error}",
     "Failed to create folder \"{name}\":\n{error}": "No s'ha pogut crear la carpeta «{name}»:\n{error}",
+    "Failed to delete \"{name}\":\n{error}": "No s'ha pogut suprimir «{name}»:\n{error}",
     "Failed to disable Internet Connection Sharing": "No s'ha pogut desactivar la compartició de connexió a Internet",
     "Failed to download the update.\n\n{error}": "No s'ha pogut baixar l'actualització.\n\n{error}",
     "Failed to export \"{name}\":\n{error}": "No s'ha pogut exportar «{name}»:\n{error}",
@@ -1046,6 +1048,7 @@
     "Failed to import themes from clipboard:\n\n{error}": "No s'han pogut importar els temes des del porta-retalls:\n\n{error}",
     "Failed to import themes:\n\n{error}": "No s'han pogut importar els temes:\n\n{error}",
     "Failed to initiate check-ping request": "No s'ha pogut iniciar la sol·licitud de comprovació de ping",
+    "Failed to move \"{name}\":\n{error}": "No s'ha pogut moure «{name}»:\n{error}",
     "Failed to purge {filename}:\n{error}": "No s'ha pogut purgar {filename}:\n{error}",
     "Failed to query hotspot state": "No s'ha pogut consultar l'estat del punt d'accés",
     "Failed to read \"{name}\": {error}": "No s'ha pogut llegir «{name}»: {error}",
@@ -2383,6 +2386,8 @@
     "Selected:": "Seleccionats:",
     "Selection Highlight": "Ressaltat de selecció",
     "Selection Required": "Selecció necessària",
+    "Selection contains duplicate item names: {names} (+{extra} more). Nothing was moved.": "La selecció conté noms d'elements duplicats: {names} (+{extra} més). No s'ha mogut res.",
+    "Selection contains duplicate item names: {names}. Nothing was moved.": "La selecció conté noms d'elements duplicats: {names}. No s'ha mogut res.",
     "Send ICMP echo, TCP connect, UDP reachability, or Web latency probes": "Envia sondes d'eco ICMP, connexió TCP, accessibilitat UDP o latència web",
     "Send a one-time test message to this webhook URL": "Envia un missatge de prova únic a aquest URL de webhook",
     "Sending request...": "S'està enviant la sol·licitud...",
@@ -3489,6 +3494,10 @@
     "Exported {count} selected database to {path}": {
       "one": "S'ha exportat {count} base de dades seleccionada a {path}",
       "other": "S'han exportat {count} bases de dades seleccionades a {path}"
+    },
+    "Failed to move {count} item:\n{error}": {
+      "one": "No s'ha pogut moure {count} element:\n{error}",
+      "other": "No s'han pogut moure {count} elements:\n{error}"
     },
     "Filtered Game & Relay Server ({count})": {
       "one": "Servidor de joc i relé filtrat ({count})",

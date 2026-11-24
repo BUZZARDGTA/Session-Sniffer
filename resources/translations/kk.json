@@ -329,6 +329,7 @@
     "Candidate {ip} packet count ({exchanged}) exceeds maximum allowed threshold ({limit}).": "{ip} үміткерінің пакет саны ({exchanged}) рұқсат етілген ең жоғары шектен ({limit}) асып кетті.",
     "Cannot delete the active session log file while GUI session logging is enabled.": "GUI сессиясын журналдау қосулы тұрғанда белсенді сессия журналы файлын жою мүмкін емес.",
     "Cannot export \"{name}\" over itself. Please choose a different destination.": "«{name}» файлын өзінің үстіне экспорттау мүмкін емес. Басқа орынды таңдаңыз.",
+    "Cannot import \"{name}\" because a folder with the same name already exists in the destination.": "Тағайындалған орында осындай атауы бар қалта бұрыннан бар болғандықтан, «{name}» импортталмайды.",
     "Cannot keep & merge multiple entries from the same conflict group — select at most one winner per group": "Бір қайшылық тобынан бірнеше жазбаны сақтап, біріктіру мүмкін емес — әр топтан ең көбі бір жеңімпаз таңдаңыз",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group": "Бір қайшылық тобынан бірнеше жазбаны қалдыру мүмкін емес — әр топтан ең көбі бір жеңімпаз таңдаңыз",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group.": "Бір қайшылық тобынан бірнеше жазбаны қалдыруға болмайды — әр топтан ең көбі бір ғана жеңімпазды таңдаңыз.",
@@ -1031,6 +1032,7 @@
     "Failed to configure hotspot credentials": "Хотспот тіркелгі деректерін баптау сәтсіз аяқталды",
     "Failed to create database \"{name}\":\n{error}": "«{name}» дерекқорын жасау сәтсіз аяқталды:\n{error}",
     "Failed to create folder \"{name}\":\n{error}": "«{name}» қалтасын жасау сәтсіз аяқталды:\n{error}",
+    "Failed to delete \"{name}\":\n{error}": "«{name}» жою сәтсіз аяқталды:\n{error}",
     "Failed to disable Internet Connection Sharing": "Интернет қосылымын ортақ пайдалануды өшіру сәтсіз аяқталды",
     "Failed to download the update.\n\n{error}": "Жаңартуды жүктеп алу сәтсіз аяқталды.\n\n{error}",
     "Failed to export \"{name}\":\n{error}": "«{name}» экспорттау сәтсіз аяқталды:\n{error}",
@@ -1046,6 +1048,7 @@
     "Failed to import themes from clipboard:\n\n{error}": "Алмасу буферінен тақырыптарды импорттау сәтсіз аяқталды:\n\n{error}",
     "Failed to import themes:\n\n{error}": "Тақырыптарды импорттау сәтсіз аяқталды:\n\n{error}",
     "Failed to initiate check-ping request": "check-ping сұрауын бастау сәтсіз аяқталды",
+    "Failed to move \"{name}\":\n{error}": "«{name}» жылжыту сәтсіз аяқталды:\n{error}",
     "Failed to purge {filename}:\n{error}": "{filename} файлын толық тазарту сәтсіз аяқталды:\n{error}",
     "Failed to query hotspot state": "Хотспот күйін сұрау сәтсіз аяқталды",
     "Failed to read \"{name}\": {error}": "«{name}» оқу сәтсіз аяқталды: {error}",
@@ -2383,6 +2386,8 @@
     "Selected:": "Таңдалды:",
     "Selection Highlight": "Таңдауды айқындау",
     "Selection Required": "Таңдау қажет",
+    "Selection contains duplicate item names: {names} (+{extra} more). Nothing was moved.": "Таңдауда қайталанатын элемент атаулары бар: {names} (және тағы +{extra}). Ештеңе жылжытылмады.",
+    "Selection contains duplicate item names: {names}. Nothing was moved.": "Таңдауда қайталанатын элемент атаулары бар: {names}. Ештеңе жылжытылмады.",
     "Send ICMP echo, TCP connect, UDP reachability, or Web latency probes": "ICMP эхо, TCP қосылу, UDP қолжетімділік немесе Web кідіріс сынақтарын жіберу",
     "Send a one-time test message to this webhook URL": "Осы webhook URL мекенжайына бір реттік сынақ хабарламасын жіберу",
     "Sending request...": "Сұрау жіберілуде...",
@@ -3489,6 +3494,10 @@
     "Exported {count} selected database to {path}": {
       "one": "Таңдалған {count} дерекқор {path} жолына экспортталды",
       "other": "Таңдалған {count} дерекқор {path} жолына экспортталды"
+    },
+    "Failed to move {count} item:\n{error}": {
+      "one": "{count} элементті жылжыту сәтсіз аяқталды:\n{error}",
+      "other": "{count} элементті жылжыту сәтсіз аяқталды:\n{error}"
     },
     "Filtered Game & Relay Server ({count})": {
       "one": "Сүзілген ойын және реле сервері ({count})",

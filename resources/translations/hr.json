@@ -329,6 +329,7 @@
     "Candidate {ip} packet count ({exchanged}) exceeds maximum allowed threshold ({limit}).": "Broj paketa kandidata {ip} ({exchanged}) premašuje najveći dopušteni prag ({limit}).",
     "Cannot delete the active session log file while GUI session logging is enabled.": "Nije moguće izbrisati aktivnu datoteku dnevnika sesije dok je omogućeno GUI bilježenje sesija.",
     "Cannot export \"{name}\" over itself. Please choose a different destination.": "Nije moguće izvesti \"{name}\" preko samoga sebe. Odaberite drugo odredište.",
+    "Cannot import \"{name}\" because a folder with the same name already exists in the destination.": "Nije moguće uvesti \"{name}\" jer na odredištu već postoji mapa s istim nazivom.",
     "Cannot keep & merge multiple entries from the same conflict group — select at most one winner per group": "Nije moguće zadržati i spojiti više unosa iz iste konfliktne skupine — odaberite najviše jednog pobjednika po skupini",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group": "Nije moguće zadržati više unosa iz iste konfliktne skupine — odaberite najviše jednog pobjednika po skupini",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group.": "Nije moguće zadržati više unosa iz iste konfliktne skupine — odaberite najviše jednog pobjednika po skupini.",
@@ -1031,6 +1032,7 @@
     "Failed to configure hotspot credentials": "Konfiguracija pristupnih podataka pristupne točke nije uspjela",
     "Failed to create database \"{name}\":\n{error}": "Stvaranje baze podataka \"{name}\" nije uspjelo:\n{error}",
     "Failed to create folder \"{name}\":\n{error}": "Stvaranje mape \"{name}\" nije uspjelo:\n{error}",
+    "Failed to delete \"{name}\":\n{error}": "Brisanje \"{name}\" nije uspjelo:\n{error}",
     "Failed to disable Internet Connection Sharing": "Onemogućavanje Dijeljenja internetske veze nije uspjelo",
     "Failed to download the update.\n\n{error}": "Preuzimanje ažuriranja nije uspjelo.\n\n{error}",
     "Failed to export \"{name}\":\n{error}": "Izvoz \"{name}\" nije uspio:\n{error}",
@@ -1046,6 +1048,7 @@
     "Failed to import themes from clipboard:\n\n{error}": "Uvoz tema iz međuspremnika nije uspio:\n\n{error}",
     "Failed to import themes:\n\n{error}": "Uvoz tema nije uspio:\n\n{error}",
     "Failed to initiate check-ping request": "Pokretanje zahtjeva check-ping nije uspjelo",
+    "Failed to move \"{name}\":\n{error}": "Premještanje \"{name}\" nije uspjelo:\n{error}",
     "Failed to purge {filename}:\n{error}": "Čišćenje datoteke {filename} nije uspjelo:\n{error}",
     "Failed to query hotspot state": "Upit stanja pristupne točke nije uspio",
     "Failed to read \"{name}\": {error}": "Čitanje \"{name}\" nije uspjelo: {error}",
@@ -2383,6 +2386,8 @@
     "Selected:": "Odabrano:",
     "Selection Highlight": "Isticanje odabira",
     "Selection Required": "Potreban odabir",
+    "Selection contains duplicate item names: {names} (+{extra} more). Nothing was moved.": "Odabir sadrži duplicirane nazive stavki: {names} (+još {extra}). Ništa nije premješteno.",
+    "Selection contains duplicate item names: {names}. Nothing was moved.": "Odabir sadrži duplicirane nazive stavki: {names}. Ništa nije premješteno.",
     "Send ICMP echo, TCP connect, UDP reachability, or Web latency probes": "Šalji ICMP echo, TCP povezivanje, UDP dostupnost ili Web sonde latencije",
     "Send a one-time test message to this webhook URL": "Pošalji jednokratnu probnu poruku na ovaj URL webhooka",
     "Sending request...": "Slanje zahtjeva...",
@@ -3563,6 +3568,11 @@
       "one": "Izvezena {count} odabrana baza podataka u {path}",
       "few": "Izvezene {count} odabrane baze podataka u {path}",
       "other": "Izvezeno {count} odabranih baza podataka u {path}"
+    },
+    "Failed to move {count} item:\n{error}": {
+      "one": "Premještanje {count} stavke nije uspjelo:\n{error}",
+      "few": "Premještanje {count} stavke nije uspjelo:\n{error}",
+      "other": "Premještanje {count} stavki nije uspjelo:\n{error}"
     },
     "Filtered Game & Relay Server ({count})": {
       "one": "Filtrirani poslužitelj igre i releja ({count})",

@@ -329,6 +329,7 @@
     "Candidate {ip} packet count ({exchanged}) exceeds maximum allowed threshold ({limit}).": "Кількість пакетів кандидата {ip} ({exchanged}) перевищує максимально допустимий поріг ({limit}).",
     "Cannot delete the active session log file while GUI session logging is enabled.": "Неможливо видалити файл журналу активної сесії, доки увімкнено журналювання сесій у графічному інтерфейсі.",
     "Cannot export \"{name}\" over itself. Please choose a different destination.": "Неможливо експортувати \"{name}\" поверх самого себе. Виберіть інше місце призначення.",
+    "Cannot import \"{name}\" because a folder with the same name already exists in the destination.": "Неможливо імпортувати \"{name}\", оскільки в папці призначення вже існує папка з такою самою назвою.",
     "Cannot keep & merge multiple entries from the same conflict group — select at most one winner per group": "Неможливо залишити й об'єднати кілька записів з однієї групи конфлікту — виберіть щонайбільше одного переможця на групу",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group": "Неможливо залишити кілька записів з однієї групи конфлікту — виберіть щонайбільше одного переможця на групу",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group.": "Неможливо залишити кілька записів з однієї групи конфлікту — виберіть щонайбільше одного переможця на групу.",
@@ -1031,6 +1032,7 @@
     "Failed to configure hotspot credentials": "Не вдалося налаштувати облікові дані хот-спота",
     "Failed to create database \"{name}\":\n{error}": "Не вдалося створити базу даних \"{name}\":\n{error}",
     "Failed to create folder \"{name}\":\n{error}": "Не вдалося створити теку \"{name}\":\n{error}",
+    "Failed to delete \"{name}\":\n{error}": "Не вдалося видалити \"{name}\":\n{error}",
     "Failed to disable Internet Connection Sharing": "Не вдалося вимкнути спільний доступ до Інтернету",
     "Failed to download the update.\n\n{error}": "Не вдалося завантажити оновлення.\n\n{error}",
     "Failed to export \"{name}\":\n{error}": "Не вдалося експортувати \"{name}\":\n{error}",
@@ -1046,6 +1048,7 @@
     "Failed to import themes from clipboard:\n\n{error}": "Не вдалося імпортувати теми з буфера обміну:\n\n{error}",
     "Failed to import themes:\n\n{error}": "Не вдалося імпортувати теми:\n\n{error}",
     "Failed to initiate check-ping request": "Не вдалося ініціювати запит check-ping",
+    "Failed to move \"{name}\":\n{error}": "Не вдалося перемістити \"{name}\":\n{error}",
     "Failed to purge {filename}:\n{error}": "Не вдалося очистити {filename}:\n{error}",
     "Failed to query hotspot state": "Не вдалося отримати стан хот-спота",
     "Failed to read \"{name}\": {error}": "Не вдалося прочитати \"{name}\": {error}",
@@ -2383,6 +2386,8 @@
     "Selected:": "Вибрано:",
     "Selection Highlight": "Підсвічування вибору",
     "Selection Required": "Потрібен вибір",
+    "Selection contains duplicate item names: {names} (+{extra} more). Nothing was moved.": "Вибір містить повторювані назви елементів: {names} (ще +{extra}). Нічого не переміщено.",
+    "Selection contains duplicate item names: {names}. Nothing was moved.": "Вибір містить повторювані назви елементів: {names}. Нічого не переміщено.",
     "Send ICMP echo, TCP connect, UDP reachability, or Web latency probes": "Надсилання перевірок ICMP echo, TCP-підключення, доступності UDP або вебзатримки",
     "Send a one-time test message to this webhook URL": "Надіслати разове тестове повідомлення на цю URL-адресу вебхука",
     "Sending request...": "Надсилання запиту...",
@@ -3637,6 +3642,12 @@
       "few": "Експортовано {count} вибрані бази даних до {path}",
       "many": "Експортовано {count} вибраних баз даних до {path}",
       "other": "Експортовано {count} вибраних баз даних до {path}"
+    },
+    "Failed to move {count} item:\n{error}": {
+      "one": "Не вдалося перемістити {count} елемент:\n{error}",
+      "few": "Не вдалося перемістити {count} елементи:\n{error}",
+      "many": "Не вдалося перемістити {count} елементів:\n{error}",
+      "other": "Не вдалося перемістити {count} елемента:\n{error}"
     },
     "Filtered Game & Relay Server ({count})": {
       "one": "Відфільтрований ігровий або ретрансляційний сервер ({count})",

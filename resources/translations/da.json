@@ -329,6 +329,7 @@
     "Candidate {ip} packet count ({exchanged}) exceeds maximum allowed threshold ({limit}).": "Kandidat {ip} har et pakketal ({exchanged}), der overstiger den maksimalt tilladte grænse ({limit}).",
     "Cannot delete the active session log file while GUI session logging is enabled.": "Kan ikke slette den aktive sessionslogfil, mens GUI-sessionslogning er aktiveret.",
     "Cannot export \"{name}\" over itself. Please choose a different destination.": "Kan ikke eksportere \"{name}\" oven i sig selv. Vælg venligst en anden destination.",
+    "Cannot import \"{name}\" because a folder with the same name already exists in the destination.": "Kan ikke importere \"{name}\", fordi en mappe med samme navn allerede findes i destinationen.",
     "Cannot keep & merge multiple entries from the same conflict group — select at most one winner per group": "Kan ikke beholde og flette flere poster fra samme konfliktgruppe — vælg højst én vinder pr. gruppe",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group": "Kan ikke beholde flere poster fra samme konfliktgruppe — vælg højst én vinder pr. gruppe",
     "Cannot keep multiple entries from the same conflict group — select at most one winner per group.": "Kan ikke beholde flere poster fra samme konfliktgruppe — vælg højst én vinder pr. gruppe.",
@@ -1031,6 +1032,7 @@
     "Failed to configure hotspot credentials": "Kunne ikke konfigurere legitimationsoplysninger for hotspot",
     "Failed to create database \"{name}\":\n{error}": "Kunne ikke oprette databasen \"{name}\":\n{error}",
     "Failed to create folder \"{name}\":\n{error}": "Kunne ikke oprette mappen \"{name}\":\n{error}",
+    "Failed to delete \"{name}\":\n{error}": "Kunne ikke slette \"{name}\":\n{error}",
     "Failed to disable Internet Connection Sharing": "Kunne ikke deaktivere Internetforbindelsesdeling",
     "Failed to download the update.\n\n{error}": "Kunne ikke downloade opdateringen.\n\n{error}",
     "Failed to export \"{name}\":\n{error}": "Kunne ikke eksportere \"{name}\":\n{error}",
@@ -1046,6 +1048,7 @@
     "Failed to import themes from clipboard:\n\n{error}": "Kunne ikke importere temaer fra udklipsholderen:\n\n{error}",
     "Failed to import themes:\n\n{error}": "Kunne ikke importere temaer:\n\n{error}",
     "Failed to initiate check-ping request": "Kunne ikke starte check-ping-forespørgsel",
+    "Failed to move \"{name}\":\n{error}": "Kunne ikke flytte \"{name}\":\n{error}",
     "Failed to purge {filename}:\n{error}": "Kunne ikke rydde {filename}:\n{error}",
     "Failed to query hotspot state": "Kunne ikke forespørge hotspot-tilstand",
     "Failed to read \"{name}\": {error}": "Kunne ikke læse \"{name}\": {error}",
@@ -2383,6 +2386,8 @@
     "Selected:": "Valgt:",
     "Selection Highlight": "Markeringsfremhævning",
     "Selection Required": "Markering påkrævet",
+    "Selection contains duplicate item names: {names} (+{extra} more). Nothing was moved.": "Markeringen indeholder duplikerede elementnavne: {names} (+{extra} flere). Intet blev flyttet.",
+    "Selection contains duplicate item names: {names}. Nothing was moved.": "Markeringen indeholder duplikerede elementnavne: {names}. Intet blev flyttet.",
     "Send ICMP echo, TCP connect, UDP reachability, or Web latency probes": "Send ICMP echo-, TCP connect-, UDP-tilgængeligheds- eller weblatensprober",
     "Send a one-time test message to this webhook URL": "Send en enkelt testbesked til denne webhook-URL",
     "Sending request...": "Sender anmodning...",
@@ -3489,6 +3494,10 @@
     "Exported {count} selected database to {path}": {
       "one": "Eksporterede {count} valgt database til {path}",
       "other": "Eksporterede {count} valgte databaser til {path}"
+    },
+    "Failed to move {count} item:\n{error}": {
+      "one": "Kunne ikke flytte {count} element:\n{error}",
+      "other": "Kunne ikke flytte {count} elementer:\n{error}"
     },
     "Filtered Game & Relay Server ({count})": {
       "one": "Filtreret spil- og relæserver ({count})",
