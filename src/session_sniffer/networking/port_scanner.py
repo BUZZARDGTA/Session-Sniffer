@@ -300,11 +300,12 @@ def probe_tcp_port(
     """Perform a TCP connect probe to target_ip:port with optional banner grab."""
     service_name = get_service_name(port)
     endpoint = (target_ip, port)
-    probe_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    probe_socket.settimeout(timeout_seconds)
-    start_time = time.perf_counter()
+    probe_socket: socket.socket | None = None
 
     try:
+        probe_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        probe_socket.settimeout(timeout_seconds)
+        start_time = time.perf_counter()
         probe_socket.connect(endpoint)
         latency_ms = (time.perf_counter() - start_time) * 1000.0
 
@@ -335,7 +336,8 @@ def probe_tcp_port(
             service_name=service_name,
         )
     finally:
-        probe_socket.close()
+        if probe_socket is not None:
+            probe_socket.close()
 
 
 def _attempt_tcp_banner_grab(connected_socket: socket.socket, port: int, *, target_host: str = 'localhost') -> str | None:
@@ -369,11 +371,13 @@ def probe_udp_port(
     """Perform a UDP probe to target_ip:port handling replies and ICMP Port Unreachable."""
     service_name = get_service_name(port)
     endpoint = (target_ip, port)
-    probe_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    probe_socket.settimeout(timeout_seconds)
+    probe_socket: socket.socket | None = None
     start_time = time.perf_counter()
 
     try:
+        probe_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        probe_socket.settimeout(timeout_seconds)
+        start_time = time.perf_counter()
         probe_socket.connect(endpoint)
         probe_socket.send(b'\x00' * 16)
         raw_data, _ = probe_socket.recvfrom(512)
@@ -406,7 +410,8 @@ def probe_udp_port(
             service_name=service_name,
         )
     finally:
-        probe_socket.close()
+        if probe_socket is not None:
+            probe_socket.close()
 
 
 def probe_single_target(
