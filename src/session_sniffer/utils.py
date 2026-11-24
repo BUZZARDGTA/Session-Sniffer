@@ -646,7 +646,7 @@ def is_session_file_empty(file_path: Path) -> bool:
 
     try:
         data = json.loads(chunk.decode('utf-8', errors='replace'))
-    except json.JSONDecodeError as e:
+    except ValueError as e:
         logger.warning('Failed to parse session log file %s: %s', file_path, e)
         return True
 

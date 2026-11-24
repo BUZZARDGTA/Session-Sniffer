@@ -440,7 +440,7 @@ def peek_theme_config(settings_path: Path = SETTINGS_PATH) -> tuple[str, bool, s
         return DEFAULT_THEME_NAME, True, None
     try:
         parsed: object = json.loads(settings_path.read_text(encoding='utf-8'))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
+    except (OSError, ValueError) as e:
         return DEFAULT_THEME_NAME, True, f'Failed to read theme settings from {settings_path}: {e}'
     if not isinstance(parsed, dict):
         return DEFAULT_THEME_NAME, True, None

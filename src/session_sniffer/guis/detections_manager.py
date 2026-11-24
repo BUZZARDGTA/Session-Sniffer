@@ -413,7 +413,7 @@ class DetectionsManagerDialog(DetectionsManagerTabsMixin, QDialog):
                 return
             GUIDetectionSettings.import_from_file(source)
             GUIDetectionSettings.export_to_file(DETECTIONS_JSON_PATH)
-        except (ValidationError, OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
+        except (ValidationError, OSError, ValueError) as e:
             QMessageBox.critical(self, tr('Import Error'), tr('Failed to import settings:\n{error}', error=e))
             return
         self.load_current_settings()
@@ -836,7 +836,7 @@ class DetectionsManagerDialog(DetectionsManagerTabsMixin, QDialog):
                 if isinstance(parsed, list)
                 else (DetectionsFile.model_validate(parsed).combo_rules or [])
             )
-        except (ValidationError, OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
+        except (ValidationError, OSError, ValueError) as e:
             QMessageBox.critical(self, tr('Import Error'), tr('Failed to import combo rules:\n{error}', error=e))
             return
         if not imported:

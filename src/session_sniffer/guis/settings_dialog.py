@@ -626,12 +626,17 @@ class SettingsDialog(
             case SettingType.INTEGER | SettingType.INTEGER_OR_ALL:
                 if key == 'capture_filter_process_pid':
                     pid_value = int(value) if isinstance(value, (int, float)) else 0
+                    max_pid = int(meta.max_value) if meta.max_value is not None else 2_147_483_647
+                    if pid_value < 0 or pid_value > max_pid:
+                        pid_value = 0
                     process_name = cast('str | None', source_getter('capture_filter_process_name')) if source_getter is not None else None
                     default_track_by_name = SETTING_DEFAULTS['capture_filter_process_track_by_name']
                     track_by_name = bool(source_getter('capture_filter_process_track_by_name')) if source_getter is not None else default_track_by_name
                     cast('ProcessSelectorWidget', widget).set_value(pid_value, process_name, track_by_name=track_by_name)
                 else:
-                    cast('QSpinBox', widget).setValue(int(value) if isinstance(value, (int, float)) else 0)
+                    spin = cast('QSpinBox', widget)
+                    raw_int = int(value) if isinstance(value, (int, float)) else 0
+                    spin.setValue(max(spin.minimum(), min(spin.maximum(), raw_int)))
             case SettingType.ENUM:
                 self._set_enum(widget, value)
             case SettingType.COLUMN_TUPLE | SettingType.THIRD_PARTY_SERVERS_TUPLE:

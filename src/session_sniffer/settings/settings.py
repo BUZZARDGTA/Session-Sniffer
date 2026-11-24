@@ -477,10 +477,10 @@ class Settings:
         """Parse the settings JSON file and report whether it should be rewritten."""
         validate_file(json_path)
 
-        json_text = json_path.read_text('utf-8')
         try:
+            json_text = json_path.read_text('utf-8')
             parsed: object = json.loads(json_text)
-        except json.JSONDecodeError as e:
+        except ValueError as e:
             if strict:
                 raise
             logger.warning('Failed to parse settings file %s: %s; resetting to defaults.', json_path, e)

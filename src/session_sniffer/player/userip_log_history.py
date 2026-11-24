@@ -157,7 +157,7 @@ def _parse_session_file_fallback(data: bytes) -> dict[str, list[_RawSessionRecor
     """Fallback JSON parser for non-standard session log files."""
     try:
         raw_data: object = json.loads(data.decode('utf-8'))
-    except UnicodeDecodeError, json.JSONDecodeError:
+    except ValueError:
         return {}
     if not isinstance(raw_data, dict):
         return {}

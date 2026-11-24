@@ -1,6 +1,5 @@
 """Global detection settings singleton and persistence."""
 
-import json
 import logging
 from typing import TYPE_CHECKING, ClassVar, Literal
 
@@ -286,7 +285,7 @@ class GUIDetectionSettings:
             return
         try:
             cls.import_from_file(file_path)
-        except ValidationError, json.JSONDecodeError, OSError:
+        except ValidationError, ValueError, OSError:
             logger.exception('Failed to load detection settings from %s, keeping defaults', file_path)
             cls.apply_model(DetectionsFile())
             if file_path == DETECTIONS_JSON_PATH:

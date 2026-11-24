@@ -2,6 +2,7 @@
 
 import functools
 import json
+import math
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, ClassVar, Literal, Self, cast
@@ -255,7 +256,7 @@ class UserIPSettingsModel(BaseModel):
         if isinstance(value, bool):
             cls._mark_rewrite(info)
             return DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS if value else 'Auto'
-        if isinstance(value, (int, float)):
+        if isinstance(value, (int, float)) and (isinstance(value, int) or math.isfinite(value)):
             int_val = int(value)
             normalized_num: int | Literal['Auto'] = min(int_val, MAX_SUSPEND_DURATION_SECONDS) if int_val > 0 else 'Auto'
             if isinstance(value, float) or normalized_num != int_val:
@@ -282,9 +283,11 @@ class UserIPSettingsModel(BaseModel):
 
             is_manual_parens = stripped.upper().startswith('MANUAL(') and stripped.endswith(')')
             try:
-                parsed_int: int | None = int(float(stripped[7:-1] if is_manual_parens else stripped))
+                parsed_float = float(stripped[7:-1] if is_manual_parens else stripped)
             except ValueError:
-                parsed_int = DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS if is_manual_parens else None
+                parsed_int: int | None = DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS if is_manual_parens else None
+            else:
+                parsed_int = int(parsed_float) if math.isfinite(parsed_float) else (DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS if is_manual_parens else None)
             if parsed_int is not None:
                 cls._mark_rewrite(info)
                 return min(parsed_int, MAX_SUSPEND_DURATION_SECONDS) if parsed_int > 0 else 'Auto'
@@ -345,8 +348,10 @@ class UserIPEntryModel(BaseModel):
         detections_clean = isinstance(raw_detections, int) and not isinstance(raw_detections, bool) and raw_detections >= 0
         if isinstance(raw_detections, bool):
             detections_count = 0
-        elif isinstance(raw_detections, (int, float)):
-            detections_count = max(0, int(raw_detections))
+        elif isinstance(raw_detections, int):
+            detections_count = max(0, raw_detections)
+        elif isinstance(raw_detections, float):
+            detections_count = max(0, int(raw_detections)) if math.isfinite(raw_detections) else 0
         elif isinstance(raw_detections, str) and (stripped_detections := raw_detections.strip()).isascii() and stripped_detections.isdigit():
             detections_count = int(stripped_detections)
         else:

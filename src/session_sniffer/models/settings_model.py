@@ -4,6 +4,7 @@ Validates raw values from the settings JSON parser and normalizes them
 into their runtime Python types, while tracking whether the file needs rewriting.
 """
 
+import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, Self, cast
 
@@ -43,23 +44,26 @@ def _parse_int_value(value: object) -> tuple[int | None, bool]:
     if isinstance(value, int) and not isinstance(value, bool):
         return value, False
     if isinstance(value, float):
-        return int(value), True
+        return (int(value), True) if math.isfinite(value) else (None, True)
     if isinstance(value, str):
         try:
-            return int(float(value)), True
+            parsed = float(value)
         except ValueError:
             return None, True
+        return (int(parsed), True) if math.isfinite(parsed) else (None, True)
     return None, True
 
 
 def _parse_float_value(value: object) -> tuple[float | None, bool]:
     if isinstance(value, (int, float)) and not isinstance(value, bool):
-        return float(value), not isinstance(value, float)
+        parsed = float(value)
+        return (parsed, not isinstance(value, float)) if math.isfinite(parsed) else (None, True)
     if isinstance(value, str):
         try:
-            return float(value), True
+            parsed = float(value)
         except ValueError:
             return None, True
+        return (parsed, True) if math.isfinite(parsed) else (None, True)
     return None, True
 
 

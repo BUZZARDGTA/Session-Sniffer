@@ -123,7 +123,7 @@ def _ip_sort_str(value: str) -> str:
 def _timestamp_sort_str(value: object) -> str:
     """Return a fixed-width sortable string for an ISO-8601 timestamp, sorting empty values first."""
     if isinstance(value, str) and value:
-        with contextlib.suppress(ValueError):
+        with contextlib.suppress(ValueError, OSError, OverflowError):
             epoch_ms = int(datetime.fromisoformat(value).timestamp() * 1000) + _EPOCH_SORT_OFFSET_MS
             return f'1{max(0, epoch_ms):016d}'
     return ''
@@ -586,7 +586,7 @@ def parse_userip_database_content(
         return UserIPDatabaseFile(settings=fallback, entries=[])
     try:
         raw_data: object = json.loads(content)
-    except json.JSONDecodeError as e:
+    except ValueError as e:
         logger.warning('Failed to parse UserIP database JSON content: %s', e)
         return UserIPDatabaseFile(settings=fallback, entries=[])
     if not isinstance(raw_data, dict):

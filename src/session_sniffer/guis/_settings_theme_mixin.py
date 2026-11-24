@@ -82,6 +82,7 @@ from session_sniffer.i18n import (
 from session_sniffer.settings import SETTING_METADATA
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import format_triple_quoted_text
+from session_sniffer.utils_exceptions import InvalidFileError
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -675,7 +676,7 @@ class SettingsDialogThemeMixin(UnsavedChangesMixin, QDialog):
             return
         try:
             validated, flags = Settings.validate_settings_file(Path(file_path))
-        except (OSError, UnicodeDecodeError, ValueError, TypeError) as e:
+        except (OSError, ValueError, TypeError, InvalidFileError) as e:
             QMessageBox.critical(self, TITLE, tr('Failed to import settings:\n\n{error}', error=e))
             return
         self._populate_widgets(lambda key: cast('SettingValue', getattr(validated, key.upper())))
