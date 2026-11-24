@@ -3102,6 +3102,7 @@
     "{label}: \"{value}\" is not a valid color.": "{label}: a(z) \"{value}\" nem érvényes szín.",
     "{label}: Please enter a valid IPv4 address or choose a preset under Network Access.": "{label}: Adjon meg érvényes IPv4-címet, vagy válasszon előbeállítást a Hálózati hozzáférésnél.",
     "{label}: filter expression has unbalanced parentheses.": "{label}: a szűrőkifejezésben páratlan zárójel található.",
+    "{label}: invalid BPF filter expression ({error}).": "{label}: érvénytelen BPF szűrőkifejezés ({error}).",
     "{latency}ms": "{latency} ms",
     "{loaded} ({duplicates})": "{loaded} ({duplicates})",
     "{loss:.1f}% loss": "{loss:.1f}% veszteség",

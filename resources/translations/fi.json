@@ -3102,6 +3102,7 @@
     "{label}: \"{value}\" is not a valid color.": "{label}: \"{value}\" ei ole kelvollinen väri.",
     "{label}: Please enter a valid IPv4 address or choose a preset under Network Access.": "{label}: Anna kelvollinen IPv4-osoite tai valitse esiasetus kohdasta Verkkoyhteys.",
     "{label}: filter expression has unbalanced parentheses.": "{label}: suodatinlausekkeessa on parittomia sulkeita.",
+    "{label}: invalid BPF filter expression ({error}).": "{label}: virheellinen BPF-suodatinlauseke ({error}).",
     "{latency}ms": "{latency} ms",
     "{loaded} ({duplicates})": "{loaded} ({duplicates})",
     "{loss:.1f}% loss": "{loss:.1f} % hävikki",

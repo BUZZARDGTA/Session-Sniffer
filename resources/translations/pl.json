@@ -3102,6 +3102,7 @@
     "{label}: \"{value}\" is not a valid color.": "{label}: \"{value}\" nie jest prawidłowym kolorem.",
     "{label}: Please enter a valid IPv4 address or choose a preset under Network Access.": "{label}: Wpisz prawidłowy adres IPv4 lub wybierz opcję w sekcji Dostęp sieciowy.",
     "{label}: filter expression has unbalanced parentheses.": "{label}: wyrażenie filtra ma niezamknięte lub niesparowane nawiasy.",
+    "{label}: invalid BPF filter expression ({error}).": "{label}: nieprawidłowe wyrażenie filtra BPF ({error}).",
     "{latency}ms": "{latency} ms",
     "{loaded} ({duplicates})": "{loaded} ({duplicates})",
     "{loss:.1f}% loss": "{loss:.1f}% strat",

@@ -3102,6 +3102,7 @@
     "{label}: \"{value}\" is not a valid color.": "{label}: \"{value}\" ليس لونًا صالحًا.",
     "{label}: Please enter a valid IPv4 address or choose a preset under Network Access.": "{label}: يرجى إدخال عنوان IPv4 صالح أو اختيار إعداد مسبق ضمن الوصول عبر الشبكة.",
     "{label}: filter expression has unbalanced parentheses.": "{label}: تعبير التصفية يحتوي على أقواس غير متوازنة.",
+    "{label}: invalid BPF filter expression ({error}).": "{label}: تعبير تصفية BPF غير صالح ({error}).",
     "{latency}ms": "{latency}ms",
     "{loaded} ({duplicates})": "{loaded} ({duplicates})",
     "{loss:.1f}% loss": "فقدان {loss:.1f}%",

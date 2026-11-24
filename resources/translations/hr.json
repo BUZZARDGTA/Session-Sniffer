@@ -3102,6 +3102,7 @@
     "{label}: \"{value}\" is not a valid color.": "{label}: \"{value}\" nije valjana boja.",
     "{label}: Please enter a valid IPv4 address or choose a preset under Network Access.": "{label}: Unesite valjanu IPv4 adresu ili odaberite opciju pod Mrežni pristup.",
     "{label}: filter expression has unbalanced parentheses.": "{label}: izraz filtra ima neuparene zagrade.",
+    "{label}: invalid BPF filter expression ({error}).": "{label}: nevažeći BPF izraz filtra ({error}).",
     "{latency}ms": "{latency}ms",
     "{loaded} ({duplicates})": "{loaded} ({duplicates})",
     "{loss:.1f}% loss": "{loss:.1f}% gubitka",

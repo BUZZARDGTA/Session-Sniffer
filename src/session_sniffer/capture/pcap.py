@@ -201,6 +201,10 @@ def _load_pcap_library() -> ctypes.CDLL:
     library.pcap_sendpacket.argtypes = [c_void_p, ctypes.POINTER(c_ubyte), c_int]
     library.pcap_sendpacket.restype = c_int
 
+    if hasattr(library, 'pcap_open_dead'):
+        library.pcap_open_dead.argtypes = [c_int, c_int]
+        library.pcap_open_dead.restype = c_void_p
+
     if hasattr(library, 'pcap_setbuff'):
         library.pcap_setbuff.argtypes = [c_void_p, c_int]
         library.pcap_setbuff.restype = c_int
@@ -268,6 +272,36 @@ def can_open_pcap_device(device_name: str) -> bool:
         return False
     library.pcap_close(handle)
     return True
+
+
+def validate_bpf_filter(filter_string: str) -> str | None:
+    """Validate BPF syntax via `pcap_open_dead` + `pcap_compile`, returning an error message or `None` if valid."""
+    if '\x00' in filter_string:
+        return 'filter expression contains a null byte'
+    try:
+        library = _load_pcap_library()
+    except (OSError, RuntimeError):
+        return None
+    if not hasattr(library, 'pcap_open_dead'):
+        return None
+    dead_handle = library.pcap_open_dead(c_int(DLT_EN10MB), c_int(65535))
+    if not dead_handle:
+        return None
+    try:
+        bpf_program = BpfProgram()
+        compile_result = library.pcap_compile(
+            dead_handle,
+            byref(bpf_program),
+            filter_string.encode('utf-8'),
+            1,
+            c_uint32(PCAP_NETMASK_UNKNOWN),
+        )
+        if not compile_result:
+            library.pcap_freecode(byref(bpf_program))
+            return None
+        return _get_pcap_error_message(library, dead_handle)
+    finally:
+        library.pcap_close(dead_handle)
 
 
 def _open_posix_handle(

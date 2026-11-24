@@ -3102,6 +3102,7 @@
     "{label}: \"{value}\" is not a valid color.": "{label}: \"{value}\" si langi ntuufu.",
     "{label}: Please enter a valid IPv4 address or choose a preset under Network Access.": "{label}: Yingiza endagiriro ya IPv4 entuufu oba londa ku byategekeddwa wansi w’Okutuuka ku Mukutu.",
     "{label}: filter expression has unbalanced parentheses.": "{label}: enjogera y'ekisengejja erina obukomero obutatuukana.",
+    "{label}: invalid BPF filter expression ({error}).": "{label}: enjogera y'ekisengejja kya BPF si ntuufu ({error}).",
     "{latency}ms": "{latency}ms",
     "{loaded} ({duplicates})": "{loaded} ({duplicates})",
     "{loss:.1f}% loss": "okufiirwa {loss:.1f}%",

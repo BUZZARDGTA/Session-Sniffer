@@ -3102,6 +3102,7 @@
     "{label}: \"{value}\" is not a valid color.": "{label}: \"{value}\" nav derīga krāsa.",
     "{label}: Please enter a valid IPv4 address or choose a preset under Network Access.": "{label}: Ievadiet derīgu IPv4 adresi vai izvēlieties priekšiestatījumu sadaļā Tīkla piekļuve.",
     "{label}: filter expression has unbalanced parentheses.": "{label}: filtra izteiksmei ir nesabalansētas iekavas.",
+    "{label}: invalid BPF filter expression ({error}).": "{label}: nederīga BPF filtra izteiksme ({error}).",
     "{latency}ms": "{latency}ms",
     "{loaded} ({duplicates})": "{loaded} ({duplicates})",
     "{loss:.1f}% loss": "{loss:.1f}% zudums",

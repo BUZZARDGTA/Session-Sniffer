@@ -3102,6 +3102,7 @@
     "{label}: \"{value}\" is not a valid color.": "{label}: \"{value}\" не є дійсним кольором.",
     "{label}: Please enter a valid IPv4 address or choose a preset under Network Access.": "{label}: введіть коректну IPv4-адресу або оберіть варіант у розділі Мережевий доступ.",
     "{label}: filter expression has unbalanced parentheses.": "{label}: вираз фільтра містить незбалансовані дужки.",
+    "{label}: invalid BPF filter expression ({error}).": "{label}: некоректний вираз фільтра BPF ({error}).",
     "{latency}ms": "{latency} мс",
     "{loaded} ({duplicates})": "{loaded} ({duplicates})",
     "{loss:.1f}% loss": "{loss:.1f}% втрат",

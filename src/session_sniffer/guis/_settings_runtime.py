@@ -12,6 +12,7 @@ from session_sniffer.background.cores import ensure_looky_core_running, wake_loo
 from session_sniffer.background.tasks import retrigger_detections_scan
 from session_sniffer.background.voice_notifications import clear_voice_notification_queue
 from session_sniffer.capture.filters import build_capture_filters
+from session_sniffer.capture.pcap import validate_bpf_filter
 from session_sniffer.capture.process_monitor import ensure_process_monitor_running
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.ctypes_windows import is_admin
@@ -87,9 +88,12 @@ def validate_settings_values(values: dict[str, SettingValue]) -> list[str]:
 
         elif meta.setting_type == SettingType.STRING and key == 'capture_prepend_custom_capture_filter' and isinstance(value, str):
             try:
-                validate_and_strip_balanced_outer_parens(value)
+                stripped_filter = validate_and_strip_balanced_outer_parens(value)
             except ParenthesisMismatchError:
                 errors.append(tr('{label}: filter expression has unbalanced parentheses.', label=tr(meta.display_label)))
+            else:
+                if stripped_filter and (bpf_error := validate_bpf_filter(stripped_filter)) is not None:
+                    errors.append(tr('{label}: invalid BPF filter expression ({error}).', label=tr(meta.display_label), error=bpf_error))
 
         elif key == 'discord_presence_title' and isinstance(value, str) and 0 < len(value) < _DISCORD_PRESENCE_TITLE_MIN_LEN:
             errors.append(tr('Presence Title must be either empty (to disable) or at least 2 characters long.'))

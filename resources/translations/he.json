@@ -3102,6 +3102,7 @@
     "{label}: \"{value}\" is not a valid color.": "{label}: \"{value}\" אינו צבע תקין.",
     "{label}: Please enter a valid IPv4 address or choose a preset under Network Access.": "{label}: אנא הזן כתובת IPv4 תקינה או בחר אפשרות מוכנה תחת גישה לרשת.",
     "{label}: filter expression has unbalanced parentheses.": "{label}: ביטוי הסינון מכיל סוגריים לא מאוזנים.",
+    "{label}: invalid BPF filter expression ({error}).": "{label}: ביטוי סינון BPF לא חוקי ({error}).",
     "{latency}ms": "{latency} מ״ש",
     "{loaded} ({duplicates})": "{loaded} ({duplicates})",
     "{loss:.1f}% loss": "{loss:.1f}% אובדן",

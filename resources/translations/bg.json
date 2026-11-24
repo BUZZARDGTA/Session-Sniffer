@@ -3102,6 +3102,7 @@
     "{label}: \"{value}\" is not a valid color.": "{label}: \"{value}\" не е валиден цвят.",
     "{label}: Please enter a valid IPv4 address or choose a preset under Network Access.": "{label}: Моля, въведете валиден IPv4 адрес или изберете готов вариант под Мрежов достъп.",
     "{label}: filter expression has unbalanced parentheses.": "{label}: изразът за филтриране има небалансирани скоби.",
+    "{label}: invalid BPF filter expression ({error}).": "{label}: невалиден BPF израз за филтриране ({error}).",
     "{latency}ms": "{latency}мс",
     "{loaded} ({duplicates})": "{loaded} ({duplicates})",
     "{loss:.1f}% loss": "{loss:.1f}% загуба",

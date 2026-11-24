@@ -25,6 +25,7 @@ from session_sniffer.capture.exceptions import (
     MissingPortError,
     MissingRequiredPacketFieldError,
     PcapError,
+    PcapFilterError,
     PcapOpenError,
 )
 from session_sniffer.capture.pcap import DLT_EN10MB, DLT_NULL, DLT_RAW, PcapHandle
@@ -347,7 +348,7 @@ class PacketCapture:
                     or 'interface disappeared' in error_string.lower()
                 )
                 is_open_error = isinstance(error_detail, PcapOpenError) or 'failed to open pcap adapter' in error_string.lower()
-                is_permission_error = (
+                is_permission_error = not isinstance(error_detail, PcapFilterError) and (
                     'permission' in error_string.lower()
                     or 'operation not permitted' in error_string.lower()
                     or 'cap_net_raw' in error_string.lower()

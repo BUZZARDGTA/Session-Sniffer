@@ -3102,6 +3102,7 @@
     "{label}: \"{value}\" is not a valid color.": "{label}：“{value}”不是有效的颜色值。",
     "{label}: Please enter a valid IPv4 address or choose a preset under Network Access.": "{label}：请输入有效的 IPv4 地址，或在“网络访问”下选择一个预设选项。",
     "{label}: filter expression has unbalanced parentheses.": "{label}：筛选表达式中的括号未成对匹配。",
+    "{label}: invalid BPF filter expression ({error}).": "{label}：无效的 BPF 筛选表达式（{error}）。",
     "{latency}ms": "{latency}ms",
     "{loaded} ({duplicates})": "{loaded} ({duplicates})",
     "{loss:.1f}% loss": "{loss:.1f}% 丢包率",

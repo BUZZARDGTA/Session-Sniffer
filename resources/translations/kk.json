@@ -3102,6 +3102,7 @@
     "{label}: \"{value}\" is not a valid color.": "{label}: «{value}» жарамды түс емес.",
     "{label}: Please enter a valid IPv4 address or choose a preset under Network Access.": "{label}: Жарамды IPv4 мекенжайын енгізіңіз немесе Желілік қатынас бөлімінен дайын нұсқаны таңдаңыз.",
     "{label}: filter expression has unbalanced parentheses.": "{label}: сүзгі өрнегінде жақшалар теңдестірілмеген.",
+    "{label}: invalid BPF filter expression ({error}).": "{label}: жарамсыз BPF сүзгі өрнегі ({error}).",
     "{latency}ms": "{latency}ms",
     "{loaded} ({duplicates})": "{loaded} ({duplicates})",
     "{loss:.1f}% loss": "{loss:.1f}% жоғалту",

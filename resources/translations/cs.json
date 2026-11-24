@@ -3102,6 +3102,7 @@
     "{label}: \"{value}\" is not a valid color.": "{label}: „{value}“ není platná barva.",
     "{label}: Please enter a valid IPv4 address or choose a preset under Network Access.": "{label}: Zadejte prosím platnou IPv4 adresu nebo vyberte předvolbu v sekci Síťový přístup.",
     "{label}: filter expression has unbalanced parentheses.": "{label}: výraz filtru má nevyvážené závorky.",
+    "{label}: invalid BPF filter expression ({error}).": "{label}: neplatný výraz BPF filtru ({error}).",
     "{latency}ms": "{latency} ms",
     "{loaded} ({duplicates})": "{loaded} ({duplicates})",
     "{loss:.1f}% loss": "{loss:.1f}% ztráta",
