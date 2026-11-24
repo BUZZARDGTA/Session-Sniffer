@@ -188,6 +188,18 @@ class _UsernameInputMode:
     """Pre-filled per-username notes; None hides the per-row note fields."""
 
 
+def _find_first_empty_input(
+    row_entries: Sequence[tuple[QWidget, _SuggestionLineEdit, QLineEdit | None, QPushButton | None]],
+) -> QLineEdit | None:
+    """Return the first empty username or note input across *row_entries*, or `None` if all are filled."""
+    for _, edit, note_edit, _ in row_entries:
+        if not edit.text().strip():
+            return edit
+        if note_edit is not None and not note_edit.text().strip():
+            return note_edit
+    return None
+
+
 def _run_username_input_dialog(
     parent: QWidget,
     title: str,
@@ -425,7 +437,11 @@ def _run_username_input_dialog(
 
     first_edit = row_entries[0][1]
     active_line_edit = first_edit
-    first_edit.selectAll()
+    initial_focus = _find_first_empty_input(row_entries)
+    if initial_focus is None:
+        initial_focus = first_edit
+        initial_focus.selectAll()
+    initial_focus.setFocus()
 
     if add_row_button is not None:
         add_row_button.clicked.connect(lambda: _add_row('', focus=True))
