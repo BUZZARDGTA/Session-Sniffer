@@ -3,6 +3,7 @@ name: Build New Release
 on:
   release:
     types: [published]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -12,7 +13,7 @@ defaults:
     shell: bash
 
 concurrency:
-  group: release-${{ github.event.release.tag_name }}
+  group: release-${{ github.event.release.tag_name || github.run_id }}
   cancel-in-progress: false
 
 jobs:
@@ -56,11 +57,38 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
 
+      - name: Install Linux runtime libraries for executable verification
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            xvfb \
+            libcap2-bin \
+            libpcap0.8 \
+            libegl1 \
+            libgl1 \
+            libopengl0 \
+            libxkbcommon0 \
+            libxkbcommon-x11-0 \
+            libdbus-1-3 \
+            libfontconfig1 \
+            libxcb-cursor0 \
+            libxcb-icccm4 \
+            libxcb-image0 \
+            libxcb-keysyms1 \
+            libxcb-randr0 \
+            libxcb-render-util0 \
+            libxcb-shape0 \
+            libxcb-xfixes0 \
+            libxcb-xinerama0 \
+            libxcb-xinput0
+
       - name: Create virtual environment
         working-directory: .github/workflows
         run: python -m venv --upgrade-deps '.venv'
 
       - name: Validate release tag matches pyproject.toml
+        if: github.event_name == 'release'
         working-directory: .github/workflows
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
@@ -88,7 +116,16 @@ jobs:
           COMMIT_SHA: ${{ github.sha }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
           RELEASE_DATE: ${{ github.event.release.published_at }}
-        run: ${{ matrix.venv_python }} 'scripts/bake_build_metadata.py'
+        run: |
+          if [ -z "$RELEASE_TAG" ]; then
+            RELEASE_TAG=$(${{ matrix.venv_python }} -c "import tomllib; print(tomllib.loads(open('../../pyproject.toml', encoding='utf-8').read())['project']['version'])")
+            export RELEASE_TAG
+          fi
+          if [ -z "$RELEASE_DATE" ]; then
+            RELEASE_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+            export RELEASE_DATE
+          fi
+          ${{ matrix.venv_python }} 'scripts/bake_build_metadata.py'
 
       - name: Build executable with PyInstaller
         working-directory: .github/workflows
@@ -97,7 +134,8 @@ jobs:
       - name: Verify built executable
         working-directory: .github/workflows
         run: |
-          ${{ matrix.venv_python }} -c "import os, sys; path = 'dist/${{ matrix.asset_name }}'; sys.exit(0 if os.path.isfile(path) else f'Missing: {path}')"
+          ${{ matrix.venv_python }} -m py_compile 'scripts/verify_built_executable.py'
+          ${{ matrix.venv_python }} 'scripts/verify_built_executable.py' "dist/${{ matrix.asset_name }}"
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v7.0.2
@@ -107,6 +145,7 @@ jobs:
           if-no-files-found: error
 
   upload-release-artifact:
+    if: github.event_name == 'release'
     needs: [build]
     runs-on: ubuntu-24.04
     name: Upload release artifact
@@ -201,6 +240,7 @@ jobs:
           echo "darwin_download_url=$darwin_download_url" >> "$GITHUB_OUTPUT"
 
   update-version-info:
+    if: github.event_name == 'release'
     needs: [upload-release-artifact]
     runs-on: ubuntu-24.04
     name: Update version branch
@@ -319,6 +359,7 @@ jobs:
           git push origin version
 
   notify-discord:
+    if: github.event_name == 'release'
     needs: [upload-release-artifact, update-version-info]
     runs-on: ubuntu-24.04
     name: Notify Discord

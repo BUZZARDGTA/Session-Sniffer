@@ -251,22 +251,36 @@ _RETAINED_QT_TRANSLATION_FILES = frozenset(
 )
 
 
-def _is_excluded_qt_framework_entry(normalized_dest: str) -> bool:
-    return any(segment in normalized_dest for segment in _EXCLUDED_QT_MACOS_FRAMEWORK_SEGMENTS)
+def _is_excluded_qt_framework_entry(normalized_path: str) -> bool:
+    rooted_path = f'/{normalized_path.lstrip("/")}'
+    return any(segment in rooted_path for segment in _EXCLUDED_QT_MACOS_FRAMEWORK_SEGMENTS)
+
+
+def _is_excluded_qt_target(normalized_path: str) -> bool:
+    basename = normalized_path.rsplit('/', 1)[-1]
+    return (
+        basename in _EXCLUDED_QT_BINARY_NAMES
+        or basename.startswith(_EXCLUDED_QT_SO_PREFIXES)
+        or _is_excluded_qt_framework_entry(normalized_path)
+    )
+
+
+def _is_excluded_qt_symlink(entry: tuple[str, ...]) -> bool:
+    return len(entry) >= 3 and entry[2] == 'SYMLINK' and _is_excluded_qt_target(entry[1].replace('\\', '/').lower())
 
 
 a.binaries = [
     binary
     for binary in a.binaries
     if (normalized_dest := binary[0].replace('\\', '/').lower())
-    and (basename := normalized_dest.rsplit('/', 1)[-1]) not in _EXCLUDED_QT_BINARY_NAMES
-    and not basename.startswith(_EXCLUDED_QT_SO_PREFIXES)
-    and not _is_excluded_qt_framework_entry(normalized_dest)
+    and not _is_excluded_qt_target(normalized_dest)
+    and not _is_excluded_qt_symlink(binary)
 ]
 a.datas = [
     data
     for data in a.datas
     if not _is_excluded_qt_framework_entry(normalized_dest := data[0].replace('\\', '/').lower())
+    and not _is_excluded_qt_symlink(data)
     and (
         not normalized_dest.startswith(('pyside6/translations/', 'pyside6/qt/translations/'))
         or normalized_dest.rsplit('/', 1)[-1] in _RETAINED_QT_TRANSLATION_FILES

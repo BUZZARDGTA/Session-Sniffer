@@ -74,6 +74,7 @@ from session_sniffer.guis.utils import compute_ui_scale, get_screen_size, initia
 from session_sniffer.i18n import tr
 from session_sniffer.launcher.cache_preloader import preload_application_caches, warm_table_gui_assets
 from session_sniffer.launcher.package_checker import check_packages_version, get_dependencies_from_pyproject
+from session_sniffer.launcher.smoke_test import run_smoke_test
 from session_sniffer.logging_setup import register_secret_provider, setup_logging
 from session_sniffer.models.player import Player
 from session_sniffer.models.player_traffic import PacketInfo
@@ -104,7 +105,8 @@ if TYPE_CHECKING:
     from session_sniffer.networking.adapter_types import AdapterData
 
 setup_logging(console_level=logging.INFO)
-install_exception_handlers()
+if '--smoke-test' not in sys.argv[1:]:
+    install_exception_handlers()
 logger = logging.getLogger(__name__)
 
 USER_SCRIPTS_DIR_PATH.mkdir(parents=True, exist_ok=True)
@@ -124,6 +126,10 @@ def main() -> None:
     """Run environment checks, initialize dependencies, and start the GUI."""
     atexit.register(_on_process_exit)
     log_theme_startup_warnings()
+
+    if '--smoke-test' in sys.argv[1:]:
+        run_smoke_test(sys.argv[1:])
+        return
 
     if is_pyinstaller_compiled():
         old_exe = Path(sys.executable).with_name(f'{Path(sys.executable).name}.old')
