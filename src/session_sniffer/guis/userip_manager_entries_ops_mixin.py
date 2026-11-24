@@ -220,14 +220,32 @@ class UserIPEntriesOperationsMixin(QDialog):
             range_item.setText('' if is_single else new_ip_text)
         clear_row_looky_badge(self._model, source_row)
 
+    def _resolve_live_rows(
+        self,
+        persistent_rows: list[QPersistentModelIndex],
+        *,
+        global_search: bool,
+        current_path: Path | None,
+    ) -> list[int]:
+        """Return valid source row indices for *persistent_rows* if the active view has not changed."""
+        if self._global_search_active != global_search or (not global_search and self._current_path != current_path):
+            return []
+        return [persistent_index.row() for persistent_index in persistent_rows if persistent_index.isValid()]
+
     def _edit_entry_ip(self, source_row: int) -> None:
         """Open the IP Range Builder dialog to edit the IP/range of an existing entry."""
         if not self._global_search_active and self._current_path is None:
             return
+        global_search = self._global_search_active
+        current_path = self._current_path
+        persistent_row = QPersistentModelIndex(self._model.index(source_row, 0))
         current_entry = self._get_row_entry_value(source_row)
         dialog = IPRangeBuilderDialog(self, initial_entry=current_entry or None)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
+        if not (live_rows := self._resolve_live_rows([persistent_row], global_search=global_search, current_path=current_path)):
+            return
+        live_row = live_rows[0]
         new_ip_text = dialog.result_entry()
         if not new_ip_text or new_ip_text == current_entry:
             return
@@ -239,8 +257,8 @@ class UserIPEntriesOperationsMixin(QDialog):
             is_single = False
 
         if self._global_search_active:
-            database_path = self._get_row_database_path(source_row)
-            username = self._get_row_username(source_row)
+            database_path = self._get_row_database_path(live_row)
+            username = self._get_row_username(live_row)
             if not database_path or not database_path.is_file() or not username:
                 return
             with QSignalBlocker(self._fs_watcher):
@@ -252,10 +270,10 @@ class UserIPEntriesOperationsMixin(QDialog):
             if not success:
                 return
             with QSignalBlocker(self._model):
-                self._set_row_ip_or_range(source_row, new_ip_text, is_single=is_single)
-                set_row_updated_at(self._model, source_row)
-                extract_entry_model_from_row(self._model, source_row)
-            self._proxy.refresh_rows((source_row,))
+                self._set_row_ip_or_range(live_row, new_ip_text, is_single=is_single)
+                set_row_updated_at(self._model, live_row)
+                extract_entry_model_from_row(self._model, live_row)
+            self._proxy.refresh_rows((live_row,))
             self._dedup_global_search_rows()
             self._proxy.refresh_groups()
             self._highlight_duplicates()
@@ -264,10 +282,10 @@ class UserIPEntriesOperationsMixin(QDialog):
             self._set_status(tr('Updated entry to "{value}" in {db}.', value=new_ip_text, db=database_path.name))
         else:
             with QSignalBlocker(self._model):
-                self._set_row_ip_or_range(source_row, new_ip_text, is_single=is_single)
-                if is_row_persisted(self._model, source_row):
-                    set_row_updated_at(self._model, source_row)
-            self._proxy.refresh_rows((source_row,))
+                self._set_row_ip_or_range(live_row, new_ip_text, is_single=is_single)
+                if is_row_persisted(self._model, live_row):
+                    set_row_updated_at(self._model, live_row)
+            self._proxy.refresh_rows((live_row,))
             self._mark_entries_dirty()
             self._highlight_duplicates()
             self._update_entry_counts()
@@ -280,6 +298,9 @@ class UserIPEntriesOperationsMixin(QDialog):
         """Open a text input dialog to edit the note of an existing entry."""
         if not self._global_search_active and self._current_path is None:
             return
+        global_search = self._global_search_active
+        current_path = self._current_path
+        persistent_row = QPersistentModelIndex(self._model.index(source_row, 0))
         notes_item = self._model.item(source_row, NOTES_COLUMN)
         current_note = notes_item.text().strip() if notes_item else ''
         dialog_title = tr('Edit Note') if current_note else tr('Add Note')
@@ -291,11 +312,14 @@ class UserIPEntriesOperationsMixin(QDialog):
         new_note, accepted = QInputDialog.getText(self, dialog_title, note_prompt, QLineEdit.EchoMode.Normal, current_note)
         if not accepted or (new_note := new_note.strip()) == current_note:
             return
+        if not (live_rows := self._resolve_live_rows([persistent_row], global_search=global_search, current_path=current_path)):
+            return
+        live_row = live_rows[0]
 
         if self._global_search_active:
-            database_path = self._get_row_database_path(source_row)
-            username = self._get_row_username(source_row)
-            entry_ip_or_range = self._get_row_entry_value(source_row)
+            database_path = self._get_row_database_path(live_row)
+            username = self._get_row_username(live_row)
+            entry_ip_or_range = self._get_row_entry_value(live_row)
             if not database_path or not database_path.is_file() or not username or not entry_ip_or_range:
                 return
             with QSignalBlocker(self._fs_watcher):
@@ -307,18 +331,18 @@ class UserIPEntriesOperationsMixin(QDialog):
             if not success:
                 return
             with QSignalBlocker(self._model):
-                if notes_item:
-                    notes_item.setText(new_note)
-                set_row_updated_at(self._model, source_row)
-            self._proxy.refresh_rows((source_row,))
+                if live_notes_item := self._model.item(live_row, NOTES_COLUMN):
+                    live_notes_item.setText(new_note)
+                set_row_updated_at(self._model, live_row)
+            self._proxy.refresh_rows((live_row,))
             self._set_status(tr('Updated note for "{username}" in {db}.', username=username, db=database_path.name))
         else:
             with QSignalBlocker(self._model):
-                if notes_item:
-                    notes_item.setText(new_note)
-                if is_row_persisted(self._model, source_row):
-                    set_row_updated_at(self._model, source_row)
-            self._proxy.refresh_rows((source_row,))
+                if live_notes_item := self._model.item(live_row, NOTES_COLUMN):
+                    live_notes_item.setText(new_note)
+                if is_row_persisted(self._model, live_row):
+                    set_row_updated_at(self._model, live_row)
+            self._proxy.refresh_rows((live_row,))
             self._mark_entries_dirty()
             self._save_database()
             if not self._dirty:
@@ -587,6 +611,9 @@ class UserIPEntriesOperationsMixin(QDialog):
         source_rows = self._get_selected_source_rows(warn_if_empty=True)
         if not source_rows:
             return
+        global_search = self._global_search_active
+        current_path = self._current_path
+        persistent_rows = [QPersistentModelIndex(self._model.index(row, 0)) for row in source_rows]
         count = len(source_rows)
 
         if count == 1:
@@ -603,13 +630,15 @@ class UserIPEntriesOperationsMixin(QDialog):
         if not (new_username := new_username.strip()):
             QMessageBox.warning(self, TITLE, tr('No username was provided.'))
             return
-        if count == 1 and new_username == initial_name:
+        if (count == 1 and new_username == initial_name) or not (
+            live_rows := self._resolve_live_rows(persistent_rows, global_search=global_search, current_path=current_path)
+        ):
             return
 
-        renamed_entries = [val for row in source_rows if (val := self._get_row_entry_value(row))]
+        renamed_entries = [val for row in live_rows if (val := self._get_row_entry_value(row))]
         if self._global_search_active:
             rows_by_database: dict[Path, list[tuple[int, str, str]]] = defaultdict(list)
-            for row in source_rows:
+            for row in live_rows:
                 database_path = self._get_row_database_path(row)
                 old_username = self._get_row_username(row)
                 entry_ip_or_range = self._get_row_entry_value(row)
@@ -631,11 +660,12 @@ class UserIPEntriesOperationsMixin(QDialog):
                 return
 
             with QSignalBlocker(self._model):
-                for row in source_rows:
-                    self._model.item(row, USERNAME_COLUMN).setText(new_username)
+                for row in live_rows:
+                    if username_item := self._model.item(row, USERNAME_COLUMN):
+                        username_item.setText(new_username)
                     clear_row_looky_badge(self._model, row)
                     set_row_updated_at(self._model, row)
-            self._proxy.refresh_rows(source_rows)
+            self._proxy.refresh_rows(live_rows)
             self._dedup_global_search_rows()
             self._proxy.refresh_groups()
             self._highlight_duplicates()
@@ -651,12 +681,13 @@ class UserIPEntriesOperationsMixin(QDialog):
             )
         else:
             with QSignalBlocker(self._model):
-                for row in source_rows:
-                    self._model.item(row, USERNAME_COLUMN).setText(new_username)
+                for row in live_rows:
+                    if username_item := self._model.item(row, USERNAME_COLUMN):
+                        username_item.setText(new_username)
                     clear_row_looky_badge(self._model, row)
                     if is_row_persisted(self._model, row):
                         set_row_updated_at(self._model, row)
-            self._proxy.refresh_rows(source_rows)
+            self._proxy.refresh_rows(live_rows)
 
             self._mark_entries_dirty()
             self._highlight_duplicates()
@@ -667,7 +698,7 @@ class UserIPEntriesOperationsMixin(QDialog):
                     tr_plural(
                         'Renamed {count} entry to "{username}".',
                         'Renamed {count} entries to "{username}".',
-                        count,
+                        len(live_rows),
                         username=new_username,
                     ),
                 )
@@ -678,6 +709,9 @@ class UserIPEntriesOperationsMixin(QDialog):
         source_rows = list(reversed(self._get_selected_source_rows(warn_if_empty=True)))
         if not source_rows:
             return
+        global_search = self._global_search_active
+        current_path = self._current_path
+        persistent_rows = [QPersistentModelIndex(self._model.index(row, 0)) for row in source_rows]
         count = len(source_rows)
 
         result = QMessageBox.warning(
@@ -693,11 +727,13 @@ class UserIPEntriesOperationsMixin(QDialog):
         )
         if result != QMessageBox.StandardButton.Yes:
             return
+        if not (live_rows := sorted(set(self._resolve_live_rows(persistent_rows, global_search=global_search, current_path=current_path)), reverse=True)):
+            return
 
         if self._global_search_active:
-            self._delete_global_search_rows(count, source_rows)
+            self._delete_global_search_rows(len(live_rows), live_rows)
         else:
-            for row in source_rows:
+            for row in live_rows:
                 self._model.removeRow(row)
             self._renumber_indexes()
             self._highlight_duplicates()
@@ -705,7 +741,7 @@ class UserIPEntriesOperationsMixin(QDialog):
             self._mark_entries_dirty()
             self._save_database()
             if not self._dirty:
-                self._set_status(tr_plural('Deleted {count} entry.', 'Deleted {count} entries.', count))
+                self._set_status(tr_plural('Deleted {count} entry.', 'Deleted {count} entries.', len(live_rows)))
 
     def _delete_global_search_rows(self, count: int, source_rows: list[int]) -> None:
         """Write deletions directly to database files and remove rows from the global search model."""

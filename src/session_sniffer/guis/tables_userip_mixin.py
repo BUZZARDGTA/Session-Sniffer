@@ -509,14 +509,17 @@ def userip_edit_note(parent: QWidget, ip_address: str, player: Player) -> None:
 
 def userip_add_username(parent: QWidget, ip_address: str, player: Player) -> None:
     """Add an additional username for an IP address that is already in a UserIP database."""
-    if player.userip is None:
+    userip = player.userip
+    if userip is None:
         return
 
-    db_path = player.userip.db_path
+    db_path = userip.db_path
     db_display = format_userip_db_display_name(db_path)
-    existing_count = len(player.userip.usernames)
-    existing = ', '.join(player.userip.usernames) if player.userip.usernames else tr('None')
-    candidates = [name for name in resolve_usernames_for_player(player) if name not in player.userip.usernames]
+    initial_usernames = list(userip.usernames)
+    initial_note = ', '.join(userip.notes) if userip.notes else ''
+    existing_count = len(initial_usernames)
+    existing = ', '.join(initial_usernames) if initial_usernames else tr('None')
+    candidates = [name for name in resolve_usernames_for_player(player) if name not in initial_usernames]
 
     def _add_username_prompt(count: int) -> str:
         header_line = tr_plural(
@@ -564,7 +567,13 @@ def userip_add_username(parent: QWidget, ip_address: str, player: Player) -> Non
             return
         target_entry = chosen_target
 
-    existing_usernames, existing_note = list(player.userip.usernames), ', '.join(player.userip.notes) if player.userip.notes else ''
+    current_userip = player.userip
+    if current_userip is not None and current_userip.db_path == db_path:
+        existing_usernames = list(current_userip.usernames)
+        existing_note = ', '.join(current_userip.notes) if current_userip.notes else ''
+    else:
+        existing_usernames = initial_usernames
+        existing_note = initial_note
     append_userip_entries(
         db_path,
         [UserIPEntryModel(username=username, ip=target_entry, notes=notes_by_username.get(username) or existing_note) for username in entered_usernames],
