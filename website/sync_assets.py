@@ -53,6 +53,20 @@ _TAG_SERIES_RE: Final = re.compile(r'^v?(\d+\.\d+)', re.IGNORECASE)
 _DEFAULT_ICON_STROKE_RE: Final = re.compile(r'#a5b4c4|(?<=stroke=")white(?=")', re.IGNORECASE)
 _PLACEHOLDER_RE: Final = re.compile(r'\{[a-zA-Z0-9_]+(?::[^}]+)?\}')
 _HTML_GENERATED_ASSET_RE: Final = re.compile(r'(assets/(?:themes\.generated\.css|app-data\.generated\.js))(?:\?v=[0-9a-f]+)?')
+_WEBSITE_STATIC_ASSETS: Final[tuple[str, ...]] = (
+    'styles.css',
+    'preview.css',
+    'games.css',
+    'history.css',
+    'theme-init.js',
+    'core.js',
+    'preview.js',
+    'games.js',
+    'history.js',
+)
+_HTML_STATIC_ASSET_RE: Final = re.compile(
+    r'((?:href|src)=")(' + '|'.join(re.escape(name) for name in _WEBSITE_STATIC_ASSETS) + r')(?:\?v=[0-9a-f]+)?(")',
+)
 _WEBSITE_HTML_FILES: Final[tuple[str, ...]] = ('index.html', 'games.html', 'history.html')
 _LIGHT_LUMINANCE_THRESHOLD: Final = 140.0
 _PREDECESSOR_COMMITS_COUNT: Final = 99  # PS3-Blacklist-Sniffer (94) + PC-Blacklist-Sniffer (5)
@@ -706,12 +720,29 @@ def _render_app_data_js(payload: dict[str, object]) -> str:
     )
 
 
+def _compute_static_asset_versions() -> dict[str, str]:
+    """Compute a deterministic 8-char SHA-256 version token for each hand-authored website CSS/JS file."""
+    versions: dict[str, str] = {}
+    for asset_name in _WEBSITE_STATIC_ASSETS:
+        asset_path = WEBSITE_DIR / asset_name
+        normalized = asset_path.read_text(encoding='utf-8').replace('\r\n', '\n').replace('\r', '\n')
+        versions[asset_name] = hashlib.sha256(normalized.encode('utf-8')).hexdigest()[:8]
+    return versions
+
+
 def _stamp_html_asset_versions(asset_version: str) -> None:
-    """Stamp `?v=<asset_version>` onto generated asset tags in website HTML pages to prevent stale-cache mismatches."""
+    """Stamp `?v=<hash>` onto generated and static CSS/JS tags in website HTML pages to prevent stale-cache mismatches."""
+    static_versions = _compute_static_asset_versions()
+
+    def _replace_static(match: re.Match[str]) -> str:
+        asset_name = match.group(2)
+        return f'{match.group(1)}{asset_name}?v={static_versions[asset_name]}{match.group(3)}'
+
     for html_name in _WEBSITE_HTML_FILES:
         html_path = WEBSITE_DIR / html_name
         original = html_path.read_text(encoding='utf-8')
         updated = _HTML_GENERATED_ASSET_RE.sub(rf'\1?v={asset_version}', original)
+        updated = _HTML_STATIC_ASSET_RE.sub(_replace_static, updated)
         if updated != original:
             _write_crlf_text(html_path, updated)
 
