@@ -160,12 +160,62 @@
         </div>
 
         <nav class="mobile-nav-drawer" id="mobile-nav-drawer" aria-label="Mobile navigation" hidden>
-            <a href="index.html#preview" data-i18n="nav.preview">Live Preview</a>
-            <a href="index.html#features" data-i18n="nav.features">Features</a>
-            <a href="index.html#download" data-i18n="nav.download">Download</a>
-            <a href="games.html" data-i18n="nav.games">Games</a>
-            <a href="history.html" class="is-active" aria-current="page" data-i18n="nav.history">History</a>
-            <a href="https://github.com/BUZZARDGTA/Session-Sniffer/wiki" target="_blank" rel="noopener noreferrer" data-i18n="nav.wiki">Project Wiki</a>
+            <div class="mobile-nav-grid">
+                <a href="index.html#preview" class="mobile-nav-tile">
+                    <span class="mobile-nav-tile-top">
+                        <span class="mobile-nav-icon mobile-nav-icon--success" aria-hidden="true">
+                            <svg class="icon icon-sm"><use href="#icon-radar"></use></svg>
+                        </span>
+                        <svg class="icon icon-xs mobile-nav-arrow" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
+                    </span>
+                    <span class="mobile-nav-label" data-i18n="nav.preview">Live Preview</span>
+                </a>
+                <a href="index.html#features" class="mobile-nav-tile">
+                    <span class="mobile-nav-tile-top">
+                        <span class="mobile-nav-icon mobile-nav-icon--accent" aria-hidden="true">
+                            <svg class="icon icon-sm"><use href="#icon-sliders-horizontal"></use></svg>
+                        </span>
+                        <svg class="icon icon-xs mobile-nav-arrow" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
+                    </span>
+                    <span class="mobile-nav-label" data-i18n="nav.features">Features</span>
+                </a>
+                <a href="index.html#download" class="mobile-nav-tile">
+                    <span class="mobile-nav-tile-top">
+                        <span class="mobile-nav-icon mobile-nav-icon--accent" aria-hidden="true">
+                            <svg class="icon icon-sm"><use href="#icon-cloud-download"></use></svg>
+                        </span>
+                        <svg class="icon icon-xs mobile-nav-arrow" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
+                    </span>
+                    <span class="mobile-nav-label" data-i18n="nav.download">Download</span>
+                </a>
+                <a href="games.html" class="mobile-nav-tile">
+                    <span class="mobile-nav-tile-top">
+                        <span class="mobile-nav-icon mobile-nav-icon--accent" aria-hidden="true">
+                            <svg class="icon icon-sm"><use href="#icon-gamepad-2"></use></svg>
+                        </span>
+                        <svg class="icon icon-xs mobile-nav-arrow" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
+                    </span>
+                    <span class="mobile-nav-label" data-i18n="nav.games">Games</span>
+                </a>
+                <a href="history.html" class="mobile-nav-tile is-active" aria-current="page">
+                    <span class="mobile-nav-tile-top">
+                        <span class="mobile-nav-icon mobile-nav-icon--warning" aria-hidden="true">
+                            <svg class="icon icon-sm"><use href="#icon-rotate-ccw-clock"></use></svg>
+                        </span>
+                        <svg class="icon icon-xs mobile-nav-arrow" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
+                    </span>
+                    <span class="mobile-nav-label" data-i18n="nav.history">History</span>
+                </a>
+                <a href="https://github.com/BUZZARDGTA/Session-Sniffer/wiki" target="_blank" rel="noopener noreferrer" class="mobile-nav-tile">
+                    <span class="mobile-nav-tile-top">
+                        <span class="mobile-nav-icon mobile-nav-icon--muted" aria-hidden="true">
+                            <svg class="icon icon-sm"><use href="#icon-book-text"></use></svg>
+                        </span>
+                        <svg class="icon icon-xs mobile-nav-arrow" aria-hidden="true"><use href="#icon-external-link"></use></svg>
+                    </span>
+                    <span class="mobile-nav-label" data-i18n="nav.wiki">Project Wiki</span>
+                </a>
+            </div>
             <div class="mobile-nav-social">
                 <a href="https://github.com/BUZZARDGTA/Session-Sniffer" target="_blank" rel="noopener noreferrer">
                     <svg class="icon icon-sm" aria-hidden="true"><use href="#icon-github"></use></svg>

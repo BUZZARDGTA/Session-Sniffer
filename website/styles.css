@@ -571,12 +571,6 @@ summary:focus-visible {
     background: rgba(var(--ss-accent-rgb), 0.13);
 }
 
-.mobile-nav-drawer a.is-active,
-.mobile-nav-drawer a[aria-current='page'] {
-    color: var(--ss-accent);
-    background: rgba(var(--ss-accent-rgb), 0.13);
-}
-
 .header-actions {
     display: flex;
     align-items: center;
@@ -857,10 +851,10 @@ summary:focus-visible {
     right: 0;
     background: var(--ss-popup);
     border-bottom: 1px solid var(--ss-border);
-    padding: 12px 22px 18px;
+    padding: 16px 22px 18px;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 12px;
     box-shadow: var(--ss-shadow-lg);
 }
 
@@ -868,44 +862,164 @@ summary:focus-visible {
     display: none;
 }
 
-.mobile-nav-drawer a {
-    color: var(--ss-text);
-    font-weight: 600;
-    padding: 10px 12px;
-    border-radius: var(--ss-radius-sm);
+.mobile-nav-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
 }
 
-.mobile-nav-drawer a:hover {
-    background: var(--ss-selection);
+.mobile-nav-tile {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 10px;
+    min-width: 0;
+    padding: 11px 12px;
+    border-radius: var(--ss-radius-md);
+    background: rgba(var(--ss-control-rgb), 0.72);
+    border: 1px solid rgba(var(--ss-border-rgb), 0.8);
+    color: var(--ss-text);
+    text-align: start;
+    text-decoration: none;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.12s ease;
+}
+
+.mobile-nav-tile:hover {
+    background: rgba(var(--ss-control-rgb), 0.96);
+    border-color: rgba(var(--ss-accent-rgb), 0.55);
     color: var(--ss-text-strong);
     text-decoration: none;
 }
 
-.mobile-nav-social {
+.mobile-nav-tile:active {
+    transform: translateY(1px);
+}
+
+.mobile-nav-tile:focus-visible,
+.mobile-nav-social a:focus-visible {
+    outline: 2px solid var(--ss-accent);
+    outline-offset: 2px;
+}
+
+[data-scheme='light'] .mobile-nav-tile {
+    background: rgba(var(--ss-background-rgb), 0.85);
+    border-color: rgba(var(--ss-border-rgb), 0.78);
+}
+
+[data-scheme='light'] .mobile-nav-tile:hover {
+    background: rgba(var(--ss-control-rgb), 0.72);
+    border-color: rgba(var(--ss-accent-rgb), 0.55);
+}
+
+.mobile-nav-tile.is-active,
+.mobile-nav-tile[aria-current='page'] {
+    background: rgba(var(--ss-accent-rgb), 0.14);
+    border-color: rgba(var(--ss-accent-rgb), 0.55);
+    color: var(--ss-accent);
+}
+
+.mobile-nav-tile-top {
     display: flex;
-    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
     gap: 8px;
-    margin-top: 8px;
+}
+
+.mobile-nav-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid transparent;
+    flex-shrink: 0;
+}
+
+.mobile-nav-icon--accent {
+    background: rgba(var(--ss-accent-rgb), 0.13);
+    border-color: rgba(var(--ss-accent-rgb), 0.3);
+    color: var(--ss-accent);
+}
+
+.mobile-nav-icon--success {
+    background: rgba(var(--ss-success-rgb), 0.13);
+    border-color: rgba(var(--ss-success-rgb), 0.3);
+    color: var(--ss-success);
+}
+
+.mobile-nav-icon--warning {
+    background: rgba(var(--ss-warning-rgb), 0.13);
+    border-color: rgba(var(--ss-warning-rgb), 0.3);
+    color: var(--ss-warning);
+}
+
+.mobile-nav-icon--muted {
+    background: rgba(var(--ss-text-rgb), 0.08);
+    border-color: rgba(var(--ss-border-rgb), 0.85);
+    color: var(--ss-text-strong);
+}
+
+.mobile-nav-arrow {
+    color: var(--ss-text-muted);
+    opacity: 0.65;
+    flex-shrink: 0;
+    transition: color 0.15s ease, opacity 0.15s ease;
+}
+
+.mobile-nav-tile:hover .mobile-nav-arrow,
+.mobile-nav-tile.is-active .mobile-nav-arrow,
+.mobile-nav-tile[aria-current='page'] .mobile-nav-arrow {
+    color: var(--ss-accent);
+    opacity: 1;
+}
+
+.mobile-nav-label {
+    font-size: 13.5px;
+    font-weight: 600;
+    line-height: 1.25;
+    color: var(--ss-text-strong);
+    overflow-wrap: break-word;
+    hyphens: auto;
+}
+
+.mobile-nav-tile.is-active .mobile-nav-label,
+.mobile-nav-tile[aria-current='page'] .mobile-nav-label {
+    color: var(--ss-accent);
+}
+
+.mobile-nav-social {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
     padding-top: 12px;
     border-top: 1px solid var(--ss-border);
 }
 
 .mobile-nav-social a {
-    flex: 1 1 auto;
+    min-width: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    padding: 9px 12px;
+    gap: 7px;
+    padding: 9px 10px;
     font-size: 13px;
+    font-weight: 600;
+    line-height: 1.25;
+    text-align: center;
+    color: var(--ss-text);
     background: var(--ss-control);
     border: 1px solid var(--ss-border);
     border-radius: var(--ss-radius-sm);
+    text-decoration: none;
+    transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
 }
 
 .mobile-nav-social a:hover {
     border-color: var(--ss-accent);
     background: rgba(var(--ss-control-rgb), 0.85);
+    color: var(--ss-text-strong);
+    text-decoration: none;
 }
 
 /* ==========================================================================
@@ -2223,7 +2337,8 @@ summary:focus-visible {
     border-right-color: var(--ss-accent);
 }
 
-[dir='rtl'] .history-dir-icon {
+[dir='rtl'] .history-dir-icon,
+[dir='rtl'] .mobile-nav-arrow {
     transform: scaleX(-1);
 }
 
@@ -2378,9 +2493,28 @@ summary:focus-visible {
     }
 
     .mobile-nav-drawer {
-        padding: 10px 14px 16px;
+        padding: 12px 14px 16px;
         max-height: calc(100vh - var(--ss-header-height));
         overflow-y: auto;
+    }
+
+    .mobile-nav-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .mobile-nav-tile {
+        gap: 9px;
+        padding: 10px;
+    }
+
+    .mobile-nav-label {
+        font-size: clamp(12px, 3.35vw, 13px);
+    }
+
+    .mobile-nav-social a {
+        font-size: 12.5px;
+        padding: 9px 8px;
     }
 
     /* Hero */
