@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
 
 from session_sniffer.guis.theme import get_palette
 from session_sniffer.guis.theming import ICONS_DIR_PATH
-from session_sniffer.logging_setup import dump_crash_diagnostics
+from session_sniffer.logging_setup import dump_crash_diagnostics, setup_logging
 
 logger = logging.getLogger(__name__)
 
@@ -130,6 +130,11 @@ class _DisableScrollValueChangeFilter(QObject):
         return False, None
 
 
+# Initialize logging and Python's faulthandler alternate signal stack before QApplication
+# initializes Qt/Cocoa. On Apple Silicon macOS, Qt/Cocoa startup can leave the main thread
+# with SS_ONSTACK set, causing later sigaltstack() calls in faulthandler.enable() to raise
+# PermissionError (EPERM).
+setup_logging()
 _configure_platform_qt_environment()
 
 # Create the single QApplication instance for the entire application.

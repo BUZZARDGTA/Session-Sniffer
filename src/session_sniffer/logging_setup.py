@@ -61,6 +61,7 @@ class _LoggingState:
     """Mutable module-level state shared by the logging, secret-redaction, and crash-diagnostic helpers."""
 
     crash_log_file: TextIO | None = None
+    faulthandler_attempted: bool = False
     cached_secrets: tuple[str, ...] = ()
     cached_secrets_expiry: float = 0.0
 
@@ -466,6 +467,27 @@ def _configure_common_filters(handler: logging.Handler) -> None:
     _add_filter_once(handler, _urllib3_noise_filter)
 
 
+def _enable_faulthandler() -> None:
+    """Open crash.log and enable Python's native faulthandler when supported by the OS."""
+    _state.faulthandler_attempted = True
+    CRASH_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    crash_log_file = CRASH_LOG_PATH.open('a', encoding='utf-8')
+    try:
+        faulthandler.enable(file=crash_log_file, all_threads=True)
+    except OSError as exc:
+        with contextlib.suppress(OSError, ValueError):
+            faulthandler.disable()
+            crash_log_file.close()
+        logging.getLogger(_APP_LOGGER_NAME).warning(
+            'Failed to enable native faulthandler (%s); continuing without signal fault handler',
+            exc,
+        )
+    else:
+        _state.crash_log_file = crash_log_file
+    if sys.platform == 'win32' and not install_win32_crt_handlers(dump_crash_diagnostics):
+        logging.getLogger(_APP_LOGGER_NAME).debug('Failed to install Win32 CRT diagnostic handlers')
+
+
 def _close_crash_log() -> None:
     """Disable faulthandler and close the crash log file cleanly on exit."""
     if _state.crash_log_file is not None:
@@ -545,12 +567,8 @@ def setup_logging(
         _register_shutdown_once()
 
         # --- Native crash fault handler (captures fatal C/C++ exceptions and signals) ---
-        if _state.crash_log_file is None:
-            CRASH_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-            _state.crash_log_file = CRASH_LOG_PATH.open('a', encoding='utf-8')
-            faulthandler.enable(file=_state.crash_log_file, all_threads=True)
-            if sys.platform == 'win32' and not install_win32_crt_handlers(dump_crash_diagnostics):
-                logging.getLogger(_APP_LOGGER_NAME).debug('Failed to install Win32 CRT diagnostic handlers')
+        if not _state.faulthandler_attempted:
+            _enable_faulthandler()
 
 
 def purge_debug_log() -> None:
@@ -579,7 +597,5 @@ def purge_crash_log() -> None:
                 _state.crash_log_file.close()
             _state.crash_log_file = None
         CRASH_LOG_PATH.write_text('', encoding='utf-8')
-        _state.crash_log_file = CRASH_LOG_PATH.open('a', encoding='utf-8')
-        faulthandler.enable(file=_state.crash_log_file, all_threads=True)
-        if sys.platform == 'win32':
-            install_win32_crt_handlers(dump_crash_diagnostics)
+        _state.faulthandler_attempted = False
+        _enable_faulthandler()

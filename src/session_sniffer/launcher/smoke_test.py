@@ -1,5 +1,6 @@
 """Internal startup smoke-test runner for verifying built Session Sniffer executables."""
 
+import faulthandler
 import json
 import logging
 import sys
@@ -81,6 +82,7 @@ def run_smoke_test(argv: list[str]) -> None:
         message = f'Packet capture permissions are not ready on {sys.platform}.'
         raise RuntimeError(message)
 
+    faulthandler_enabled = faulthandler.is_enabled()
     result: dict[str, object] = {
         'status': 'ok',
         'platform': sys.platform,
@@ -88,12 +90,16 @@ def run_smoke_test(argv: list[str]) -> None:
         'version': VERSION,
         'frozen': is_pyinstaller_compiled(),
         'capture_ready': capture_ready,
+        'faulthandler_enabled': faulthandler_enabled,
     }
     if output_path is not None:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(f'{json.dumps(result, indent=2)}\n', encoding='utf-8')
 
-    summary = f'SMOKE_TEST_OK platform={sys.platform} qt={qt_platform} version={VERSION} frozen={is_pyinstaller_compiled()} capture_ready={capture_ready}'
+    summary = (
+        f'SMOKE_TEST_OK platform={sys.platform} qt={qt_platform} version={VERSION} '
+        f'frozen={is_pyinstaller_compiled()} capture_ready={capture_ready} faulthandler_enabled={faulthandler_enabled}'
+    )
     logger.info('%s', summary)
     if sys.stdout is not None:
         sys.stdout.write(f'{summary}\n')
