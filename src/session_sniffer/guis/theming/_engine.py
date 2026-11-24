@@ -149,7 +149,7 @@ def _parse_rgb_function(stripped: str) -> QColor | None:
     if len(components) not in (_RGB_COMPONENT_COUNT, _RGBA_COMPONENT_COUNT):
         return None
     try:
-        channels = [round(float(component[:-1]) * 2.55) if component.endswith('%') else round(float(component)) for component in components[:3]]
+        raw_channels = [float(component[:-1]) * 2.55 if component.endswith('%') else float(component) for component in components[:3]]
         alpha = 1.0
         if len(components) == _RGBA_COMPONENT_COUNT:
             alpha_text = components[3]
@@ -161,6 +161,9 @@ def _parse_rgb_function(stripped: str) -> QColor | None:
                     alpha /= 255
     except ValueError:
         return None
+    if not all(math.isfinite(channel) for channel in raw_channels) or not math.isfinite(alpha):
+        return None
+    channels = [round(channel) for channel in raw_channels]
     color = QColor(*(min(255, max(0, channel)) for channel in channels))
     color.setAlphaF(min(1.0, max(0.0, alpha)))
     return color
