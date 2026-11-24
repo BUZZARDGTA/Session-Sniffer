@@ -59,6 +59,7 @@
     var languageListeners = [];
     var themeListeners = [];
     var closePopupListeners = [];
+    var outsideDismissListeners = [];
 
     function getPageId() {
         return document.documentElement.getAttribute('data-page') || 'home';
@@ -84,6 +85,36 @@
 
     function notifyClosePopups() {
         closePopupListeners.forEach(function invoke(fn) { fn(); });
+    }
+
+    function isEventInside(ev, container) {
+        if (!container || !ev) {
+            return false;
+        }
+        if (typeof ev.composedPath === 'function') {
+            var path = ev.composedPath();
+            if (Array.isArray(path) && path.indexOf(container) !== -1) {
+                return true;
+            }
+        }
+        var target = ev.target;
+        if (!target) {
+            return false;
+        }
+        if (target.correspondingUseElement) {
+            target = target.correspondingUseElement;
+        }
+        return target instanceof Node && container.contains(target);
+    }
+
+    function onOutsideDismiss(fn) {
+        if (typeof fn === 'function') {
+            outsideDismissListeners.push(fn);
+        }
+    }
+
+    function notifyOutsideDismiss(ev) {
+        outsideDismissListeners.forEach(function invoke(fn) { fn(ev); });
     }
 
     function notifyThemeChange(reason) {
@@ -710,6 +741,10 @@
     function closeLangDropdown() {
         var btn = document.getElementById('lang-menu-button');
         var dropdown = document.getElementById('lang-menu-dropdown');
+        var search = document.getElementById('lang-search-input');
+        if (search && document.activeElement === search) {
+            search.blur();
+        }
         if (btn && dropdown) {
             dropdown.hidden = true;
             btn.setAttribute('aria-expanded', 'false');
@@ -801,7 +836,6 @@
         if (search) {
             search.value = '';
             renderLanguageDropdown('');
-            search.focus();
         }
     }
 
@@ -875,6 +909,7 @@
                 ev.stopPropagation();
                 closeLangDropdown();
                 closeThemeDropdown();
+                notifyClosePopups();
                 var willOpen = mobileDrawer.hidden;
                 mobileDrawer.hidden = !willOpen;
                 mobileToggle.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
@@ -884,21 +919,37 @@
             });
         }
 
-        document.addEventListener('click', function onGlobalClick(ev) {
+        onOutsideDismiss(function onHeaderOutsideDismiss(ev) {
             var langSwitcher = document.getElementById('nav-lang-switcher');
-            if (langSwitcher && !langSwitcher.contains(ev.target)) {
+            var langDropdown = document.getElementById('lang-menu-dropdown');
+            if (langDropdown && !langDropdown.hidden && !isEventInside(ev, langSwitcher)) {
                 closeLangDropdown();
             }
-            var switcher = document.getElementById('nav-theme-switcher');
-            if (switcher && !switcher.contains(ev.target)) {
+            var themeSwitcher = document.getElementById('nav-theme-switcher');
+            var themeDropdown = document.getElementById('theme-menu-dropdown');
+            if (themeDropdown && !themeDropdown.hidden && !isEventInside(ev, themeSwitcher)) {
                 closeThemeDropdown();
             }
             var navDrawer = document.getElementById('mobile-nav-drawer');
             var navBtn = document.getElementById('mobile-nav-toggle');
-            if (navDrawer && !navDrawer.hidden && !navDrawer.contains(ev.target) && (!navBtn || !navBtn.contains(ev.target))) {
+            if (navDrawer && !navDrawer.hidden && !isEventInside(ev, navDrawer) && !isEventInside(ev, navBtn)) {
                 closeMobileNavDrawer();
             }
         });
+
+        /* Capture-phase pointer/touch dismissal works on mobile browsers (including iOS Safari where
+           tapping non-clickable elements never dispatches a bubbling click event to document). */
+        if ('PointerEvent' in window) {
+            document.addEventListener('pointerdown', notifyOutsideDismiss, { capture: true, passive: true });
+        } else {
+            document.addEventListener('mousedown', notifyOutsideDismiss, { capture: true, passive: true });
+        }
+        document.addEventListener('touchstart', notifyOutsideDismiss, { capture: true, passive: true });
+        document.addEventListener('click', function onOutsideSyntheticClick(ev) {
+            if (ev.detail === 0) {
+                notifyOutsideDismiss(ev);
+            }
+        }, true);
 
         document.addEventListener('keydown', function onKeyDown(ev) {
             if (ev.key === 'Escape') {
@@ -1567,6 +1618,8 @@
         onLanguageChange: onLanguageChange,
         onThemeChange: onThemeChange,
         onClosePopups: onClosePopups,
+        isEventInside: isEventInside,
+        onOutsideDismiss: onOutsideDismiss,
     };
 
     injectIconSprite();

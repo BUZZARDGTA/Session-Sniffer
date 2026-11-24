@@ -1226,6 +1226,7 @@
         closeAllAppMenus();
         closeThemeDropdown();
         closeLangDropdown();
+        closeMobileNavDrawer();
         closeSearchColumnPopup();
 
         simState.selectedId = player.id;
@@ -2244,6 +2245,7 @@
         }
         closeLangDropdown();
         closeThemeDropdown();
+        closeMobileNavDrawer();
         closeAllAppMenus();
         closeContextMenu();
         syncSearchColumnUi();
@@ -2677,6 +2679,9 @@
             trigger.addEventListener('click', function onMenuClick(ev) {
                 ev.stopPropagation();
                 hideRichTooltip();
+                closeLangDropdown();
+                closeThemeDropdown();
+                closeMobileNavDrawer();
                 closeContextMenu();
                 closeSearchColumnPopup();
                 var key = trigger.getAttribute('data-menu');
@@ -2895,17 +2900,18 @@
     }
 
 
-    document.addEventListener('click', function onPreviewGlobalClick(ev) {
+    Core.onOutsideDismiss(function onPreviewOutsideDismiss(ev) {
         var menubar = document.getElementById('ss-menubar');
-        if (menubar && !menubar.contains(ev.target)) {
+        if (menubar && document.querySelector('.ss-menu-popup:not([hidden])') && !Core.isEventInside(ev, menubar)) {
             closeAllAppMenus();
         }
         var ctxMenu = document.getElementById('ss-context-menu');
-        if (ctxMenu && !ctxMenu.contains(ev.target)) {
+        if (ctxMenu && !ctxMenu.hidden && !Core.isEventInside(ev, ctxMenu)) {
             closeContextMenu();
         }
         var searchComboWrap = document.getElementById('ss-search-column-wrap');
-        if (searchComboWrap && !searchComboWrap.contains(ev.target)) {
+        var searchComboPopup = document.getElementById('ss-search-column-popup');
+        if (searchComboPopup && !searchComboPopup.hidden && !Core.isEventInside(ev, searchComboWrap)) {
             closeSearchColumnPopup();
         }
     });
