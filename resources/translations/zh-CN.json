@@ -1060,6 +1060,7 @@
     "Failed to start mobile hotspot": "启动移动热点失败",
     "Failed to stop mobile hotspot": "停止移动热点失败",
     "Failed to suspend the {game_name} process.\n\nTry running Session Sniffer as administrator.": "挂起 {game_name} 进程失败。\n\n请尝试以管理员身份运行 Session Sniffer。",
+    "Failed to update \"{filename}\":\n{error}": "更新“{filename}”失败：\n{error}",
     "Failed to write scan results file:\n{error}": "写入扫描结果文件失败：\n{error}",
     "Failed to write the new executable, and failed to restore the previous version.\n\nWrite error: {write_error}\n\nRestore error: {restore_error}": "写入新可执行文件失败，且恢复上一版本也失败。\n\n写入错误：{write_error}\n\n恢复错误：{restore_error}",
     "Failed to write the new executable. The previous version has been restored.\n\n{error}": "写入新可执行文件失败。已恢复上一版本。\n\n{error}",
@@ -3420,6 +3421,9 @@
     },
     "Exported {count} selected database to {path}": {
       "other": "已将所选的 {count} 个数据库导出到 {path}"
+    },
+    "Failed to delete {count} selected item because it is in use or cannot be removed.": {
+      "other": "无法删除选中的 {count} 个项目，因为它们正在使用中或无法移除。"
     },
     "Failed to move {count} item:\n{error}": {
       "other": "移动 {count} 个项目失败：\n{error}"

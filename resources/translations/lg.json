@@ -1060,6 +1060,7 @@
     "Failed to start mobile hotspot": "Okutandika mobile hotspot kulemye",
     "Failed to stop mobile hotspot": "Okuyimiriza mobile hotspot kulemye",
     "Failed to suspend the {game_name} process.\n\nTry running Session Sniffer as administrator.": "Okuyimiriza process ya {game_name} kulemye.\n\nGezaako okukozesa Session Sniffer nga administrator.",
+    "Failed to update \"{filename}\":\n{error}": "Okutereeza \"{filename}\" kulemye:\n{error}",
     "Failed to write scan results file:\n{error}": "Okuwandiika fayiro y'ebivudde mu kukebera kulemye:\n{error}",
     "Failed to write the new executable, and failed to restore the previous version.\n\nWrite error: {write_error}\n\nRestore error: {restore_error}": "Okuwandiika ekitandika ekipya kulemye, n'okuzzaawo omulembe ogw'emabega kulemye.\n\nEnsobi y'okuwandiika: {write_error}\n\nEnsobi y'okuzzaawo: {restore_error}",
     "Failed to write the new executable. The previous version has been restored.\n\n{error}": "Okuwandiika ekitandika ekipya kulemye. Omulembe ogw'emabega guzziddwaawo.\n\n{error}",
@@ -3494,6 +3495,10 @@
     "Exported {count} selected database to {path}": {
       "one": "Etterekero {count} erirondeddwa lifulumiziddwa mu {path}",
       "other": "Amaterekero {count} agarondeddwa gafulumiziddwa mu {path}"
+    },
+    "Failed to delete {count} selected item because it is in use or cannot be removed.": {
+      "one": "Okusangula ekintu {count} ekyalondeddwa kulemye kubanga kikozesebwa oba tekisobola kuggyibwawo.",
+      "other": "Okusangula ebintu {count} ebyalondeddwa kulemye kubanga bikozesebwa oba tebisobola kuggyibwawo."
     },
     "Failed to move {count} item:\n{error}": {
       "one": "Okusengula ekintu {count} kulemye:\n{error}",

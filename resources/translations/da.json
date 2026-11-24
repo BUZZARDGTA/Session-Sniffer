@@ -1060,6 +1060,7 @@
     "Failed to start mobile hotspot": "Kunne ikke starte mobilt hotspot",
     "Failed to stop mobile hotspot": "Kunne ikke stoppe mobilt hotspot",
     "Failed to suspend the {game_name} process.\n\nTry running Session Sniffer as administrator.": "Kunne ikke suspendere {game_name}-processen.\n\nPrøv at køre Session Sniffer som administrator.",
+    "Failed to update \"{filename}\":\n{error}": "Kunne ikke opdatere \"{filename}\":\n{error}",
     "Failed to write scan results file:\n{error}": "Kunne ikke skrive fil med scanningsresultater:\n{error}",
     "Failed to write the new executable, and failed to restore the previous version.\n\nWrite error: {write_error}\n\nRestore error: {restore_error}": "Kunne ikke skrive den nye eksekverbare fil og kunne ikke gendanne den forrige version.\n\nSkrivefejl: {write_error}\n\nGendannelsesfejl: {restore_error}",
     "Failed to write the new executable. The previous version has been restored.\n\n{error}": "Kunne ikke skrive den nye eksekverbare fil. Den forrige version er blevet gendannet.\n\n{error}",
@@ -3494,6 +3495,10 @@
     "Exported {count} selected database to {path}": {
       "one": "Eksporterede {count} valgt database til {path}",
       "other": "Eksporterede {count} valgte databaser til {path}"
+    },
+    "Failed to delete {count} selected item because it is in use or cannot be removed.": {
+      "one": "Kunne ikke slette {count} valgt element, fordi det er i brug eller ikke kan fjernes.",
+      "other": "Kunne ikke slette {count} valgte elementer, fordi de er i brug eller ikke kan fjernes."
     },
     "Failed to move {count} item:\n{error}": {
       "one": "Kunne ikke flytte {count} element:\n{error}",

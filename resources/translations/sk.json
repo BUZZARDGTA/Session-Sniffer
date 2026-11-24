@@ -1060,6 +1060,7 @@
     "Failed to start mobile hotspot": "Nepodarilo sa spustiť mobilný hotspot",
     "Failed to stop mobile hotspot": "Nepodarilo sa zastaviť mobilný hotspot",
     "Failed to suspend the {game_name} process.\n\nTry running Session Sniffer as administrator.": "Nepodarilo sa pozastaviť proces hry {game_name}.\n\nSkúste spustiť Session Sniffer ako správca.",
+    "Failed to update \"{filename}\":\n{error}": "Nepodarilo sa aktualizovať \"{filename}\":\n{error}",
     "Failed to write scan results file:\n{error}": "Nepodarilo sa zapísať súbor s výsledkami skenovania:\n{error}",
     "Failed to write the new executable, and failed to restore the previous version.\n\nWrite error: {write_error}\n\nRestore error: {restore_error}": "Nepodarilo sa zapísať nový spustiteľný súbor a nepodarilo sa ani obnoviť predchádzajúcu verziu.\n\nChyba zápisu: {write_error}\n\nChyba obnovenia: {restore_error}",
     "Failed to write the new executable. The previous version has been restored.\n\n{error}": "Nepodarilo sa zapísať nový spustiteľný súbor. Predchádzajúca verzia bola obnovená.\n\n{error}",
@@ -3568,6 +3569,11 @@
       "one": "Exportovaná {count} vybratá databáza do {path}",
       "few": "Exportované {count} vybraté databázy do {path}",
       "other": "Exportovaných {count} vybratých databáz do {path}"
+    },
+    "Failed to delete {count} selected item because it is in use or cannot be removed.": {
+      "one": "Nepodarilo sa odstrániť {count} vybranú položku, pretože sa používa alebo ju nemožno odstrániť.",
+      "few": "Nepodarilo sa odstrániť {count} vybrané položky, pretože sa používajú alebo ich nemožno odstrániť.",
+      "other": "Nepodarilo sa odstrániť {count} vybraných položiek, pretože sa používajú alebo ich nemožno odstrániť."
     },
     "Failed to move {count} item:\n{error}": {
       "one": "Nepodarilo sa presunúť {count} položku:\n{error}",

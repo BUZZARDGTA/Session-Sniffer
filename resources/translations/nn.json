@@ -1060,6 +1060,7 @@
     "Failed to start mobile hotspot": "Kunne ikkje starta mobil trådlaus sone",
     "Failed to stop mobile hotspot": "Kunne ikkje stoppa mobil trådlaus sone",
     "Failed to suspend the {game_name} process.\n\nTry running Session Sniffer as administrator.": "Kunne ikkje setja prosessen {game_name} på pause.\n\nPrøv å køyra Session Sniffer som administrator.",
+    "Failed to update \"{filename}\":\n{error}": "Kunne ikkje oppdatera \"{filename}\":\n{error}",
     "Failed to write scan results file:\n{error}": "Kunne ikkje skriva skanneresultatfil:\n{error}",
     "Failed to write the new executable, and failed to restore the previous version.\n\nWrite error: {write_error}\n\nRestore error: {restore_error}": "Kunne ikkje skriva den nye programfila, og kunne ikkje attoppretta den førre versjonen.\n\nSkrivefeil: {write_error}\n\nAttopprettingsfeil: {restore_error}",
     "Failed to write the new executable. The previous version has been restored.\n\n{error}": "Kunne ikkje skriva den nye programfila. Den førre versjonen er attoppretta.\n\n{error}",
@@ -3494,6 +3495,10 @@
     "Exported {count} selected database to {path}": {
       "one": "Eksporterte {count} vald database til {path}",
       "other": "Eksporterte {count} valde databasar til {path}"
+    },
+    "Failed to delete {count} selected item because it is in use or cannot be removed.": {
+      "one": "Kunne ikkje sletta {count} valt element fordi det er i bruk eller ikkje kan fjernast.",
+      "other": "Kunne ikkje sletta {count} valde element fordi dei er i bruk eller ikkje kan fjernast."
     },
     "Failed to move {count} item:\n{error}": {
       "one": "Kunne ikkje flytta {count} element:\n{error}",

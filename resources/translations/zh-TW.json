@@ -1060,6 +1060,7 @@
     "Failed to start mobile hotspot": "啟動行動熱點失敗",
     "Failed to stop mobile hotspot": "停止行動熱點失敗",
     "Failed to suspend the {game_name} process.\n\nTry running Session Sniffer as administrator.": "暫停 {game_name} 處理程序失敗。\n\n請嘗試以系統管理員身分執行 Session Sniffer。",
+    "Failed to update \"{filename}\":\n{error}": "更新「{filename}」失敗：\n{error}",
     "Failed to write scan results file:\n{error}": "寫入掃描結果檔案失敗：\n{error}",
     "Failed to write the new executable, and failed to restore the previous version.\n\nWrite error: {write_error}\n\nRestore error: {restore_error}": "寫入新執行檔失敗，且還原先前版本亦失敗。\n\n寫入錯誤：{write_error}\n\n還原錯誤：{restore_error}",
     "Failed to write the new executable. The previous version has been restored.\n\n{error}": "寫入新執行檔失敗。已還原至先前版本。\n\n{error}",
@@ -3420,6 +3421,9 @@
     },
     "Exported {count} selected database to {path}": {
       "other": "已將選取的 {count} 個資料庫匯出至 {path}"
+    },
+    "Failed to delete {count} selected item because it is in use or cannot be removed.": {
+      "other": "無法刪除選取的 {count} 個項目，因為它們正在使用中或無法移除。"
     },
     "Failed to move {count} item:\n{error}": {
       "other": "移動 {count} 個項目失敗：\n{error}"

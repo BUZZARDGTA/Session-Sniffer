@@ -1060,6 +1060,7 @@
     "Failed to start mobile hotspot": "모바일 핫스팟을 시작하지 못했습니다",
     "Failed to stop mobile hotspot": "모바일 핫스팟을 중지하지 못했습니다",
     "Failed to suspend the {game_name} process.\n\nTry running Session Sniffer as administrator.": "{game_name} 프로세스를 일시 중단하지 못했습니다.\n\nSession Sniffer를 관리자 권한으로 실행해 보세요.",
+    "Failed to update \"{filename}\":\n{error}": "\"{filename}\"을(를) 업데이트하지 못했습니다:\n{error}",
     "Failed to write scan results file:\n{error}": "스캔 결과 파일을 쓰지 못했습니다:\n{error}",
     "Failed to write the new executable, and failed to restore the previous version.\n\nWrite error: {write_error}\n\nRestore error: {restore_error}": "새 실행 파일을 쓰지 못했으며 이전 버전 복원에도 실패했습니다.\n\n쓰기 오류: {write_error}\n\n복원 오류: {restore_error}",
     "Failed to write the new executable. The previous version has been restored.\n\n{error}": "새 실행 파일을 쓰지 못했습니다. 이전 버전이 복원되었습니다.\n\n{error}",
@@ -3420,6 +3421,9 @@
     },
     "Exported {count} selected database to {path}": {
       "other": "선택한 데이터베이스 {count}개를 {path}(으)로 내보냈습니다"
+    },
+    "Failed to delete {count} selected item because it is in use or cannot be removed.": {
+      "other": "사용 중이거나 제거할 수 없어 선택한 {count}개의 항목을 삭제하지 못했습니다."
     },
     "Failed to move {count} item:\n{error}": {
       "other": "{count}개의 항목을 이동하지 못했습니다:\n{error}"

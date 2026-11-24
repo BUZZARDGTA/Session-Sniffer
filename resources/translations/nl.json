@@ -1060,6 +1060,7 @@
     "Failed to start mobile hotspot": "Starten van mobiele hotspot mislukt",
     "Failed to stop mobile hotspot": "Stoppen van mobiele hotspot mislukt",
     "Failed to suspend the {game_name} process.\n\nTry running Session Sniffer as administrator.": "Onderbreken van het proces {game_name} mislukt.\n\nProbeer Session Sniffer als administrator uit te voeren.",
+    "Failed to update \"{filename}\":\n{error}": "Kan \"{filename}\" niet bijwerken:\n{error}",
     "Failed to write scan results file:\n{error}": "Schrijven van scanresultatenbestand mislukt:\n{error}",
     "Failed to write the new executable, and failed to restore the previous version.\n\nWrite error: {write_error}\n\nRestore error: {restore_error}": "Schrijven van het nieuwe uitvoerbare bestand mislukt, en herstellen van de vorige versie mislukt.\n\nSchrijffout: {write_error}\n\nHerstelfout: {restore_error}",
     "Failed to write the new executable. The previous version has been restored.\n\n{error}": "Schrijven van het nieuwe uitvoerbare bestand mislukt. De vorige versie is hersteld.\n\n{error}",
@@ -3494,6 +3495,10 @@
     "Exported {count} selected database to {path}": {
       "one": "{count} geselecteerde database geëxporteerd naar {path}",
       "other": "{count} geselecteerde databases geëxporteerd naar {path}"
+    },
+    "Failed to delete {count} selected item because it is in use or cannot be removed.": {
+      "one": "Kan {count} geselecteerd item niet verwijderen omdat het in gebruik is of niet kan worden verwijderd.",
+      "other": "Kan {count} geselecteerde items niet verwijderen omdat ze in gebruik zijn of niet kunnen worden verwijderd."
     },
     "Failed to move {count} item:\n{error}": {
       "one": "Kan {count} item niet verplaatsen:\n{error}",

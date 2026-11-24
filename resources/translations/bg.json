@@ -1060,6 +1060,7 @@
     "Failed to start mobile hotspot": "Неуспешно стартиране на мобилната точка за достъп",
     "Failed to stop mobile hotspot": "Неуспешно спиране на мобилната точка за достъп",
     "Failed to suspend the {game_name} process.\n\nTry running Session Sniffer as administrator.": "Неуспешно временно спиране на процеса {game_name}.\n\nОпитайте да стартирате Session Sniffer като администратор.",
+    "Failed to update \"{filename}\":\n{error}": "Неуспешно обновяване на „{filename}“:\n{error}",
     "Failed to write scan results file:\n{error}": "Неуспешен запис на файла с резултатите от сканирането:\n{error}",
     "Failed to write the new executable, and failed to restore the previous version.\n\nWrite error: {write_error}\n\nRestore error: {restore_error}": "Неуспешен запис на новия изпълним файл и неуспешно възстановяване на предишната версия.\n\nГрешка при запис: {write_error}\n\nГрешка при възстановяване: {restore_error}",
     "Failed to write the new executable. The previous version has been restored.\n\n{error}": "Неуспешен запис на новия изпълним файл. Предишната версия беше възстановена.\n\n{error}",
@@ -3494,6 +3495,10 @@
     "Exported {count} selected database to {path}": {
       "one": "Експортирана е {count} избрана база данни в {path}",
       "other": "Експортирани са {count} избрани бази данни в {path}"
+    },
+    "Failed to delete {count} selected item because it is in use or cannot be removed.": {
+      "one": "Неуспешно изтриване на {count} избран елемент, защото се използва или не може да бъде премахнат.",
+      "other": "Неуспешно изтриване на {count} избрани елемента, защото се използват или не могат да бъдат премахнати."
     },
     "Failed to move {count} item:\n{error}": {
       "one": "Неуспешно преместване на {count} елемент:\n{error}",

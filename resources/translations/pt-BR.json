@@ -1060,6 +1060,7 @@
     "Failed to start mobile hotspot": "Falha ao iniciar o hotspot móvel",
     "Failed to stop mobile hotspot": "Falha ao parar o hotspot móvel",
     "Failed to suspend the {game_name} process.\n\nTry running Session Sniffer as administrator.": "Falha ao suspender o processo {game_name}.\n\nTente executar o Session Sniffer como administrador.",
+    "Failed to update \"{filename}\":\n{error}": "Falha ao atualizar \"{filename}\":\n{error}",
     "Failed to write scan results file:\n{error}": "Falha ao gravar o arquivo de resultados da varredura:\n{error}",
     "Failed to write the new executable, and failed to restore the previous version.\n\nWrite error: {write_error}\n\nRestore error: {restore_error}": "Falha ao gravar o novo executável e falha ao restaurar a versão anterior.\n\nErro de gravação: {write_error}\n\nErro de restauração: {restore_error}",
     "Failed to write the new executable. The previous version has been restored.\n\n{error}": "Falha ao gravar o novo executável. A versão anterior foi restaurada.\n\n{error}",
@@ -3494,6 +3495,10 @@
     "Exported {count} selected database to {path}": {
       "one": "{count} banco de dados selecionado exportado para {path}",
       "other": "{count} bancos de dados selecionados exportados para {path}"
+    },
+    "Failed to delete {count} selected item because it is in use or cannot be removed.": {
+      "one": "Falha ao excluir {count} item selecionado porque está em uso ou não pode ser removido.",
+      "other": "Falha ao excluir {count} itens selecionados porque estão em uso ou não podem ser removidos."
     },
     "Failed to move {count} item:\n{error}": {
       "one": "Falha ao mover {count} item:\n{error}",

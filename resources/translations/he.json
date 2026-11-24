@@ -1060,6 +1060,7 @@
     "Failed to start mobile hotspot": "הפעלת הנקודה החמה הניידת נכשלה",
     "Failed to stop mobile hotspot": "עצירת הנקודה החמה הניידת נכשלה",
     "Failed to suspend the {game_name} process.\n\nTry running Session Sniffer as administrator.": "השהיית התהליך {game_name} נכשלה.\n\nנסה להפעיל את Session Sniffer כמנהל מערכת.",
+    "Failed to update \"{filename}\":\n{error}": "עדכון \"{filename}\" נכשל:\n{error}",
     "Failed to write scan results file:\n{error}": "כתיבת קובץ תוצאות הסריקה נכשלה:\n{error}",
     "Failed to write the new executable, and failed to restore the previous version.\n\nWrite error: {write_error}\n\nRestore error: {restore_error}": "כתיבת קובץ ההפעלה החדש נכשלה, וגם שחזור הגרסה הקודמת נכשל.\n\nשגיאת כתיבה: {write_error}\n\nשגיאת שחזור: {restore_error}",
     "Failed to write the new executable. The previous version has been restored.\n\n{error}": "כתיבת קובץ ההפעלה החדש נכשלה. הגרסה הקודמת שוחזרה.\n\n{error}",
@@ -3642,6 +3643,12 @@
       "two": "יוצאו {count} מסדי נתונים נבחרים אל {path}",
       "many": "יוצאו {count} מסדי נתונים נבחרים אל {path}",
       "other": "יוצאו {count} מסדי נתונים נבחרים אל {path}"
+    },
+    "Failed to delete {count} selected item because it is in use or cannot be removed.": {
+      "one": "מחיקת פריט נבחר אחד ({count}) נכשלה מכיוון שהוא בשימוש או שלא ניתן להסירו.",
+      "two": "מחיקת {count} פריטים נבחרים נכשלה מכיוון שהם בשימוש או שלא ניתן להסירם.",
+      "many": "מחיקת {count} פריטים נבחרים נכשלה מכיוון שהם בשימוש או שלא ניתן להסירם.",
+      "other": "מחיקת {count} פריטים נבחרים נכשלה מכיוון שהם בשימוש או שלא ניתן להסירם."
     },
     "Failed to move {count} item:\n{error}": {
       "one": "העברת פריט אחד ({count}) נכשלה:\n{error}",

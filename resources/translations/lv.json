@@ -1060,6 +1060,7 @@
     "Failed to start mobile hotspot": "Neizdevās palaist mobilo tīklāju",
     "Failed to stop mobile hotspot": "Neizdevās apturēt mobilo tīklāju",
     "Failed to suspend the {game_name} process.\n\nTry running Session Sniffer as administrator.": "Neizdevās apturēt {game_name} procesu.\n\nMēģiniet palaist Session Sniffer kā administrators.",
+    "Failed to update \"{filename}\":\n{error}": "Neizdevās atjaunināt \"{filename}\":\n{error}",
     "Failed to write scan results file:\n{error}": "Neizdevās ierakstīt skenēšanas rezultātu failu:\n{error}",
     "Failed to write the new executable, and failed to restore the previous version.\n\nWrite error: {write_error}\n\nRestore error: {restore_error}": "Neizdevās ierakstīt jauno izpildfailu, un neizdevās atjaunot iepriekšējo versiju.\n\nRakstīšanas kļūda: {write_error}\n\nAtjaunošanas kļūda: {restore_error}",
     "Failed to write the new executable. The previous version has been restored.\n\n{error}": "Neizdevās ierakstīt jauno izpildfailu. Iepriekšējā versija tika atjaunota.\n\n{error}",
@@ -3568,6 +3569,11 @@
       "zero": "Eksportēts {count} atlasīto datubāžu uz {path}",
       "one": "Eksportēta {count} atlasītā datubāze uz {path}",
       "other": "Eksportētas {count} atlasītās datubāzes uz {path}"
+    },
+    "Failed to delete {count} selected item because it is in use or cannot be removed.": {
+      "zero": "Neizdevās izdzēst {count} atlasītu vienumu, jo tie tiek izmantoti vai tos nevar noņemt.",
+      "one": "Neizdevās izdzēst {count} atlasīto vienumu, jo tas tiek izmantots vai to nevar noņemt.",
+      "other": "Neizdevās izdzēst {count} atlasītos vienumus, jo tie tiek izmantoti vai tos nevar noņemt."
     },
     "Failed to move {count} item:\n{error}": {
       "zero": "Neizdevās pārvietot {count} vienumu:\n{error}",

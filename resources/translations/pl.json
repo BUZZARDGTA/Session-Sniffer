@@ -1060,6 +1060,7 @@
     "Failed to start mobile hotspot": "Nie udało się uruchomić mobilnego hotspotu",
     "Failed to stop mobile hotspot": "Nie udało się zatrzymać mobilnego hotspotu",
     "Failed to suspend the {game_name} process.\n\nTry running Session Sniffer as administrator.": "Nie udało się wstrzymać procesu {game_name}.\n\nSpróbuj uruchomić Session Sniffer jako administrator.",
+    "Failed to update \"{filename}\":\n{error}": "Nie udało się zaktualizować „{filename}”:\n{error}",
     "Failed to write scan results file:\n{error}": "Nie udało się zapisać pliku wyników skanowania:\n{error}",
     "Failed to write the new executable, and failed to restore the previous version.\n\nWrite error: {write_error}\n\nRestore error: {restore_error}": "Nie udało się zapisać nowego pliku wykonywalnego ani przywrócić poprzedniej wersji.\n\nBłąd zapisu: {write_error}\n\nBłąd przywracania: {restore_error}",
     "Failed to write the new executable. The previous version has been restored.\n\n{error}": "Nie udało się zapisać nowego pliku wykonywalnego. Poprzednia wersja została przywrócona.\n\n{error}",
@@ -3642,6 +3643,12 @@
       "few": "Wyeksportowano {count} wybrane bazy danych do {path}",
       "many": "Wyeksportowano {count} wybranych baz danych do {path}",
       "other": "Wyeksportowano {count} wybranych baz danych do {path}"
+    },
+    "Failed to delete {count} selected item because it is in use or cannot be removed.": {
+      "one": "Nie udało się usunąć {count} zaznaczonego elementu, ponieważ jest w użyciu lub nie można go usunąć.",
+      "few": "Nie udało się usunąć {count} zaznaczonych elementów, ponieważ są w użyciu lub nie można ich usunąć.",
+      "many": "Nie udało się usunąć {count} zaznaczonych elementów, ponieważ są w użyciu lub nie można ich usunąć.",
+      "other": "Nie udało się usunąć {count} zaznaczonego elementu, ponieważ są w użyciu lub nie można ich usunąć."
     },
     "Failed to move {count} item:\n{error}": {
       "one": "Nie udało się przenieść {count} elementu:\n{error}",

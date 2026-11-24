@@ -91,9 +91,10 @@ def human_readable_timestamp(dt: datetime) -> str:
 
 def file_metadata_text(file_path: Path) -> str:
     """Build a metadata summary string for a file."""
-    if not file_path.exists():
+    try:
+        stat = file_path.stat()
+    except OSError:
         return tr('{filename}  —  File not found', filename=file_path.name)
-    stat = file_path.stat()
     size = human_readable_size(stat.st_size)
     modified = datetime.fromtimestamp(stat.st_mtime, tz=UTC).astimezone()
     return tr('{filename}  |  {size}  |  Last modified: {timestamp}', filename=file_path.name, size=size, timestamp=human_readable_timestamp(modified))

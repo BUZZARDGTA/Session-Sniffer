@@ -317,8 +317,8 @@ class CsvLogTab(QWidget):
     @staticmethod
     def _parse_csv_file(file_path: Path) -> tuple[list[str] | None, list[list[str]], int, bool]:
         """Read *file_path* up to `MAX_CSV_ROWS` and return `(headers, valid_rows, skipped, truncated)`."""
-        with file_path.open(newline='', encoding='utf-8') as file:
-            reader = csv.reader(file)
+        with file_path.open(newline='', encoding='utf-8', errors='replace') as file:
+            reader = csv.reader(line.replace('\x00', '') for line in file)
             file_headers = next(reader, None)
             if file_headers is None:
                 return None, [], 0, False
@@ -352,7 +352,14 @@ class CsvLogTab(QWidget):
             self.purge_state_changed.emit()
             return
 
-        file_headers, valid_rows, skipped, self._truncated = self._parse_csv_file(self._file_path)
+        try:
+            file_headers, valid_rows, skipped, self._truncated = self._parse_csv_file(self._file_path)
+        except (OSError, csv.Error) as e:
+            logger.warning('Failed to read CSV log "%s": %s', self._file_path, e)
+            self._update_counts()
+            self._metadata_label.setText(file_metadata_text(self._file_path))
+            self.purge_state_changed.emit()
+            return
         if file_headers is None:
             self._update_counts()
             self._metadata_label.setText(file_metadata_text(self._file_path))
@@ -830,7 +837,9 @@ class CsvLogTab(QWidget):
             self._proxy.invalidate()
 
         was_truncated = self._truncated
-        self._rewrite_csv_from_model()
+        if not self._rewrite_csv_from_model():
+            self.load_data()
+            return
         if was_truncated:
             self.load_data()
         else:
@@ -848,8 +857,8 @@ class CsvLogTab(QWidget):
             self._show_status(message)
             self.load_data()
 
-    def _rewrite_csv_from_model(self) -> None:
-        """Rewrite the CSV file from the current model contents."""
+    def _rewrite_csv_from_model(self) -> bool:
+        """Rewrite the CSV file from the current model contents and return `True` on success."""
         headers = list(self._raw_csv_headers)
         model_rows = [
             [(item.text() if (item := self._model.item(row_index, column)) else '') for column in range(self._model.columnCount())]
@@ -861,8 +870,8 @@ class CsvLogTab(QWidget):
         def _write_csv() -> None:
             overflow_rows: list[list[str]] = []
             if truncated and file_path.exists():
-                with file_path.open(newline='', encoding='utf-8') as file:
-                    reader = csv.reader(file)
+                with file_path.open(newline='', encoding='utf-8', errors='replace') as file:
+                    reader = csv.reader(line.replace('\x00', '') for line in file)
                     next(reader, None)
                     overflow_rows = [row for row_num, row in enumerate(reader) if row_num >= MAX_CSV_ROWS]
 
@@ -873,15 +882,21 @@ class CsvLogTab(QWidget):
                 if overflow_rows:
                     writer.writerows(overflow_rows)
 
-        if self.isVisible():
-            run_blocking_with_loading(
-                self.window(),
-                tr('Updating CSV Log\u2026'),
-                tr('Writing {filename}\u2026', filename=file_path.name),
-                _write_csv,
-            )
-        else:
-            _write_csv()
+        try:
+            if self.isVisible():
+                run_blocking_with_loading(
+                    self.window(),
+                    tr('Updating CSV Log\u2026'),
+                    tr('Writing {filename}\u2026', filename=file_path.name),
+                    _write_csv,
+                )
+            else:
+                _write_csv()
+        except (OSError, csv.Error) as e:
+            logger.warning('Failed to update CSV log "%s": %s', file_path, e)
+            QMessageBox.critical(self, TITLE, tr('Failed to update "{filename}":\n{error}', filename=file_path.name, error=e))
+            return False
+        return True
 
     def _show_status(self, message: str) -> None:
         QMessageBox.information(self, TITLE, message)

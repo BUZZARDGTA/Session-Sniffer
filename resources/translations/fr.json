@@ -1060,6 +1060,7 @@
     "Failed to start mobile hotspot": "Échec du démarrage du point d'accès sans fil mobile",
     "Failed to stop mobile hotspot": "Échec de l'arrêt du point d'accès sans fil mobile",
     "Failed to suspend the {game_name} process.\n\nTry running Session Sniffer as administrator.": "Échec de la suspension du processus {game_name}.\n\nEssayez d'exécuter Session Sniffer en tant qu'administrateur.",
+    "Failed to update \"{filename}\":\n{error}": "Échec de la mise à jour de « {filename} » :\n{error}",
     "Failed to write scan results file:\n{error}": "Échec de l'écriture du fichier de résultats du scan :\n{error}",
     "Failed to write the new executable, and failed to restore the previous version.\n\nWrite error: {write_error}\n\nRestore error: {restore_error}": "Échec de l'écriture du nouvel exécutable et échec de la restauration de la version précédente.\n\nErreur d'écriture : {write_error}\n\nErreur de restauration : {restore_error}",
     "Failed to write the new executable. The previous version has been restored.\n\n{error}": "Échec de l'écriture du nouvel exécutable. La version précédente a été restaurée.\n\n{error}",
@@ -3494,6 +3495,10 @@
     "Exported {count} selected database to {path}": {
       "one": "{count} base de données sélectionnée exportée vers {path}",
       "other": "{count} bases de données sélectionnées exportées vers {path}"
+    },
+    "Failed to delete {count} selected item because it is in use or cannot be removed.": {
+      "one": "Impossible de supprimer {count} élément sélectionné car il est en cours d'utilisation ou ne peut pas être supprimé.",
+      "other": "Impossible de supprimer {count} éléments sélectionnés car ils sont en cours d'utilisation ou ne peuvent pas être supprimés."
     },
     "Failed to move {count} item:\n{error}": {
       "one": "Échec du déplacement de {count} élément :\n{error}",

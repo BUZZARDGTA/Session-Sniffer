@@ -1060,6 +1060,7 @@
     "Failed to start mobile hotspot": "Mobiilitukiaseman käynnistys epäonnistui",
     "Failed to stop mobile hotspot": "Mobiilitukiaseman pysäytys epäonnistui",
     "Failed to suspend the {game_name} process.\n\nTry running Session Sniffer as administrator.": "Prosessin {game_name} keskeytys epäonnistui.\n\nKokeile suorittaa Session Sniffer järjestelmänvalvojana.",
+    "Failed to update \"{filename}\":\n{error}": "Tiedoston \"{filename}\" päivittäminen epäonnistui:\n{error}",
     "Failed to write scan results file:\n{error}": "Skannaustulostiedoston kirjoitus epäonnistui:\n{error}",
     "Failed to write the new executable, and failed to restore the previous version.\n\nWrite error: {write_error}\n\nRestore error: {restore_error}": "Uuden suoritustiedoston kirjoittaminen epäonnistui, eikä edellistä versiota voitu palauttaa.\n\nKirjoitusvirhe: {write_error}\n\nPalautusvirhe: {restore_error}",
     "Failed to write the new executable. The previous version has been restored.\n\n{error}": "Uuden suoritustiedoston kirjoittaminen epäonnistui. Edellinen versio on palautettu.\n\n{error}",
@@ -3494,6 +3495,10 @@
     "Exported {count} selected database to {path}": {
       "one": "Viety {count} valittu tietokanta kohteeseen {path}",
       "other": "Viety {count} valittua tietokantaa kohteeseen {path}"
+    },
+    "Failed to delete {count} selected item because it is in use or cannot be removed.": {
+      "one": "{count} valitun kohteen poistaminen epäonnistui, koska se on käytössä tai sitä ei voi poistaa.",
+      "other": "{count} valitun kohteen poistaminen epäonnistui, koska ne ovat käytössä tai niitä ei voi poistaa."
     },
     "Failed to move {count} item:\n{error}": {
       "one": "{count} kohteen siirtäminen epäonnistui:\n{error}",

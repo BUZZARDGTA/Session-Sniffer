@@ -1060,6 +1060,7 @@
     "Failed to start mobile hotspot": "Мобильді хотспотты іске қосу сәтсіз аяқталды",
     "Failed to stop mobile hotspot": "Мобильді хотспотты тоқтату сәтсіз аяқталды",
     "Failed to suspend the {game_name} process.\n\nTry running Session Sniffer as administrator.": "{game_name} процесін уақытша тоқтату сәтсіз аяқталды.\n\nSession Sniffer бағдарламасын әкімші ретінде іске қосып көріңіз.",
+    "Failed to update \"{filename}\":\n{error}": "«{filename}» жаңарту сәтсіз аяқталды:\n{error}",
     "Failed to write scan results file:\n{error}": "Сканерлеу нәтижелері файлын жазу сәтсіз аяқталды:\n{error}",
     "Failed to write the new executable, and failed to restore the previous version.\n\nWrite error: {write_error}\n\nRestore error: {restore_error}": "Жаңа орындалатын файлды жазу сәтсіз аяқталды және алдыңғы нұсқаны қалпына келтіру де мүмкін болмады.\n\nЖазу қатесі: {write_error}\n\nҚалпына келтіру қатесі: {restore_error}",
     "Failed to write the new executable. The previous version has been restored.\n\n{error}": "Жаңа орындалатын файлды жазу сәтсіз аяқталды. Алдыңғы нұсқа қалпына келтірілді.\n\n{error}",
@@ -3494,6 +3495,10 @@
     "Exported {count} selected database to {path}": {
       "one": "Таңдалған {count} дерекқор {path} жолына экспортталды",
       "other": "Таңдалған {count} дерекқор {path} жолына экспортталды"
+    },
+    "Failed to delete {count} selected item because it is in use or cannot be removed.": {
+      "one": "{count} таңдалған элементті жою сәтсіз аяқталды, себебі ол пайдаланылуда немесе өшірілмейді.",
+      "other": "{count} таңдалған элементті жою сәтсіз аяқталды, себебі олар пайдаланылуда немесе өшірілмейді."
     },
     "Failed to move {count} item:\n{error}": {
       "one": "{count} элементті жылжыту сәтсіз аяқталды:\n{error}",

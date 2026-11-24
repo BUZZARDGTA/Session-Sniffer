@@ -1060,6 +1060,7 @@
     "Failed to start mobile hotspot": "Mobil etkin nokta başlatılamadı",
     "Failed to stop mobile hotspot": "Mobil etkin nokta durdurulamadı",
     "Failed to suspend the {game_name} process.\n\nTry running Session Sniffer as administrator.": "{game_name} işlemi askıya alınamadı.\n\nSession Sniffer'ı yönetici olarak çalıştırmayı deneyin.",
+    "Failed to update \"{filename}\":\n{error}": "\"{filename}\" güncellenemedi:\n{error}",
     "Failed to write scan results file:\n{error}": "Tarama sonuçları dosyası yazılamadı:\n{error}",
     "Failed to write the new executable, and failed to restore the previous version.\n\nWrite error: {write_error}\n\nRestore error: {restore_error}": "Yeni yürütülebilir dosya yazılamadı ve önceki sürüm geri yüklenemedi.\n\nYazma hatası: {write_error}\n\nGeri yükleme hatası: {restore_error}",
     "Failed to write the new executable. The previous version has been restored.\n\n{error}": "Yeni yürütülebilir dosya yazılamadı. Önceki sürüm geri yüklendi.\n\n{error}",
@@ -3494,6 +3495,10 @@
     "Exported {count} selected database to {path}": {
       "one": "Seçili {count} veritabanı {path} konumuna dışa aktarıldı",
       "other": "Seçili {count} veritabanı {path} konumuna dışa aktarıldı"
+    },
+    "Failed to delete {count} selected item because it is in use or cannot be removed.": {
+      "one": "Kullanımda olduğu veya kaldırılamadığı için seçilen {count} öğe silinemedi.",
+      "other": "Kullanımda oldukları veya kaldırılamadıkları için seçilen {count} öğe silinemedi."
     },
     "Failed to move {count} item:\n{error}": {
       "one": "{count} öğe taşınamadı:\n{error}",

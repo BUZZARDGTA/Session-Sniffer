@@ -1060,6 +1060,7 @@
     "Failed to start mobile hotspot": "Не вдалося запустити мобільний хот-спот",
     "Failed to stop mobile hotspot": "Не вдалося зупинити мобільний хот-спот",
     "Failed to suspend the {game_name} process.\n\nTry running Session Sniffer as administrator.": "Не вдалося призупинити процес {game_name}.\n\nСпробуйте запустити Session Sniffer від імені адміністратора.",
+    "Failed to update \"{filename}\":\n{error}": "Не вдалося оновити \"{filename}\":\n{error}",
     "Failed to write scan results file:\n{error}": "Не вдалося записати файл результатів сканування:\n{error}",
     "Failed to write the new executable, and failed to restore the previous version.\n\nWrite error: {write_error}\n\nRestore error: {restore_error}": "Не вдалося записати новий виконуваний файл, а також не вдалося відновити попередню версію.\n\nПомилка запису: {write_error}\n\nПомилка відновлення: {restore_error}",
     "Failed to write the new executable. The previous version has been restored.\n\n{error}": "Не вдалося записати новий виконуваний файл. Попередню версію відновлено.\n\n{error}",
@@ -3642,6 +3643,12 @@
       "few": "Експортовано {count} вибрані бази даних до {path}",
       "many": "Експортовано {count} вибраних баз даних до {path}",
       "other": "Експортовано {count} вибраних баз даних до {path}"
+    },
+    "Failed to delete {count} selected item because it is in use or cannot be removed.": {
+      "one": "Не вдалося видалити {count} вибраний елемент, оскільки він використовується або його не можна видалити.",
+      "few": "Не вдалося видалити {count} вибрані елементи, оскільки вони використовуються або їх не можна видалити.",
+      "many": "Не вдалося видалити {count} вибраних елементів, оскільки вони використовуються або їх не можна видалити.",
+      "other": "Не вдалося видалити {count} вибраного елемента, оскільки вони використовуються або їх не можна видалити."
     },
     "Failed to move {count} item:\n{error}": {
       "one": "Не вдалося перемістити {count} елемент:\n{error}",

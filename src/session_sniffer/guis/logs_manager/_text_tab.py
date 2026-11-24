@@ -295,7 +295,11 @@ class TextLogTab(QWidget):
         """Read the text file and display its contents."""
         file_exists = self._file_path.is_file()
         self._open_file_button.setEnabled(file_exists)
-        self._purge_button.setEnabled(file_exists and self._file_path.stat().st_size > 0)
+        try:
+            has_content = file_exists and self._file_path.stat().st_size > 0
+        except OSError:
+            has_content = False
+        self._purge_button.setEnabled(has_content)
         self.purge_state_changed.emit()
         if not self._file_path.exists():
             self._file_missing = True

@@ -1060,6 +1060,7 @@
     "Failed to start mobile hotspot": "Не удалось запустить мобильную точку доступа",
     "Failed to stop mobile hotspot": "Не удалось остановить мобильную точку доступа",
     "Failed to suspend the {game_name} process.\n\nTry running Session Sniffer as administrator.": "Не удалось приостановить процесс {game_name}.\n\nПопробуйте запустить Session Sniffer от имени администратора.",
+    "Failed to update \"{filename}\":\n{error}": "Не удалось обновить «{filename}»:\n{error}",
     "Failed to write scan results file:\n{error}": "Не удалось записать файл результатов сканирования:\n{error}",
     "Failed to write the new executable, and failed to restore the previous version.\n\nWrite error: {write_error}\n\nRestore error: {restore_error}": "Не удалось записать новый исполняемый файл и не удалось восстановить предыдущую версию.\n\nОшибка записи: {write_error}\n\nОшибка восстановления: {restore_error}",
     "Failed to write the new executable. The previous version has been restored.\n\n{error}": "Не удалось записать новый исполняемый файл. Предыдущая версия восстановлена.\n\n{error}",
@@ -3642,6 +3643,12 @@
       "few": "Экспортированы {count} выбранные базы данных в {path}",
       "many": "Экспортировано {count} выбранных баз данных в {path}",
       "other": "Экспортировано {count} выбранных баз данных в {path}"
+    },
+    "Failed to delete {count} selected item because it is in use or cannot be removed.": {
+      "one": "Не удалось удалить {count} выбранный элемент, так как он используется или его нельзя удалить.",
+      "few": "Не удалось удалить {count} выбранных элемента, так как они используются или их нельзя удалить.",
+      "many": "Не удалось удалить {count} выбранных элементов, так как они используются или их нельзя удалить.",
+      "other": "Не удалось удалить {count} выбранного элемента, так как они используются или их нельзя удалить."
     },
     "Failed to move {count} item:\n{error}": {
       "one": "Не удалось переместить {count} элемент:\n{error}",

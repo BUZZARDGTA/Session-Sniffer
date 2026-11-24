@@ -164,16 +164,17 @@ def _delete_dir_preserving_active(target: Path, protected_norm: str) -> tuple[in
     return files_deleted, folders_deleted, skipped_active
 
 
-def delete_session_paths(paths: list[Path], *, protected_active_file: Path | None) -> tuple[int, int, bool]:
+def delete_session_paths(paths: list[Path], *, protected_active_file: Path | None) -> tuple[int, int, bool, int]:
     """Delete *paths* (files and folders) while preserving *protected_active_file* if encountered.
 
-    Returns `(files_deleted, folders_deleted, skipped_active_file)`.
+    Returns `(files_deleted, folders_deleted, skipped_active_file, failed_count)`.
     """
     top_paths = prune_nested_paths(paths)
     protected_norm = normalize_fs_path(protected_active_file) if protected_active_file is not None else None
     files_deleted = 0
     folders_deleted = 0
     skipped_active = False
+    failed_count = 0
 
     for target in top_paths:
         if not target.exists():
@@ -183,7 +184,12 @@ def delete_session_paths(paths: list[Path], *, protected_active_file: Path | Non
             if protected_norm is not None and target_norm == protected_norm:
                 skipped_active = True
                 continue
-            target.unlink(missing_ok=True)
+            try:
+                target.unlink(missing_ok=True)
+            except OSError as e:
+                logger.warning('Failed to delete session log file "%s": %s', target, e)
+                failed_count += 1
+                continue
             files_deleted += 1
             continue
 
@@ -195,11 +201,16 @@ def delete_session_paths(paths: list[Path], *, protected_active_file: Path | Non
                 skipped_active = skipped_active or skipped
             else:
                 _, nested_json_count = count_json_files_and_size(target)
-                shutil.rmtree(target)
+                try:
+                    shutil.rmtree(target)
+                except OSError as e:
+                    logger.warning('Failed to delete session log folder "%s": %s', target, e)
+                    failed_count += 1
+                    continue
                 files_deleted += nested_json_count
                 folders_deleted += 1
 
-    return files_deleted, folders_deleted, skipped_active
+    return files_deleted, folders_deleted, skipped_active, failed_count
 
 
 def _normalize_search_value(value: object) -> str:

@@ -1060,6 +1060,7 @@
     "Failed to start mobile hotspot": "No se pudo iniciar el punto de acceso móvil",
     "Failed to stop mobile hotspot": "No se pudo detener el punto de acceso móvil",
     "Failed to suspend the {game_name} process.\n\nTry running Session Sniffer as administrator.": "No se pudo suspender el proceso {game_name}.\n\nIntenta ejecutar Session Sniffer como administrador.",
+    "Failed to update \"{filename}\":\n{error}": "No se pudo actualizar \"{filename}\":\n{error}",
     "Failed to write scan results file:\n{error}": "No se pudo escribir el archivo de resultados del escaneo:\n{error}",
     "Failed to write the new executable, and failed to restore the previous version.\n\nWrite error: {write_error}\n\nRestore error: {restore_error}": "No se pudo escribir el nuevo ejecutable y tampoco se pudo restaurar la versión anterior.\n\nError de escritura: {write_error}\n\nError de restauración: {restore_error}",
     "Failed to write the new executable. The previous version has been restored.\n\n{error}": "No se pudo escribir el nuevo ejecutable. Se ha restaurado la versión anterior.\n\n{error}",
@@ -3494,6 +3495,10 @@
     "Exported {count} selected database to {path}": {
       "one": "Se exportó {count} base de datos seleccionada a {path}",
       "other": "Se exportaron {count} bases de datos seleccionadas a {path}"
+    },
+    "Failed to delete {count} selected item because it is in use or cannot be removed.": {
+      "one": "No se pudo eliminar {count} elemento seleccionado porque está en uso o no se puede quitar.",
+      "other": "No se pudieron eliminar {count} elementos seleccionados porque están en uso o no se pueden quitar."
     },
     "Failed to move {count} item:\n{error}": {
       "one": "No se pudo mover {count} elemento:\n{error}",

@@ -1060,6 +1060,7 @@
     "Failed to start mobile hotspot": "Dh'fhàillig tòiseachadh baile-lìn fòn-làimhe",
     "Failed to stop mobile hotspot": "Dh'fhàillig stad baile-lìn fòn-làimhe",
     "Failed to suspend the {game_name} process.\n\nTry running Session Sniffer as administrator.": "Dh'fhàillig cur an crochadh pròiseas {game_name}.\n\nFeuch ri Session Sniffer a ruith mar rianaire.",
+    "Failed to update \"{filename}\":\n{error}": "Dh'fhàillig ùrachadh \"{filename}\":\n{error}",
     "Failed to write scan results file:\n{error}": "Dh'fhàillig sgrìobhadh faidhle toraidhean sganaidh:\n{error}",
     "Failed to write the new executable, and failed to restore the previous version.\n\nWrite error: {write_error}\n\nRestore error: {restore_error}": "Dh'fhàillig sgrìobhadh am faidhle gnìomhach ùr, agus dh'fhàillig aiseag an tionndaidh roimhe.\n\nMearachd sgrìobhaidh: {write_error}\n\nMearachd aisig: {restore_error}",
     "Failed to write the new executable. The previous version has been restored.\n\n{error}": "Dh'fhàillig sgrìobhadh am faidhle gnìomhach ùr. Chaidh an tionndadh roimhe aiseag.\n\n{error}",
@@ -3642,6 +3643,12 @@
       "two": "{count} stòr-dàta taghte air an às-phortadh gu {path}",
       "few": "{count} stòran-dàta taghte air an às-phortadh gu {path}",
       "other": "{count} stòr-dàta taghte air às-phortadh gu {path}"
+    },
+    "Failed to delete {count} selected item because it is in use or cannot be removed.": {
+      "one": "Dh'fhàillig sguabadh às {count} nì taghte oir tha e ga chleachdadh no cha ghabh a thoirt air falbh.",
+      "two": "Dh'fhàillig sguabadh às {count} nì taghte oir tha iad gan cleachdadh no cha ghabh an toirt air falbh.",
+      "few": "Dh'fhàillig sguabadh às {count} nithean taghte oir tha iad gan cleachdadh no cha ghabh an toirt air falbh.",
+      "other": "Dh'fhàillig sguabadh às {count} nì taghte oir tha iad gan cleachdadh no cha ghabh an toirt air falbh."
     },
     "Failed to move {count} item:\n{error}": {
       "one": "Dh'fhàillig gluasad {count} nì:\n{error}",

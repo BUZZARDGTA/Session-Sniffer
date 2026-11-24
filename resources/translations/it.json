@@ -1060,6 +1060,7 @@
     "Failed to start mobile hotspot": "Impossibile avviare l'hotspot mobile",
     "Failed to stop mobile hotspot": "Impossibile arrestare l'hotspot mobile",
     "Failed to suspend the {game_name} process.\n\nTry running Session Sniffer as administrator.": "Impossibile sospendere il processo {game_name}.\n\nProva ad eseguire Session Sniffer come amministratore.",
+    "Failed to update \"{filename}\":\n{error}": "Impossibile aggiornare \"{filename}\":\n{error}",
     "Failed to write scan results file:\n{error}": "Impossibile scrivere il file dei risultati della scansione:\n{error}",
     "Failed to write the new executable, and failed to restore the previous version.\n\nWrite error: {write_error}\n\nRestore error: {restore_error}": "Impossibile scrivere il nuovo eseguibile e impossibile ripristinare la versione precedente.\n\nErrore di scrittura: {write_error}\n\nErrore di ripristino: {restore_error}",
     "Failed to write the new executable. The previous version has been restored.\n\n{error}": "Impossibile scrivere il nuovo eseguibile. La versione precedente è stata ripristinata.\n\n{error}",
@@ -3494,6 +3495,10 @@
     "Exported {count} selected database to {path}": {
       "one": "Esportato {count} database selezionato in {path}",
       "other": "Esportati {count} database selezionati in {path}"
+    },
+    "Failed to delete {count} selected item because it is in use or cannot be removed.": {
+      "one": "Impossibile eliminare {count} elemento selezionato perché è in uso o non può essere rimosso.",
+      "other": "Impossibile eliminare {count} elementi selezionati perché sono in uso o non possono essere rimossi."
     },
     "Failed to move {count} item:\n{error}": {
       "one": "Impossibile spostare {count} elemento:\n{error}",

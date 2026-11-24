@@ -1060,6 +1060,7 @@
     "Failed to start mobile hotspot": "No s'ha pogut iniciar el punt d'accés mòbil",
     "Failed to stop mobile hotspot": "No s'ha pogut aturar el punt d'accés mòbil",
     "Failed to suspend the {game_name} process.\n\nTry running Session Sniffer as administrator.": "No s'ha pogut suspendre el procés {game_name}.\n\nProveu d'executar Session Sniffer com a administrador.",
+    "Failed to update \"{filename}\":\n{error}": "No s'ha pogut actualitzar «{filename}»:\n{error}",
     "Failed to write scan results file:\n{error}": "No s'ha pogut escriure el fitxer de resultats de l'escaneig:\n{error}",
     "Failed to write the new executable, and failed to restore the previous version.\n\nWrite error: {write_error}\n\nRestore error: {restore_error}": "No s'ha pogut escriure el nou executable i tampoc no s'ha pogut restaurar la versió anterior.\n\nError d'escriptura: {write_error}\n\nError de restauració: {restore_error}",
     "Failed to write the new executable. The previous version has been restored.\n\n{error}": "No s'ha pogut escriure el nou executable. S'ha restaurat la versió anterior.\n\n{error}",
@@ -3494,6 +3495,10 @@
     "Exported {count} selected database to {path}": {
       "one": "S'ha exportat {count} base de dades seleccionada a {path}",
       "other": "S'han exportat {count} bases de dades seleccionades a {path}"
+    },
+    "Failed to delete {count} selected item because it is in use or cannot be removed.": {
+      "one": "No s'ha pogut suprimir {count} element seleccionat perquè està en ús o no es pot eliminar.",
+      "other": "No s'han pogut suprimir {count} elements seleccionats perquè estan en ús o no es poden eliminar."
     },
     "Failed to move {count} item:\n{error}": {
       "one": "No s'ha pogut moure {count} element:\n{error}",

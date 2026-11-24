@@ -1060,6 +1060,7 @@
     "Failed to start mobile hotspot": "فشل بدء نقطة الاتصال المحمولة",
     "Failed to stop mobile hotspot": "فشل إيقاف نقطة الاتصال المحمولة",
     "Failed to suspend the {game_name} process.\n\nTry running Session Sniffer as administrator.": "فشل تعليق عملية {game_name}.\n\nجرّب تشغيل Session Sniffer كمسؤول.",
+    "Failed to update \"{filename}\":\n{error}": "فشل تحديث \"{filename}\":\n{error}",
     "Failed to write scan results file:\n{error}": "فشل كتابة ملف نتائج الفحص:\n{error}",
     "Failed to write the new executable, and failed to restore the previous version.\n\nWrite error: {write_error}\n\nRestore error: {restore_error}": "فشل كتابة الملف التنفيذي الجديد، وفشلت استعادة الإصدار السابق.\n\nخطأ الكتابة: {write_error}\n\nخطأ الاستعادة: {restore_error}",
     "Failed to write the new executable. The previous version has been restored.\n\n{error}": "فشل كتابة الملف التنفيذي الجديد. تمت استعادة الإصدار السابق.\n\n{error}",
@@ -3790,6 +3791,14 @@
       "few": "تم تصدير {count} قواعد بيانات محددة إلى {path}",
       "many": "تم تصدير {count} قاعدة بيانات محددة إلى {path}",
       "other": "تم تصدير {count} قاعدة بيانات محددة إلى {path}"
+    },
+    "Failed to delete {count} selected item because it is in use or cannot be removed.": {
+      "zero": "فشل حذف {count} عنصر محدّد لأنه قيد الاستخدام أو لا يمكن إزالته.",
+      "one": "فشل حذف عنصر محدّد واحد ({count}) لأنه قيد الاستخدام أو لا يمكن إزالته.",
+      "two": "فشل حذف عنصرين محدّدين ({count}) لأنهما قيد الاستخدام أو لا يمكن إزالتهما.",
+      "few": "فشل حذف {count} عناصر محدّدة لأنها قيد الاستخدام أو لا يمكن إزالتها.",
+      "many": "فشل حذف {count} عنصراً محدّداً لأنها قيد الاستخدام أو لا يمكن إزالتها.",
+      "other": "فشل حذف {count} عنصر محدّد لأنها قيد الاستخدام أو لا يمكن إزالتها."
     },
     "Failed to move {count} item:\n{error}": {
       "zero": "فشل نقل {count} عنصر:\n{error}",

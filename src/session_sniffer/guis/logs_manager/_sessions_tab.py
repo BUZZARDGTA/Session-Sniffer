@@ -902,10 +902,10 @@ class SessionsLogTab(QWidget):
 
         self._file_watcher.stop()
 
-        def _do_delete() -> tuple[int, int, bool]:
+        def _do_delete() -> tuple[int, int, bool, int]:
             return delete_session_paths(top_paths, protected_active_file=protected_active)
 
-        _, _, skipped_active = (
+        _, _, skipped_active, failed_count = (
             run_blocking_with_loading(
                 self.window(),
                 tr('Deleting Session Logs\u2026'),
@@ -923,6 +923,16 @@ class SessionsLogTab(QWidget):
 
         self._clear_tree_selection()
         self.update_dir_metadata()
+        if failed_count:
+            QMessageBox.warning(
+                self,
+                TITLE,
+                tr_plural(
+                    'Failed to delete {count} selected item because it is in use or cannot be removed.',
+                    'Failed to delete {count} selected items because they are in use or cannot be removed.',
+                    failed_count,
+                ),
+            )
         if skipped_active:
             QMessageBox.information(
                 self,

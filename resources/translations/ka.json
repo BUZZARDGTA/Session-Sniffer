@@ -1060,6 +1060,7 @@
     "Failed to start mobile hotspot": "მობილური ჰოტსპოტის გაშვება ვერ მოხერხდა",
     "Failed to stop mobile hotspot": "მობილური ჰოტსპოტის გაჩერება ვერ მოხერხდა",
     "Failed to suspend the {game_name} process.\n\nTry running Session Sniffer as administrator.": "{game_name} პროცესის შეჩერება ვერ მოხერხდა.\n\nსცადეთ Session Sniffer-ის ადმინისტრატორის უფლებებით გაშვება.",
+    "Failed to update \"{filename}\":\n{error}": "\"{filename}\"-ის განახლება ვერ მოხერხდა:\n{error}",
     "Failed to write scan results file:\n{error}": "სკანირების შედეგების ფაილის ჩაწერა ვერ მოხერხდა:\n{error}",
     "Failed to write the new executable, and failed to restore the previous version.\n\nWrite error: {write_error}\n\nRestore error: {restore_error}": "ახალი გამშვები ფაილის ჩაწერა ვერ მოხერხდა და წინა ვერსიის აღდგენაც ვერ მოხერხდა.\n\nჩაწერის შეცდომა: {write_error}\n\nაღდგენის შეცდომა: {restore_error}",
     "Failed to write the new executable. The previous version has been restored.\n\n{error}": "ახალი გამშვები ფაილის ჩაწერა ვერ მოხერხდა. წინა ვერსია აღდგენილია.\n\n{error}",
@@ -3494,6 +3495,10 @@
     "Exported {count} selected database to {path}": {
       "one": "დაექსპორტდა {count} მონიშნული მონაცემთა ბაზა მისამართზე: {path}",
       "other": "დაექსპორტდა {count} მონიშნული მონაცემთა ბაზა მისამართზე: {path}"
+    },
+    "Failed to delete {count} selected item because it is in use or cannot be removed.": {
+      "one": "{count} მონიშნული ელემენტის წაშლა ვერ მოხერხდა, რადგან ის გამოიყენება ან წაშლა შეუძლებელია.",
+      "other": "{count} მონიშნული ელემენტის წაშლა ვერ მოხერხდა, რადგან ისინი გამოიყენება ან წაშლა შეუძლებელია."
     },
     "Failed to move {count} item:\n{error}": {
       "one": "{count} ელემენტის გადატანა ვერ მოხერხდა:\n{error}",

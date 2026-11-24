@@ -1060,6 +1060,7 @@
     "Failed to start mobile hotspot": "راه‌اندازی هات‌اسپات همراه ناموفق بود",
     "Failed to stop mobile hotspot": "توقف هات‌اسپات همراه ناموفق بود",
     "Failed to suspend the {game_name} process.\n\nTry running Session Sniffer as administrator.": "تعلیق فرایند {game_name} ناموفق بود.\n\nاجرای Session Sniffer به‌عنوان مدیر (Administrator) را امتحان کنید.",
+    "Failed to update \"{filename}\":\n{error}": "به‌روزرسانی \"{filename}\" ناموفق بود:\n{error}",
     "Failed to write scan results file:\n{error}": "نوشتن فایل نتایج پویش ناموفق بود:\n{error}",
     "Failed to write the new executable, and failed to restore the previous version.\n\nWrite error: {write_error}\n\nRestore error: {restore_error}": "نوشتن فایل اجرایی جدید ناموفق بود و بازیابی نسخهٔ قبلی نیز شکست خورد.\n\nخطای نوشتن: {write_error}\n\nخطای بازیابی: {restore_error}",
     "Failed to write the new executable. The previous version has been restored.\n\n{error}": "نوشتن فایل اجرایی جدید ناموفق بود. نسخهٔ قبلی بازیابی شد.\n\n{error}",
@@ -3494,6 +3495,10 @@
     "Exported {count} selected database to {path}": {
       "one": "{count} پایگاه‌دادهٔ انتخاب‌شده به {path} برون‌بری شد",
       "other": "{count} پایگاه‌دادهٔ انتخاب‌شده به {path} برون‌بری شد"
+    },
+    "Failed to delete {count} selected item because it is in use or cannot be removed.": {
+      "one": "حذف {count} مورد انتخاب‌شده ناموفق بود زیرا در حال استفاده است یا قابل حذف نیست.",
+      "other": "حذف {count} مورد انتخاب‌شده ناموفق بود زیرا در حال استفاده هستند یا قابل حذف نیستند."
     },
     "Failed to move {count} item:\n{error}": {
       "one": "انتقال {count} مورد ناموفق بود:\n{error}",

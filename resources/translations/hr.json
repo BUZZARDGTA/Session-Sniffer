@@ -1060,6 +1060,7 @@
     "Failed to start mobile hotspot": "Pokretanje mobilne pristupne točke nije uspjelo",
     "Failed to stop mobile hotspot": "Zaustavljanje mobilne pristupne točke nije uspjelo",
     "Failed to suspend the {game_name} process.\n\nTry running Session Sniffer as administrator.": "Pauziranje procesa {game_name} nije uspjelo.\n\nPokušajte pokrenuti Session Sniffer kao administrator.",
+    "Failed to update \"{filename}\":\n{error}": "Ažuriranje \"{filename}\" nije uspjelo:\n{error}",
     "Failed to write scan results file:\n{error}": "Pisanje datoteke rezultata skeniranja nije uspjelo:\n{error}",
     "Failed to write the new executable, and failed to restore the previous version.\n\nWrite error: {write_error}\n\nRestore error: {restore_error}": "Pisanje nove izvršne datoteke nije uspjelo, a vraćanje prethodne verzije također nije uspjelo.\n\nPogreška pisanja: {write_error}\n\nPogreška vraćanja: {restore_error}",
     "Failed to write the new executable. The previous version has been restored.\n\n{error}": "Pisanje nove izvršne datoteke nije uspjelo. Prethodna verzija je vraćena.\n\n{error}",
@@ -3568,6 +3569,11 @@
       "one": "Izvezena {count} odabrana baza podataka u {path}",
       "few": "Izvezene {count} odabrane baze podataka u {path}",
       "other": "Izvezeno {count} odabranih baza podataka u {path}"
+    },
+    "Failed to delete {count} selected item because it is in use or cannot be removed.": {
+      "one": "Brisanje {count} odabrane stavke nije uspjelo jer se koristi ili se ne može ukloniti.",
+      "few": "Brisanje {count} odabrane stavke nije uspjelo jer se koriste ili se ne mogu ukloniti.",
+      "other": "Brisanje {count} odabranih stavki nije uspjelo jer se koriste ili se ne mogu ukloniti."
     },
     "Failed to move {count} item:\n{error}": {
       "one": "Premještanje {count} stavke nije uspjelo:\n{error}",

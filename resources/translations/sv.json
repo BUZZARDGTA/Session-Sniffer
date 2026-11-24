@@ -1060,6 +1060,7 @@
     "Failed to start mobile hotspot": "Misslyckades med att starta mobil hotspot",
     "Failed to stop mobile hotspot": "Misslyckades med att stoppa mobil hotspot",
     "Failed to suspend the {game_name} process.\n\nTry running Session Sniffer as administrator.": "Misslyckades med att pausa processen {game_name}.\n\nProva att köra Session Sniffer som administratör.",
+    "Failed to update \"{filename}\":\n{error}": "Misslyckades med att uppdatera \"{filename}\":\n{error}",
     "Failed to write scan results file:\n{error}": "Misslyckades med att skriva fil med skanningsresultat:\n{error}",
     "Failed to write the new executable, and failed to restore the previous version.\n\nWrite error: {write_error}\n\nRestore error: {restore_error}": "Misslyckades med att skriva den nya körbara filen och misslyckades med att återställa den tidigare versionen.\n\nSkrivfel: {write_error}\n\nÅterställningsfel: {restore_error}",
     "Failed to write the new executable. The previous version has been restored.\n\n{error}": "Misslyckades med att skriva den nya körbara filen. Den tidigare versionen har återställts.\n\n{error}",
@@ -3494,6 +3495,10 @@
     "Exported {count} selected database to {path}": {
       "one": "Exporterade {count} markerad databas till {path}",
       "other": "Exporterade {count} markerade databaser till {path}"
+    },
+    "Failed to delete {count} selected item because it is in use or cannot be removed.": {
+      "one": "Misslyckades med att ta bort {count} markerat objekt eftersom det används eller inte kan tas bort.",
+      "other": "Misslyckades med att ta bort {count} markerade objekt eftersom de används eller inte kan tas bort."
     },
     "Failed to move {count} item:\n{error}": {
       "one": "Misslyckades med att flytta {count} objekt:\n{error}",

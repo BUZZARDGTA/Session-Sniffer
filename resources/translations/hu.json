@@ -1060,6 +1060,7 @@
     "Failed to start mobile hotspot": "Nem sikerült elindítani a mobil hotspotot",
     "Failed to stop mobile hotspot": "Nem sikerült leállítani a mobil hotspotot",
     "Failed to suspend the {game_name} process.\n\nTry running Session Sniffer as administrator.": "Nem sikerült felfüggeszteni a(z) {game_name} folyamatot.\n\nPróbálja meg rendszergazdaként futtatni a Session Sniffer alkalmazást.",
+    "Failed to update \"{filename}\":\n{error}": "Nem sikerült frissíteni a(z) „{filename}” fájlt:\n{error}",
     "Failed to write scan results file:\n{error}": "Nem sikerült írni a vizsgálati eredmények fájljába:\n{error}",
     "Failed to write the new executable, and failed to restore the previous version.\n\nWrite error: {write_error}\n\nRestore error: {restore_error}": "Nem sikerült kiírni az új futtatható fájlt, és az előző verzió visszaállítása is sikertelen volt.\n\nÍrási hiba: {write_error}\n\nVisszaállítási hiba: {restore_error}",
     "Failed to write the new executable. The previous version has been restored.\n\n{error}": "Nem sikerült kiírni az új futtatható fájlt. Az előző verzió visszaállításra került.\n\n{error}",
@@ -3494,6 +3495,10 @@
     "Exported {count} selected database to {path}": {
       "one": "{count} kijelölt adatbázis exportálva ide: {path}",
       "other": "{count} kijelölt adatbázis exportálva ide: {path}"
+    },
+    "Failed to delete {count} selected item because it is in use or cannot be removed.": {
+      "one": "Nem sikerült törölni {count} kijelölt elemet, mert használatban van vagy nem távolítható el.",
+      "other": "Nem sikerült törölni {count} kijelölt elemet, mert használatban vannak vagy nem távolíthatók el."
     },
     "Failed to move {count} item:\n{error}": {
       "one": "Nem sikerült áthelyezni {count} elemet:\n{error}",

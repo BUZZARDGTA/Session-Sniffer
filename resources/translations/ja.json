@@ -1060,6 +1060,7 @@
     "Failed to start mobile hotspot": "モバイルホットスポットの起動に失敗しました",
     "Failed to stop mobile hotspot": "モバイルホットスポットの停止に失敗しました",
     "Failed to suspend the {game_name} process.\n\nTry running Session Sniffer as administrator.": "{game_name} プロセスの一時停止に失敗しました。\n\nSession Sniffer を管理者として実行してみてください。",
+    "Failed to update \"{filename}\":\n{error}": "「{filename}」の更新に失敗しました:\n{error}",
     "Failed to write scan results file:\n{error}": "スキャン結果ファイルの書き込みに失敗しました:\n{error}",
     "Failed to write the new executable, and failed to restore the previous version.\n\nWrite error: {write_error}\n\nRestore error: {restore_error}": "新しい実行ファイルの書き込みに失敗し、前のバージョンの復元にも失敗しました。\n\n書き込みエラー: {write_error}\n\n復元エラー: {restore_error}",
     "Failed to write the new executable. The previous version has been restored.\n\n{error}": "新しい実行ファイルの書き込みに失敗しました。前のバージョンに復元されました。\n\n{error}",
@@ -3420,6 +3421,9 @@
     },
     "Exported {count} selected database to {path}": {
       "other": "選択した {count} 件のデータベースを {path} にエクスポートしました"
+    },
+    "Failed to delete {count} selected item because it is in use or cannot be removed.": {
+      "other": "使用中または削除できないため、選択した {count} 件の項目を削除できませんでした。"
     },
     "Failed to move {count} item:\n{error}": {
       "other": "{count} 件の項目の移動に失敗しました:\n{error}"
