@@ -148,7 +148,10 @@ def _prompt_port_ping(parent: QWidget, target: str | list[str], *, mode: PingMod
         QMessageBox.warning(parent, tr('Error'), tr('No valid port number provided.'))
         return
 
-    port = int(port_string)
+    try:
+        port = int(port_string)
+    except ValueError:
+        port = 0
 
     if not MIN_PORT <= port <= MAX_PORT:
         QMessageBox.warning(parent, tr('Error'), tr('Please enter a valid port number between 1 and 65535.'))
