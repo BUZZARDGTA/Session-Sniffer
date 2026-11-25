@@ -11,7 +11,7 @@ Apply these rules when working on packaging, PyInstaller, release builds, runtim
 
 * Dependency pinning rules are defined in `security.md` ("Dependencies").
 * Do not change dependency versions without understanding their impact on the supported Python version and existing tooling.
-* Release version bumps (including `uv.lock` synchronization and the published-tag check) follow the `release` skill (`.agents/skills/release/SKILL.md`).
+* Release preparation (including automatic Wireshark `manuf` database updates, `uv.lock` synchronization, and the published-tag check) follows the `release` skill (`.agents/skills/release/SKILL.md`).
 
 ## GitHub Release Tag and Title
 

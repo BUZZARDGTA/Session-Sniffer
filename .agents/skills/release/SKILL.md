@@ -1,6 +1,6 @@
 ---
 name: release
-description: Prepare, commit, and push a Session Sniffer release by updating the version in pyproject.toml with the current UTC build timestamp, incrementing the RC or final version as requested, synchronizing uv.lock via uv lock, validating the change, creating the release commit, pushing the branch to GitHub, and generating a synthesized user-facing changelog since the previous release.
+description: Prepare, commit, and push a Session Sniffer release by automatically updating the Wireshark manuf database (resources/manuf), updating the version in pyproject.toml with the current UTC build timestamp, incrementing the RC or final version as requested, synchronizing uv.lock via uv lock, validating the changes, creating the release commit(s), pushing the branch to GitHub, and generating a synthesized user-facing changelog since the previous release.
 ---
 
 # Session Sniffer Release
@@ -10,7 +10,7 @@ Use this skill when the user wants to prepare and commit a new Session Sniffer r
 ## Release Procedure
 
 1. Inspect the Git working tree before making changes.
-2. Run the release helper script in check mode to inspect `pyproject.toml`, published GitHub tags, and the current UTC timestamp:
+2. Run the release helper script in check mode to inspect `pyproject.toml`, published GitHub tags, the current UTC timestamp, and whether an updated Wireshark `manuf` database is available upstream:
    `python .agents/skills/release/scripts/prepare_release.py --check`
    (See [prepare_release.py](./scripts/prepare_release.py).)
 3. **Always ask the user whether they want an RC or a stable (final) release** (showing the exact candidate version strings from `--check`), **unless the user already explicitly specified RC or stable/final in their request**:
@@ -26,18 +26,24 @@ Use this skill when the user wants to prepare and commit a new Session Sniffer r
        - **RC**: switch to `rc.1` (`--mode rc`).
      - If the current version is an **already-published final release** (`is_published_on_github` is `true`, no `rc.N`):
        - Ask for the next `X.Y.Z` base version (if not already specified) and whether it should be an **RC** (`--mode rc --base-version X.Y.Z`) or **stable (final)** (`--mode final --base-version X.Y.Z`) release.
-4. Run [prepare_release.py](./scripts/prepare_release.py) with the explicit `--mode` chosen by the user to generate the current UTC timestamp (`YYYYMMDD.HHMM` / `YYYY-MM-DDTHH:MM:SSZ`), update `version` in `pyproject.toml`, run `uv lock`, enforce CRLF (`\r\n`) line endings on both `pyproject.toml` and `uv.lock`, and verify synchronization via `uv lock --check`:
+4. Run [prepare_release.py](./scripts/prepare_release.py) with the explicit `--mode` chosen by the user. This automatically:
+   - checks and updates `resources/manuf` from Wireshark's canonical `https://www.wireshark.org/download/automated/data/manuf.gz` using HTTP `If-Modified-Since` (to avoid redundant downloads between weekly Wireshark updates), skips comment-only TShark header rebuilds when no MAC vendor entries changed, validates every entry and minimum entry count against the `manuf` format, enforces CRLF (`\r\n`) line endings, and verifies loading via `session_sniffer.networking.manuf_lookup.MacLookup.load()` when `.venv` is present (rolling back `resources/manuf` on failure; pass `--skip-manuf-update` only if the user explicitly requests skipping it or confirms proceeding while Wireshark is unreachable, or `--force-manuf-update` to bypass `If-Modified-Since`),
+   - generates the current UTC timestamp (`YYYYMMDD.HHMM` / `YYYY-MM-DDTHH:MM:SSZ`),
+   - updates `version` in `pyproject.toml`, runs `uv lock`, enforces CRLF (`\r\n`) line endings on both `pyproject.toml` and `uv.lock`, and verifies synchronization via `uv lock --check`:
    - Timestamp-only (unpublished RC or unpublished stable): `python .agents/skills/release/scripts/prepare_release.py --mode timestamp` (preserves the existing version prefix, e.g. `v1.5.0rc.69`, and updates only `+YYYYMMDD.HHMM`).
    - New RC: `python .agents/skills/release/scripts/prepare_release.py --mode rc` (increments the existing `rc.N` number by one, or starts at `rc.1`, preserving `X.Y.Z`, and appends `+YYYYMMDD.HHMM`).
    - Stable / final release: `python .agents/skills/release/scripts/prepare_release.py --mode final` (removes the `rc.N` suffix, preserving `X.Y.Z`, and appends `+YYYYMMDD.HHMM`).
-5. Review the resulting diff (both `pyproject.toml` and `uv.lock` should reflect the new version).
+5. Review the resulting diff (`pyproject.toml` and `uv.lock` should reflect the new version; if `resources/manuf` was updated, inspect `git diff --stat -- resources/manuf` and its updated header).
 6. Run the release-specific validation before committing (see **Validation** below).
-7. Create exactly one version-bump commit containing both `pyproject.toml` and `uv.lock` (see **Commit** below).
-8. Push the current branch to GitHub (`git push`) immediately after creating the version-bump commit so `origin` already contains the updated `pyproject.toml` and `uv.lock` before the user publishes the GitHub release/tag. The release tag MUST match `version` in `pyproject.toml` exactly.
+7. Commit the release changes cleanly (see **Commit** below):
+   - If `resources/manuf` changed, create a dedicated commit first containing only `resources/manuf` (`chore(resources): update Wireshark manuf database`).
+   - Then create exactly one version-bump commit containing only `pyproject.toml` and `uv.lock` (`build: bump version to <new-version>` with `[skip ci]` in the body).
+8. Push the current branch to GitHub (`git push`) immediately after creating the commit(s) so `origin` already contains the updated `resources/manuf` (if changed), `pyproject.toml`, and `uv.lock` before the user publishes the GitHub release/tag. The release tag MUST match `version` in `pyproject.toml` exactly.
 9. Show the user:
    - previous version,
    - new version,
-   - changed files (`pyproject.toml`, `uv.lock`),
+   - Wireshark `resources/manuf` update status (updated with entry count and TShark header summary, or already up to date),
+   - changed files (`resources/manuf` if updated, `pyproject.toml`, `uv.lock`),
    - validation performed and confirmation that the branch was pushed to GitHub,
    - a copy-ready **GitHub Release Tag** in its own fenced code block (the exact `version` from `pyproject.toml`, e.g. `v1.5.0rc.93+20261027.2106` — never the PEP 440-normalized `uv.lock` version `1.5.0rc93+...`),
    - a copy-ready **GitHub Release Title** in its own fenced code block (`<version-without-build-metadata> - YYYY/MM/DD (HH:MM)`),
@@ -133,11 +139,17 @@ If the user intends a different `X.Y.Z` final version, confirm that version befo
 
 ## Commit
 
-The commit subject must be:
+If `resources/manuf` was updated during release preparation, commit it first as its own commit containing only `resources/manuf`:
+
+```text
+chore(resources): update Wireshark manuf database
+```
+
+Then create the version-bump commit whose subject must be:
 
 `build: bump version to <new-version>`
 
-Include `[skip ci]` in the commit body (e.g. `git commit -m "build: bump version to <new-version>" -m "[skip ci]"`) so pushing the version-only bump to `main` does not trigger a redundant `ci.yml` push run (`build.yml` still runs the full `quality` gate via `workflow_call` when the GitHub release is published).
+Include `[skip ci]` in the commit body (e.g. `git commit -m "build: bump version to <new-version>" -m "[skip ci]"`) so pushing the release commit(s) to `main` does not trigger a redundant `ci.yml` push run (`build.yml` still runs the full `quality` gate via `workflow_call` when the GitHub release is published).
 
 For example:
 
@@ -153,11 +165,12 @@ Do not create a commit if validation fails.
 
 ## Validation
 
-For a version-only change, use the smallest relevant validation available:
+For release preparation, use the smallest relevant validation available:
 - Run `uv lock --check` to ensure `uv.lock` is strictly up to date.
-- Verify CRLF (`\r\n`) line endings on both `pyproject.toml` and `uv.lock`.
+- Verify CRLF (`\r\n`) line endings on `pyproject.toml`, `uv.lock`, and (if updated) `resources/manuf`.
+- If `resources/manuf` was updated, confirm `MacLookup.load()` parses it without error (automatically checked by `prepare_release.py` when `.venv` is present).
 
-Do not run the full `python code_quality_checks.py` suite unless the release also includes significant code, dependency, resource, packaging, or other release-sensitive changes; in that case broaden validation appropriately.
+Do not run the full `python code_quality_checks.py` suite unless the release also includes significant code, dependency, packaging, or other release-sensitive changes; in that case broaden validation appropriately.
 
 ## Important
 
@@ -167,4 +180,4 @@ Do not use local time.
 
 Do not manually invent or reuse a timestamp.
 
-When `/release` is invoked, always push the branch to GitHub (`git push`) after creating the release commit so the remote branch is up to date before the GitHub release/tag is created.
+When `/release` is invoked, always push the branch to GitHub (`git push`) after creating the release commit(s) so the remote branch is up to date before the GitHub release/tag is created.
