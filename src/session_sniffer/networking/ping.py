@@ -13,7 +13,10 @@ from contextlib import suppress
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Final, Self, cast
 
+from pydantic import ValidationError
+
 from session_sniffer.i18n import tr, tr_plural
+from session_sniffer.models.check_host import CheckHostPingRequestResponse, CheckHostPingResultResponse
 from session_sniffer.networking.ctypes_adapters_info import (
     close_icmp_handle,
     create_icmp_handle,
@@ -646,8 +649,6 @@ def probe_udp_port(
 
 
 _CHECK_HOST_API: Final = 'https://check-host.net'
-_CHECK_HOST_MIN_NODE_INFO_LENGTH_FOR_CITY: Final = 2
-_CHECK_HOST_MIN_HOP_FIELDS: Final = 2
 
 
 def probe_check_host(target_ip: str, *, sequence: int = 1) -> list[PingProbeResult]:
@@ -661,11 +662,11 @@ def probe_check_host(target_ip: str, *, sequence: int = 1) -> list[PingProbeResu
             timeout=10,
         )
         request_response.raise_for_status()
-        request_data = cast('dict[str, object]', request_response.json())
-        request_id = request_data.get('request_id')
-        nodes = cast('dict[str, list[str]] | None', request_data.get('nodes'))
+        request_data = CheckHostPingRequestResponse.model_validate(request_response.json())
+        request_id = request_data.request_id
+        nodes = request_data.nodes
 
-        if not isinstance(request_id, str) or nodes is None or not nodes:
+        if not request_data.ok or request_id is None or not request_id or nodes is None or not nodes:
             results.append(
                 PingProbeResult(
                     sequence=sequence,
@@ -689,21 +690,15 @@ def probe_check_host(target_ip: str, *, sequence: int = 1) -> list[PingProbeResu
             timeout=10,
         )
         result_response.raise_for_status()
-        result_data = cast('dict[str, object]', result_response.json())
+        result_data = CheckHostPingResultResponse.model_validate(result_response.json())
 
         for node_name, node_info in nodes.items():
-            country = node_info[1] if len(node_info) > 1 else tr('Unknown')
-            city = node_info[2] if len(node_info) > _CHECK_HOST_MIN_NODE_INFO_LENGTH_FOR_CITY else ''
-            node_label = f'{country} ({city})' if city else country
+            country = node_info.country or tr('Unknown')
+            node_label = f'{country} ({node_info.city})' if node_info.city else country
 
-            node_result = result_data.get(node_name)
-            if isinstance(node_result, list) and node_result and isinstance(node_result[0], list):
-                sample_hops = cast('list[list[object]]', node_result[0])
-                successful_rtts = [
-                    float(hop[1]) * 1000.0
-                    for hop in sample_hops
-                    if len(hop) >= _CHECK_HOST_MIN_HOP_FIELDS and hop[0] == 'OK' and isinstance(hop[1], (float, int))
-                ]
+            node_result = result_data.nodes.get(node_name)
+            if node_result is not None and node_result.attempts:
+                successful_rtts = node_result.successful_rtts_ms
 
                 if successful_rtts:
                     average_rtt = sum(successful_rtts) / len(successful_rtts)
@@ -746,7 +741,7 @@ def probe_check_host(target_ip: str, *, sequence: int = 1) -> list[PingProbeResu
                     ),
                 )
 
-    except (OSError, ValueError) as e:
+    except (OSError, ValidationError, ValueError) as e:
         results.append(
             PingProbeResult(
                 sequence=sequence,

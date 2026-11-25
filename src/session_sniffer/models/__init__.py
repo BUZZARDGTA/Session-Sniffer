@@ -1,11 +1,13 @@
 """Pydantic models for API response validation.
 
 This module contains pydantic models for validating JSON responses from various APIs:
+- Check-Host API (distributed ping diagnostics)
 - GitHub Versions API (version checking)
 - GitHub Release API (GeoLite2 database updates)
 - IP-API batch lookup (IP geolocation)
 """
 
+from .check_host import CheckHostPingRequestResponse, CheckHostPingResultResponse
 from .discord_rpc import (
     DiscordActivity,
     DiscordActivityArgs,
@@ -24,6 +26,8 @@ from .sessions_log import SessionLogFile
 
 __all__ = [
     'IPAPI_FIELDS',
+    'CheckHostPingRequestResponse',
+    'CheckHostPingResultResponse',
     'DiscordActivity',
     'DiscordActivityArgs',
     'DiscordActivityButton',
