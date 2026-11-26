@@ -42,6 +42,7 @@
         home: { title: 'meta.title', description: 'meta.description' },
         games: { title: 'meta.games_title', description: 'meta.games_description' },
         history: { title: 'meta.history_title', description: 'meta.history_description' },
+        notFound: { title: 'meta.not_found_title', description: 'meta.not_found_description' },
     };
 
     var BUILTIN_BY_SLUG = {};
@@ -283,7 +284,7 @@
             {
                 variant: 'demo',
                 actionLabel: tSite('nav.download'),
-                actionHref: getPageId() === 'home' ? '#download' : 'index.html#download',
+                actionHref: getPageId() === 'home' ? '#download' : '/#download',
                 duration: 5500,
             },
         );
@@ -423,7 +424,7 @@
 
         var script = document.createElement('script');
         var versionSuffix = DATA.assetVersion ? '?v=' + encodeURIComponent(DATA.assetVersion) : '';
-        script.src = 'assets/i18n/' + encodeURIComponent(code) + '.js' + versionSuffix;
+        script.src = '/assets/i18n/' + encodeURIComponent(code) + '.js' + versionSuffix;
         script.async = true;
         script.onerror = function onLoadError() {
             var waiters = PENDING_LOCALE_CALLBACKS[code];
@@ -471,7 +472,7 @@
 
         var flagImg = document.getElementById('active-lang-flag');
         if (flagImg && meta.flag) {
-            flagImg.src = 'assets/flags/' + meta.flag + '.png';
+            flagImg.src = '/assets/flags/' + meta.flag + '.png';
         }
 
         var codeBadge = document.getElementById('active-lang-code');
@@ -780,7 +781,7 @@
             if (flagCode) {
                 var optFlag = document.createElement('img');
                 optFlag.className = 'lang-flag-img';
-                optFlag.src = 'assets/flags/' + flagCode + '.png';
+                optFlag.src = '/assets/flags/' + flagCode + '.png';
                 optFlag.alt = '';
                 optFlag.width = 18;
                 optFlag.height = 12;

@@ -67,9 +67,9 @@ _WEBSITE_STATIC_ASSETS: Final[tuple[str, ...]] = (
     'history.js',
 )
 _HTML_STATIC_ASSET_RE: Final = re.compile(
-    r'((?:href|src)=")(' + '|'.join(re.escape(name) for name in _WEBSITE_STATIC_ASSETS) + r')(?:\?v=[0-9a-f]+)?(")',
+    r'((?:href|src)="/?)(' + '|'.join(re.escape(name) for name in _WEBSITE_STATIC_ASSETS) + r')(?:\?v=[0-9a-f]+)?(")',
 )
-_WEBSITE_HTML_FILES: Final[tuple[str, ...]] = ('index.html', 'games.html', 'history.html')
+_WEBSITE_HTML_FILES: Final[tuple[str, ...]] = ('index.html', 'games.html', 'history.html', '404.html')
 _LIGHT_LUMINANCE_THRESHOLD: Final = 140.0
 _PREDECESSOR_COMMITS_COUNT: Final = 99  # PS3-Blacklist-Sniffer (94) + PC-Blacklist-Sniffer (5)
 

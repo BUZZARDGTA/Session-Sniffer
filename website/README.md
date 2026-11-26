@@ -4,9 +4,10 @@ Static multi-page website for **Session Sniffer**, synced directly from the desk
 
 ## Pages & Structure
 
-- `index.html` — Focused landing page: Hero, 1:1 interactive desktop preview (`preview.css` / `preview.js`), core features, OS-aware downloads, Explore More hub, and FAQ.
+- `index.html` (`/`) — Focused landing page: Hero, 1:1 interactive desktop preview (`preview.css` / `preview.js`), core features, OS-aware downloads, Explore More hub, and FAQ.
 - `games.html` (`/games`) — Supported Games & Software Explorer (`games.css` / `games.js`): cover marquee, searchable/filterable Wiki compatibility table & gallery, detail modal, and Username Resolving guide.
 - `history.html` (`/history`) — Project History & Release Archive (`history.css` / `history.js`): 5-era screenshot showcase with lightbox, version-by-version release ledger, and 163-tag Git archive.
+- `404.html` — Custom `noindex` HTTP 404 page (disables Cloudflare Pages' SPA fallback so invalid or removed paths return a real `404 Not Found` instead of a `200 OK` copy of `index.html`).
 - `styles.css`, `core.js`, `theme-init.js` — Shared built-in theme switcher, 33-language i18n/RTL switcher, navigation chrome, toasts, tooltips, and live GitHub/Discord stats.
 
 ## What Is Shared From Session Sniffer
@@ -27,21 +28,21 @@ Run the sync script whenever you update themes, icons, version, or translations 
 
 ## Preview Locally (Testing)
 
-Run a local HTTP/1.1 static server from the repository root:
+Run the local HTTP/1.1 preview server from the repository root (mirrors Cloudflare Pages Pretty URLs like `/games`, `/history`, and custom `404.html`):
 
 **Windows (PowerShell / CMD):**
 ```powershell
-.venv\Scripts\python.exe -m http.server 8080 --bind 0.0.0.0 --protocol HTTP/1.1 --directory website
+.venv\Scripts\python.exe scripts\serve_website.py
 ```
 
 **Linux / macOS:**
 ```bash
-.venv/bin/python -m http.server 8080 --bind 0.0.0.0 --protocol HTTP/1.1 --directory website
+.venv/bin/python scripts/serve_website.py
 ```
 
-Then open `http://127.0.0.1:8080` (or `http://localhost:8080`) in your browser.
+Then open `http://127.0.0.1:8080/` in your browser (pass `--host 0.0.0.0 --port 8080` if you need LAN access).
 
-> **Why `--protocol HTTP/1.1`?** Python's `http.server` defaults to `HTTP/1.0`, which can truncate responses larger than 64 KB (such as `index.html`, `assets/app-data.generated.js`, and `preview.js`) behind local HTTP filters/proxies (e.g. AdGuard) and prevent the inline SVG icon sprite and scripts from loading. Always pass `--protocol HTTP/1.1`.
+> **Why `scripts/serve_website.py` instead of plain `http.server`?** It defaults to `HTTP/1.1` (preventing 64 KB truncation behind local HTTP filters/proxies such as AdGuard), resolves clean canonical routes (`/games` → `games.html`, `/history` → `history.html`), and serves `404.html` with HTTP `404` for unknown paths just like Cloudflare Pages.
 
 ## Deploy Free on Cloudflare Pages
 

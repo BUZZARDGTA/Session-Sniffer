@@ -2299,6 +2299,75 @@ summary:focus-visible {
 }
 
 /* ==========================================================================
+   404 Not Found Page
+   ========================================================================== */
+
+.not-found-section {
+    min-height: calc(100vh - var(--ss-header-height) - 180px);
+    display: flex;
+    align-items: center;
+    padding: 56px 0;
+}
+
+.not-found-card {
+    position: relative;
+    max-width: 620px;
+    margin: 0 auto;
+    padding: 44px 36px;
+    text-align: center;
+    background: var(--ss-surface);
+    border: 1px solid var(--ss-border);
+    border-radius: var(--ss-radius-lg);
+    box-shadow: var(--ss-shadow-sm);
+    overflow: hidden;
+}
+
+.not-found-card::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto;
+    height: 180px;
+    background: radial-gradient(
+        68% 100% at 50% 0%,
+        rgba(var(--ss-accent-rgb), 0.16) 0%,
+        transparent 100%
+    );
+    pointer-events: none;
+}
+
+.not-found-card > * {
+    position: relative;
+}
+
+.not-found-code {
+    margin: 2px 0 8px;
+    font-size: clamp(64px, 12vw, 96px);
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    color: var(--ss-accent);
+    text-shadow: 0 8px 30px rgba(var(--ss-accent-rgb), 0.28);
+}
+
+.not-found-title {
+    margin-bottom: 10px;
+}
+
+.not-found-lead {
+    max-width: 460px;
+    margin: 0 auto;
+}
+
+.not-found-actions {
+    margin-top: 28px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+/* ==========================================================================
    Right-to-Left (RTL) Support for Arabic (ar), Persian (fa), Hebrew (he)
    ========================================================================== */
 
@@ -2561,6 +2630,23 @@ summary:focus-visible {
     .download-grid,
     .explore-grid {
         grid-template-columns: minmax(0, 1fr);
+    }
+
+    .not-found-section {
+        min-height: calc(100vh - var(--ss-header-height) - 160px);
+        padding: 36px 0;
+    }
+
+    .not-found-card {
+        padding: 32px 20px;
+    }
+
+    .not-found-actions {
+        flex-direction: column;
+    }
+
+    .not-found-actions .btn {
+        width: 100%;
     }
 
     /* Compact Mobile Footer */

@@ -3,5 +3,6 @@
 
 # But not these files
 !.gitignore
+!serve_website.py
 !spoofed_ping.py
 
