@@ -13,6 +13,10 @@ if TYPE_CHECKING:
 
 _SEE_MASK_NOCLOSEPROCESS = 0x00000040
 _SW_HIDE = 0
+_SW_RESTORE = 9
+_ASFW_ANY = 0xFFFFFFFF
+_ERROR_ACCESS_DENIED = 5
+_ERROR_ALREADY_EXISTS = 183
 _DEFAULT_ELEVATION_TIMEOUT_MS = 15_000
 _TH32CS_SNAPPROCESS = 0x00000002
 _PROCESS_TERMINATE = 0x0001
@@ -276,8 +280,21 @@ if sys.platform == 'win32':
     _user32.SetTimer.restype = ctypes.c_size_t
     _user32.KillTimer.argtypes = [wintypes.HWND, ctypes.c_size_t]
     _user32.KillTimer.restype = wintypes.BOOL
+    _user32.AllowSetForegroundWindow.argtypes = [wintypes.DWORD]
+    _user32.AllowSetForegroundWindow.restype = wintypes.BOOL
+    _user32.BringWindowToTop.argtypes = [wintypes.HWND]
+    _user32.BringWindowToTop.restype = wintypes.BOOL
+    _user32.IsIconic.argtypes = [wintypes.HWND]
+    _user32.IsIconic.restype = wintypes.BOOL
+    _user32.SetForegroundWindow.argtypes = [wintypes.HWND]
+    _user32.SetForegroundWindow.restype = wintypes.BOOL
+    _user32.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
+    _user32.ShowWindow.restype = wintypes.BOOL
 
     _kernel32 = ctypes.windll.kernel32
+    _kernel32_last_error = ctypes.WinDLL('kernel32', use_last_error=True)
+    _kernel32_last_error.CreateMutexW.argtypes = [wintypes.LPVOID, wintypes.BOOL, wintypes.LPCWSTR]
+    _kernel32_last_error.CreateMutexW.restype = wintypes.HANDLE
     _kernel32.GetModuleHandleW.argtypes = [wintypes.LPCWSTR]
     _kernel32.GetModuleHandleW.restype = wintypes.HMODULE
     _kernel32.GetSystemDirectoryW.argtypes = [wintypes.LPWSTR, wintypes.UINT]
@@ -812,3 +829,47 @@ def play_wav_memory_async(wav_bytes: bytes) -> bool:
     if played:
         _wav_memory_state['active_buffer'] = new_buffer
     return played
+
+
+def acquire_win32_named_mutex(mutex_name: str) -> tuple[int | None, bool]:
+    """Create or open a named Win32 mutex and return `(handle, already_exists)`.
+
+    Returns `(handle, False)` when this process exclusively created the mutex, and
+    `(None, True)` when another process in the same session already owns it (including
+    an elevated instance that triggers `ERROR_ACCESS_DENIED`).
+    """
+    if sys.platform != 'win32':
+        return None, False
+    ctypes.set_last_error(0)
+    handle = _kernel32_last_error.CreateMutexW(None, 0, mutex_name)
+    last_error = ctypes.get_last_error()
+    if not handle:
+        return None, last_error == _ERROR_ACCESS_DENIED
+    if last_error == _ERROR_ALREADY_EXISTS:
+        _kernel32.CloseHandle(handle)
+        return None, True
+    return int(handle), False
+
+
+def release_win32_handle(handle: int) -> None:
+    """Close a Win32 kernel handle previously returned by a low-level binding."""
+    if sys.platform == 'win32' and handle:
+        _kernel32.CloseHandle(wintypes.HANDLE(handle))
+
+
+def allow_set_foreground_window(process_id: int | None = None) -> bool:
+    """Grant foreground-activation permission to *process_id* (or `ASFW_ANY` when omitted)."""
+    if sys.platform != 'win32':
+        return False
+    target_pid = process_id if process_id is not None and process_id > 0 else _ASFW_ANY
+    return bool(_user32.AllowSetForegroundWindow(target_pid))
+
+
+def focus_win32_window(hwnd: int) -> None:
+    """Restore if minimized, raise to top, and bring *hwnd* to the foreground via Win32 User32."""
+    if sys.platform != 'win32' or not hwnd:
+        return
+    if _user32.IsIconic(hwnd):
+        _user32.ShowWindow(hwnd, _SW_RESTORE)
+    _user32.BringWindowToTop(hwnd)
+    _user32.SetForegroundWindow(hwnd)

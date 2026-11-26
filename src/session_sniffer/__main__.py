@@ -1,6 +1,6 @@
 """Package entrypoint for `python -m session_sniffer`."""
 
-from session_sniffer.main import main
+from session_sniffer.launcher.bootstrap import bootstrap
 
 if __name__ == '__main__':
-    main()
+    bootstrap()

@@ -50,7 +50,7 @@ _WIN32_ONLY_CTYPES_PYREFLY_EXCLUDES: tuple[str, ...] = tuple(
     arg for module in _WIN32_ONLY_CTYPES_MODULES for arg in ('--project-excludes', f'**/{module}')
 )
 
-_PYLINT_PLATFORM_IGNORED_MODULES = 'pwd' if sys.platform == 'win32' else 'winreg,winsound'
+_PYLINT_PLATFORM_IGNORED_MODULES = 'pwd,fcntl' if sys.platform == 'win32' else 'winreg,winsound'
 
 TOOLS: list[QualityTool] = [
     QualityTool(

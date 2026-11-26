@@ -541,6 +541,7 @@ def setup_logging(
                 maxBytes=_DEBUG_LOG_MAX_BYTES,
                 backupCount=_DEBUG_LOG_BACKUP_COUNT,
                 encoding='utf-8',
+                delay=True,
             )
             debug_handler.name = _DEBUG_FILE_HANDLER_NAME
             root.addHandler(debug_handler)

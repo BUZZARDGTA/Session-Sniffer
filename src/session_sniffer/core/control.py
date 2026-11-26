@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, ClassVar, Literal, NamedTuple
 from session_sniffer.constants.local import APP_DIR_LOCAL, APP_DIR_ROAMING
 from session_sniffer.gta5.suspend_manager import GTASuspendManager
 from session_sniffer.guis.crash_dialog import show_crash_dialog
+from session_sniffer.launcher.single_instance import release_single_instance
 from session_sniffer.logging_setup import dump_crash_diagnostics, flush_all_loggers
 from session_sniffer.rdr2.suspend_manager import RDR2SuspendManager
 from session_sniffer.utils import ensure_app_dir_ownership, terminate_process_tree
@@ -128,6 +129,7 @@ def terminate_script(
         )
 
     flush_all_loggers()
+    release_single_instance()
     ensure_app_dir_ownership(APP_DIR_LOCAL)
     ensure_app_dir_ownership(APP_DIR_ROAMING)
     terminate_process_tree()

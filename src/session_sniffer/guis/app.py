@@ -16,10 +16,14 @@ from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
     QDial,
+    QDialog,
+    QMainWindow,
     QSlider,
     QWidget,
 )
+from shiboken6 import isValid
 
+from session_sniffer.ctypes_windows import focus_win32_window
 from session_sniffer.guis.theme import get_palette
 from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.logging_setup import dump_crash_diagnostics, setup_logging
@@ -150,3 +154,61 @@ app.setWindowIcon(QIcon(str(_icon_path)))
 
 _wheel_filter = _DisableScrollValueChangeFilter(app)
 app.installEventFilter(_wheel_filter)
+
+
+def activate_window(widget: QWidget) -> None:
+    """Restore if minimized (preserving maximized state), raise, and activate *widget*."""
+    if not isValid(widget):
+        return
+    if widget.isMinimized():
+        if widget.windowState() & Qt.WindowState.WindowMaximized:
+            widget.showMaximized()
+        else:
+            widget.showNormal()
+    else:
+        widget.show()
+    widget.raise_()
+    widget.activateWindow()
+
+
+def _focus_widget(widget: QWidget) -> None:
+    """Restore, raise, activate, and bring *widget* to the OS foreground."""
+    activate_window(widget)
+    if isValid(widget):
+        focus_win32_window(widget.winId())
+
+
+def focus_active_application_window() -> None:
+    """Restore, raise, and focus the active Session Sniffer window (modal dialog, main window, or startup window)."""
+    modal_widget = QApplication.activeModalWidget()
+    main_window = next(
+        (
+            widget
+            for widget in QApplication.topLevelWidgets()
+            if isinstance(widget, QMainWindow) and isValid(widget) and (widget.isVisible() or widget.isMinimized())
+        ),
+        None,
+    )
+    if modal_widget is not None and isValid(modal_widget):
+        if main_window is not None and main_window.isMinimized():
+            _focus_widget(main_window)
+        _focus_widget(modal_widget)
+        return
+
+    if main_window is not None:
+        _focus_widget(main_window)
+        return
+
+    visible_top_levels = [
+        widget
+        for widget in QApplication.topLevelWidgets()
+        if isValid(widget)
+        and widget.isWindow()
+        and (widget.isVisible() or widget.isMinimized())
+        and not (widget.windowFlags() & Qt.WindowType.Popup)
+    ]
+    target_widget = next((widget for widget in visible_top_levels if isinstance(widget, QDialog)), None) or (
+        visible_top_levels[0] if visible_top_levels else None
+    )
+    if target_widget is not None:
+        _focus_widget(target_widget)

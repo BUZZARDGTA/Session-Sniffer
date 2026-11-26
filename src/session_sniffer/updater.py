@@ -26,6 +26,7 @@ from session_sniffer.constants.standalone import (
 from session_sniffer.error_messages import format_failed_check_for_updates_message
 from session_sniffer.guis.update_download_dialog import UpdateCandidate, UpdateDownloadDialog
 from session_sniffer.i18n import tr
+from session_sniffer.launcher.single_instance import release_single_instance
 from session_sniffer.logging_setup import flush_all_loggers
 from session_sniffer.models import GithubVersionsResponse, VersionInfo
 from session_sniffer.networking.http_session import session
@@ -231,6 +232,7 @@ def _apply_update(new_exe: Path) -> None:
     flush_all_loggers()
     ensure_app_dir_ownership(APP_DIR_LOCAL)
     ensure_app_dir_ownership(APP_DIR_ROAMING)
+    release_single_instance()
     # PyInstaller 6.10+ changed sub-process detection: a child process that inherits
     # _PYI_APPLICATION_HOME_DIR / _PYI_ARCHIVE_FILE env vars is treated as a worker
     # sub-process of the same app instance and reuses the parent's _MEI temp dir.

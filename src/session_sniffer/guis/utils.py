@@ -50,7 +50,7 @@ from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.rendering_core.country_flags import get_country_flag
 from session_sniffer.settings.settings import Settings
 
-from .app import app
+from .app import activate_window, app
 from .exceptions import PrimaryScreenNotFoundError, UnsupportedScreenResolutionError
 
 if TYPE_CHECKING:
@@ -485,18 +485,6 @@ def set_dialog_window_flags(dialog: QDialog, *, keep_on_top: bool = False) -> No
     if keep_on_top:
         window_flags |= Qt.WindowType.WindowStaysOnTopHint
     dialog.setWindowFlags(window_flags)
-
-
-def activate_window(widget: QWidget) -> None:
-    """Restore if minimized, raise, and activate *widget*."""
-    if not isValid(widget):
-        return
-    if widget.isMinimized():
-        widget.showNormal()
-    else:
-        widget.show()
-    widget.raise_()
-    widget.activateWindow()
 
 
 def apply_adaptive_window_size(

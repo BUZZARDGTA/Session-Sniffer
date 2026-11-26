@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 a = Analysis(
-    ['../../src/session_sniffer/main.py'],
+    ['../../src/session_sniffer/launcher/bootstrap.py'],
     pathex=['../../src'],
     binaries=[],
     datas=[
@@ -15,7 +15,7 @@ a = Analysis(
         ('../../scripts', 'scripts'),
         ('../../src/session_sniffer/webserver/static', 'session_sniffer/webserver/static'),
     ],
-    hiddenimports=[],
+    hiddenimports=['session_sniffer.main'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

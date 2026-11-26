@@ -58,7 +58,7 @@ from session_sniffer.ctypes_console import hide_console_window
 from session_sniffer.error_messages import format_capture_interrupted_message, format_npcap_adapter_binding_disabled_message, format_outdated_packages_message
 from session_sniffer.exceptions import UnsupportedPlatformError
 from session_sniffer.guis._crashing_qthread import CrashingQThread
-from session_sniffer.guis.app import app
+from session_sniffer.guis.app import app, focus_active_application_window
 from session_sniffer.guis.exceptions import UnsupportedScreenResolutionError
 from session_sniffer.guis.interface_selection import select_interface
 from session_sniffer.guis.interface_selection_dialog import InterfaceSelectionDialog
@@ -74,6 +74,7 @@ from session_sniffer.guis.utils import compute_ui_scale, get_screen_size, initia
 from session_sniffer.i18n import tr
 from session_sniffer.launcher.cache_preloader import preload_application_caches, warm_table_gui_assets
 from session_sniffer.launcher.package_checker import check_packages_version, get_dependencies_from_pyproject
+from session_sniffer.launcher.single_instance import acquire_single_instance, register_activation_handler, release_single_instance
 from session_sniffer.launcher.smoke_test import run_smoke_test
 from session_sniffer.logging_setup import register_secret_provider, setup_logging
 from session_sniffer.models.player import Player
@@ -118,6 +119,7 @@ _MAX_ADAPTER_LOST_RECOVERY_ATTEMPTS = 60
 
 def _on_process_exit() -> None:
     logger.info('Application process exit hook executed (atexit)')
+    release_single_instance()
     ensure_app_dir_ownership(APP_DIR_LOCAL)
     ensure_app_dir_ownership(APP_DIR_ROAMING)
 
@@ -130,6 +132,9 @@ def main() -> None:
     if '--smoke-test' in sys.argv[1:]:
         run_smoke_test(sys.argv[1:])
         return
+
+    if not acquire_single_instance():
+        sys.exit(0)
 
     if is_pyinstaller_compiled():
         old_exe = Path(sys.executable).with_name(f'{Path(sys.executable).name}.old')
@@ -175,6 +180,7 @@ def main() -> None:
     splash.show()
     # Own splash msgboxes so they appear above it without being globally topmost
     msgbox.set_owner_hwnd(splash.winId())
+    register_activation_handler(lambda: gui_dispatcher.invoke(focus_active_application_window))
 
     if not is_pyinstaller_compiled():
         splash.update_status(tr('Checking Python package versions'))

@@ -26,6 +26,7 @@ from session_sniffer.capture.utils.ctypes_win32 import is_service_running, iter_
 from session_sniffer.error_messages import format_npcap_required_message
 from session_sniffer.guis.dependency_prompt_dialog import show_dependency_prompt
 from session_sniffer.i18n import tr
+from session_sniffer.launcher.single_instance import release_single_instance
 from session_sniffer.logging_setup import flush_all_loggers
 from session_sniffer.utils import is_pyinstaller_compiled, run_elevated_powershell_command
 
@@ -107,6 +108,7 @@ def _spawn_relaunch_process() -> subprocess.Popen[bytes]:
 def _relaunch_with_linux_capabilities() -> None:
     """Relaunch the current process so newly granted Linux file capabilities take effect."""
     flush_all_loggers()
+    release_single_instance()
     try:
         _spawn_relaunch_process()
     except OSError:
