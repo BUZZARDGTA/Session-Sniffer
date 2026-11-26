@@ -9,6 +9,7 @@ from threading import Thread
 from typing import TYPE_CHECKING, ClassVar, override
 
 import requests
+from pydantic import ValidationError
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QDialog,
@@ -43,6 +44,7 @@ from session_sniffer.guis.stylesheets import (
 from session_sniffer.guis.tables_player_actions.looky_system._looky_helpers import (
     build_looky_progress_widgets,
     check_looky_prerequisites,
+    format_looky_request_error,
 )
 from session_sniffer.guis.theming import themed_qss
 from session_sniffer.guis.utils import scale_by_ui, set_dialog_window_flags
@@ -106,7 +108,8 @@ class _CrawlerSendWorker(CrashingQThread):
                 self.send_failed.emit(tr('Connection error: {error}', error=e))
                 if e.request is not None:
                     logger.debug('Request Headers: %s', dict(e.request.headers))
-        except KeyError:
+        except ValidationError as e:
+            logger.warning('Looky instruction response failed validation: %s', e)
             if not self.isInterruptionRequested():
                 self.send_failed.emit(tr('Unexpected API response: missing trackingId.'))
         else:
@@ -200,6 +203,9 @@ class _CrawlerWatchWorker(CrashingQThread):
             failure_message = tr('Connection error while watching status: {error}', error=e)
             if e.request is not None:
                 logger.debug('Request Headers: %s', dict(e.request.headers))
+        except ValidationError as e:
+            logger.warning('Looky status stream payload failed validation: %s', e)
+            failure_message = format_looky_request_error(e)
         except AttributeError:
             # Closing the active SSE response socket (via cancel()) while urllib3's iter_lines() is
             # running on this thread causes an AttributeError: 'NoneType' object has no attribute 'read'

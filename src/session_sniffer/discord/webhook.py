@@ -85,7 +85,7 @@ class DiscordRateLimitPayload(BaseModel):
     """Payload returned by Discord on rate limit HTTP 429."""
 
     retry_after: float | None = None
-    model_config = ConfigDict(extra='ignore')
+    model_config = ConfigDict(extra='ignore', allow_inf_nan=False)
 
 
 _MESSAGE_IDS_ADAPTER: TypeAdapter[dict[str, str]] = TypeAdapter(dict[str, str])

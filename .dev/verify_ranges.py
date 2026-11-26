@@ -10,11 +10,12 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, TypedDict, cast
 
 import geoip2.database
 import geoip2.errors
 import requests
+from pydantic import TypeAdapter, ValidationError
 from rich import box
 from rich.columns import Columns
 from rich.console import Console, Group
@@ -77,6 +78,10 @@ GENERIC_WORDS: set[str] = {
     'interactive', 'labs', 'limited', 'llp', 'ltd', 'ltda', 'network', 'networks', 'services', 'software', 'solutions', 'technologies',
     'technology', 'telecom', 'telecommunications',
 }
+
+
+_IpApiRangeLookupItem = TypedDict('_IpApiRangeLookupItem', {'status': str, 'message': str, 'query': str, 'isp': str, 'org': str, 'as': str, 'asname': str}, total=False)
+_IP_API_BATCH_ADAPTER: TypeAdapter[list[_IpApiRangeLookupItem]] = TypeAdapter(list[_IpApiRangeLookupItem])
 
 
 class RateLimitClient:
@@ -171,8 +176,8 @@ class RateLimitClient:
                     continue
                 response.raise_for_status()
                 self._apply_headers(response.headers)
-                return cast('list[dict[str, Any]]', response.json())
-            except requests.RequestException as e:
+                return [dict(item) for item in _IP_API_BATCH_ADAPTER.validate_json(response.content)]
+            except (requests.RequestException, ValidationError) as e:
                 self.consecutive_errors += 1
                 backoff = min(10 * (2 ** (self.consecutive_errors - 1)), MAX_ERROR_BACKOFF)
                 console.print(f'[red]\\[ERROR] Request failed (attempt {self.consecutive_errors}): {e}[/red]\n[yellow]\\[BACKOFF] sleeping {backoff}s[/yellow]')

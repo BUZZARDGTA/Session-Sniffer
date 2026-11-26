@@ -45,7 +45,7 @@ from session_sniffer.guis.utils import (
     set_dialog_window_flags,
 )
 from session_sniffer.i18n import tr, tr_plural
-from session_sniffer.models import IPAPI_FIELDS, IpApiResponse
+from session_sniffer.models import IPAPI_FIELDS, IPAPI_ITEM_ADAPTER, IpApiResponse
 from session_sniffer.models.player_lookup import (
     PlayerIPLookup,
     PlayerLooky,
@@ -154,10 +154,12 @@ def _resolve_standalone_lookup(lookup: StandaloneIPLookup) -> None:
                 timeout=3,
             )
             response.raise_for_status()
-            data = response.json()
-            if isinstance(data, dict):
-                parsed = IpApiResponse.model_validate(data)
+            parsed = IPAPI_ITEM_ADAPTER.validate_json(response.content)
+            if isinstance(parsed, IpApiResponse):
                 lookup.iplookup.ipapi.apply_response(parsed)
+            else:
+                logger.debug('IP-API returned fail for standalone IP %s (%s)', parsed.query or lookup.ip, parsed.message)
+                lookup.iplookup.ipapi.is_initialized = True
         except (requests.exceptions.RequestException, ValidationError) as e:
             logger.warning('IP-API lookup failed: %s', e)
             lookup.iplookup.ipapi.is_initialized = True

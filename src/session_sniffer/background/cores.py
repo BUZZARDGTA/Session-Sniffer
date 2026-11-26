@@ -8,7 +8,7 @@ from http import HTTPStatus
 from itertools import chain
 from threading import Event, RLock, Thread
 from threading import enumerate as enumerate_threads
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 import requests
 from pydantic import ValidationError
@@ -18,7 +18,7 @@ from session_sniffer.core import ScriptControl
 from session_sniffer.guis.dialogs import show_ipapi_unavailable_dialog
 from session_sniffer.guis.looky_text import LOOKY_LOG_API_KEY_INVALID, LOOKY_LOG_VERIFICATION_HTTP_FAILED_TEMPLATE, get_looky_restriction
 from session_sniffer.i18n import tr
-from session_sniffer.models import IPAPI_FIELDS, IpApiResponse
+from session_sniffer.models import IPAPI_FIELDS, IPAPI_ITEM_ADAPTER, IPAPI_RAW_LIST_ADAPTER, IpApiResponse
 from session_sniffer.networking.exceptions import AllEndpointsExhaustedError
 from session_sniffer.networking.http_session import session
 from session_sniffer.networking.looky_system import (
@@ -265,38 +265,36 @@ def _dequeue_iplookup_batch() -> list[str]:
     return batch
 
 
-def _apply_ipapi_batch_response(iplookup_results_data: object) -> None:
+def _apply_ipapi_batch_response(payload: bytes) -> None:
     """Validate and apply an `ip-api.com` batch JSON payload and notify listeners."""
-    if not isinstance(iplookup_results_data, list):
-        logger.warning('ip-api.com returned unexpected response shape (expected list): %s', type(iplookup_results_data).__name__)
+    try:
+        raw_items = IPAPI_RAW_LIST_ADAPTER.validate_json(payload)
+    except ValidationError as e:
+        logger.warning('ip-api.com returned invalid batch JSON payload: %s', e)
         return
     iplookup_results: list[IpApiResponse] = []
     updated_players: list[Player] = []
 
-    for raw_item in cast('list[object]', iplookup_results_data):
-        if not isinstance(raw_item, dict):
-            logger.warning('ip-api.com batch response contained a non-dict item: %r', raw_item)
-            continue
-        item = cast('dict[str, object]', raw_item)
+    for raw_item in raw_items:
         try:
-            iplookup_results.append(IpApiResponse.model_validate(item))
+            parsed_item = IPAPI_ITEM_ADAPTER.validate_python(raw_item)
         except ValidationError:
-            # Mark IPs with a failed status as initialized so they are never retried.
-            if item.get('status') == 'fail':
-                query_raw = item.get('query', '')
-                failed_player = PlayersRegistry.get_player_by_ip(query_raw if isinstance(query_raw, str) else '')
-                if failed_player is not None:
-                    failed_player.iplookup.ipapi.is_initialized = True
-                    updated_players.append(failed_player)
-                    logger.debug(
-                        'ip-api returned fail for %s (%s) — marking as initialized',
-                        item.get('query'),
-                        item.get('message', ''),
-                    )
-            else:
-                logger.warning('Failed to validate ip-api response item: %s', item)
-
+            logger.warning('Failed to validate ip-api response item: %r', raw_item)
             continue
+
+        if isinstance(parsed_item, IpApiResponse):
+            iplookup_results.append(parsed_item)
+        else:
+            # Mark IPs with a failed status as initialized so they are never retried.
+            failed_player = PlayersRegistry.get_player_by_ip(parsed_item.query)
+            if failed_player is not None:
+                failed_player.iplookup.ipapi.is_initialized = True
+                updated_players.append(failed_player)
+                logger.debug(
+                    'ip-api returned fail for %s (%s) — marking as initialized',
+                    parsed_item.query,
+                    parsed_item.message,
+                )
 
     for iplookup in iplookup_results:
         matched_player = PlayersRegistry.get_player_by_ip(iplookup.query)
@@ -423,7 +421,7 @@ def iplookup_core() -> None:
         requests_remaining = int(response.headers.get('X-Rl') or str(_IPAPI_MAX_REQUESTS - 1))
         ttl_seconds = int(response.headers.get('X-Ttl') or str(_IPAPI_MAX_THROTTLE_TIME))
 
-        _apply_ipapi_batch_response(response.json())
+        _apply_ipapi_batch_response(response.content)
 
         if requests_remaining <= 0:
             gui_closed__event.wait(max(ttl_seconds, 1))

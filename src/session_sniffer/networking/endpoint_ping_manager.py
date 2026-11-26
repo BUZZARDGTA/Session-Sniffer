@@ -5,6 +5,7 @@ It is used to determine whether each player's IP is responsive to pings.
 
 import dataclasses
 import logging
+import math
 import re
 import time
 from dataclasses import dataclass
@@ -12,13 +13,15 @@ from threading import Lock, Semaphore
 from typing import NamedTuple
 from urllib.parse import urlparse
 
+from pydantic import StrictStr, TypeAdapter, ValidationError
 from requests import exceptions
 
-from session_sniffer.error_messages import ensure_instance, format_type_error
+from session_sniffer.error_messages import ensure_instance
 from session_sniffer.networking.exceptions import AllEndpointsExhaustedError
 from session_sniffer.networking.http_session import session
 
 logger = logging.getLogger(__name__)
+_PING_ENDPOINT_RESPONSE_ADAPTER: TypeAdapter[StrictStr | None] = TypeAdapter(StrictStr | None)
 
 RE_BYTES_PATTERN = re.compile(
     r'(?P<NUM_OF_BYTES>[\d]+) bytes? from (?P<IP>\d+\.\d+\.\d+\.\d+): icmp_seq=(?P<ICMP_SEQ>\d+) '
@@ -95,9 +98,9 @@ class PingResult(NamedTuple):
     rtt_max: float | None
     rtt_mdev: float | None
 
-    def is_invalid(self, ping_response: str) -> bool:
+    def is_invalid(self) -> bool:
         """Return whether the ping data is invalid (missing critical information)."""
-        return ping_response.strip() == 'null' or any(
+        return any(
             getattr(self, attribute_name) is None for attribute_name in ('packets_transmitted', 'packets_received', 'packet_duplicates', 'packet_loss', 'packet_errors')
         )
 
@@ -216,25 +219,25 @@ def fetch_and_parse_ping(ip: str) -> PingResult:
         try:
             response = session.get(f'{endpoint_info.url}?host={ip}', timeout=30)
             response.raise_for_status()
-            if not isinstance(response.content, bytes):
-                raise TypeError(format_type_error(response.content, bytes))
+            ping_response_text = _PING_ENDPOINT_RESPONSE_ADAPTER.validate_json(response.content)
+            if ping_response_text is not None:
+                parsed = parse_ping_response(ping_response_text)
+                if not parsed.is_invalid():
+                    ping_result = parsed
 
-            unescaped_response_text = response.content.decode('utf-8', errors='replace').replace('\\/', '/')
-
-            parsed = parse_ping_response(unescaped_response_text)
-            if not parsed.is_invalid(unescaped_response_text):
-                ping_result = parsed
-
-        except exceptions.RequestException as e:
+        except (exceptions.RequestException, ValidationError) as e:
             logger.debug('Ping request to endpoint %s failed: %s', endpoint_info.url, e)
             cooldown = DEFAULT_RETRY_COOLDOWN
-            if e.response is not None:
+            if isinstance(e, exceptions.RequestException) and e.response is not None:
                 retry_after = e.response.headers.get('Retry-After')
                 if retry_after is not None and retry_after:
                     try:
-                        cooldown = float(retry_after)
+                        parsed_cooldown = float(retry_after)
                     except ValueError:
                         cooldown = DEFAULT_RETRY_COOLDOWN
+                    else:
+                        if math.isfinite(parsed_cooldown) and parsed_cooldown > 0:
+                            cooldown = parsed_cooldown
 
             with _endpoints_lock:
                 endpoint_info.update_failure(time.monotonic() - request_start_time, cooldown, ip)

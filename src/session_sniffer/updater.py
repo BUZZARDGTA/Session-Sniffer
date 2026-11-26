@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 
 import requests
 from packaging.version import InvalidVersion, Version
+from pydantic import ValidationError
 
 from session_sniffer import msgbox
 from session_sniffer.constants.local import APP_DIR_LOCAL, APP_DIR_ROAMING, CURRENT_VERSION
@@ -93,8 +94,8 @@ def _fetch_versions_with_retries() -> tuple[UpdateCheckOutcome, GithubVersionsRe
     for attempt in range(1, max_attempts + 1):
         try:
             versions = _fetch_github_versions()
-        except requests.exceptions.RequestException as e:
-            http_code = e.response.status_code if e.response is not None else None
+        except (requests.exceptions.RequestException, ValidationError) as e:
+            http_code = e.response.status_code if isinstance(e, requests.exceptions.RequestException) and e.response is not None else None
             http_str = str(http_code) if http_code is not None else 'no response'
             logger.warning(
                 'Update check failed (attempt %d/%d): %s (HTTP %s)',
@@ -140,7 +141,7 @@ def _fetch_github_versions() -> GithubVersionsResponse:
         timeout=10,
     )
     response.raise_for_status()
-    return GithubVersionsResponse.model_validate(response.json())
+    return GithubVersionsResponse.model_validate_json(response.content)
 
 
 def _remove_file_if_possible(path: Path) -> None:

@@ -1,11 +1,64 @@
-"""Pydantic model for the Looky System IP-to-player lookup API response."""
+"""Pydantic models for Looky System API responses."""
 
+import math
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt, field_validator
 
 LookyInstructionStatus = Literal['queued', 'running', 'completed', 'failed', 'canceled', 'unknown']
+
+
+class LookyApiErrorResponse(BaseModel):
+    """Error or rate-limit JSON payload returned by the Looky System API."""
+
+    model_config = ConfigDict(populate_by_name=True, extra='ignore')
+
+    message: str | None = None
+    retry_after_camel: StrictFloat | StrictInt | None = Field(default=None, validation_alias='retryAfter')
+    wait_seconds: StrictFloat | StrictInt | None = Field(default=None, validation_alias='waitSeconds')
+    retry_after_snake: StrictFloat | StrictInt | None = Field(default=None, validation_alias='retry_after')
+
+    @field_validator('message', mode='before')
+    @classmethod
+    def _normalize_message(cls, value: object) -> str | None:
+        if isinstance(value, str):
+            stripped = value.strip()
+            return stripped or None
+        return None
+
+    @field_validator('retry_after_camel', 'wait_seconds', 'retry_after_snake', mode='before')
+    @classmethod
+    def _normalize_positive_number(cls, value: object) -> float | int | None:
+        if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and value > 0:
+            return value
+        return None
+
+    @property
+    def retry_after_seconds(self) -> int | None:
+        """Return the first positive retry delay in whole seconds, or `None` if absent."""
+        for candidate in (self.retry_after_camel, self.wait_seconds, self.retry_after_snake):
+            if candidate is not None:
+                return max(1, int(candidate))
+        return None
+
+
+class LookyInstructionResponse(BaseModel):
+    """Response returned by Looky System instruction creation endpoints."""
+
+    model_config = ConfigDict(populate_by_name=True, extra='ignore')
+
+    tracking_id: str = Field(validation_alias='trackingId', min_length=1)
+
+    @field_validator('tracking_id', mode='before')
+    @classmethod
+    def _coerce_tracking_id(cls, value: object) -> object:
+        """Accept non-empty string or non-bool integer tracking IDs."""
+        if isinstance(value, str):
+            return value.strip()
+        if isinstance(value, int) and not isinstance(value, bool):
+            return str(value)
+        return value
 
 
 class LookyPlayer(BaseModel):

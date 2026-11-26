@@ -125,19 +125,18 @@ def _load_geolite2_current_versions(*, geolite2_version_file_path: Path, geolite
             geolite2_databases[database_name].set_current_version_from_datetime(version_entry.version)
 
 
-def _geolite2_update_result_from_exception(*, exception: requests.exceptions.RequestException, url: str) -> GeoLite2UpdateResult:
-    return GeoLite2UpdateResult(exception=exception, url=url, http_code=getattr(exception.response, 'status_code', None))
+def _geolite2_update_result_from_exception(*, exception: Exception, url: str) -> GeoLite2UpdateResult:
+    response = exception.response if isinstance(exception, requests.exceptions.RequestException) else None
+    return GeoLite2UpdateResult(exception=exception, url=url, http_code=getattr(response, 'status_code', None))
 
 
 def _fetch_geolite2_release_assets() -> tuple[GeoLite2UpdateResult, None] | tuple[None, GithubReleaseResponse]:
     try:
         response = session.get(GITHUB_RELEASE_API__GEOLITE2__URL, timeout=30)
         response.raise_for_status()
-    except requests.exceptions.RequestException as e:
+        release_data = GithubReleaseResponse.model_validate_json(response.content)
+    except (requests.exceptions.RequestException, ValidationError) as e:
         return _geolite2_update_result_from_exception(exception=e, url=GITHUB_RELEASE_API__GEOLITE2__URL), None
-
-    release_response_data = response.json()
-    release_data = GithubReleaseResponse.model_validate(release_response_data)
 
     return None, release_data
 

@@ -662,7 +662,7 @@ def probe_check_host(target_ip: str, *, sequence: int = 1) -> list[PingProbeResu
             timeout=10,
         )
         request_response.raise_for_status()
-        request_data = CheckHostPingRequestResponse.model_validate(request_response.json())
+        request_data = CheckHostPingRequestResponse.model_validate_json(request_response.content)
         request_id = request_data.request_id
         nodes = request_data.nodes
 
@@ -690,7 +690,7 @@ def probe_check_host(target_ip: str, *, sequence: int = 1) -> list[PingProbeResu
             timeout=10,
         )
         result_response.raise_for_status()
-        result_data = CheckHostPingResultResponse.model_validate(result_response.json())
+        result_data = CheckHostPingResultResponse.model_validate_json(result_response.content)
 
         for node_name, node_info in nodes.items():
             country = node_info.country or tr('Unknown')

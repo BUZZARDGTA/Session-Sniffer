@@ -21,11 +21,13 @@ from .discord_rpc import (
 from .github_release import GithubReleaseResponse
 from .github_versions import GithubVersionsResponse, VersionInfo
 from .gui_state import GUIState
-from .ip_api import IPAPI_FIELDS, IpApiResponse
+from .ip_api import IPAPI_FIELDS, IPAPI_ITEM_ADAPTER, IPAPI_RAW_LIST_ADAPTER, IpApiFailResponse, IpApiLookupItem, IpApiResponse
 from .sessions_log import SessionLogFile
 
 __all__ = [
     'IPAPI_FIELDS',
+    'IPAPI_ITEM_ADAPTER',
+    'IPAPI_RAW_LIST_ADAPTER',
     'CheckHostPingRequestResponse',
     'CheckHostPingResultResponse',
     'DiscordActivity',
@@ -39,6 +41,8 @@ __all__ = [
     'GUIState',
     'GithubReleaseResponse',
     'GithubVersionsResponse',
+    'IpApiFailResponse',
+    'IpApiLookupItem',
     'IpApiResponse',
     'SessionLogFile',
     'VersionInfo',

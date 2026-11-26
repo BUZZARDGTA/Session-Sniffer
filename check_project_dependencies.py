@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import cast
 
 from packaging.version import InvalidVersion, Version
+from pydantic import BaseModel, ConfigDict, TypeAdapter, ValidationError
 
 CYAN = '\033[0;36m'
 GREEN = '\033[0;32m'
@@ -26,6 +27,33 @@ RED = '\033[0;31m'
 RESET = '\033[0m'
 
 SEMVER_TWO_PARTS = 2
+
+
+class _GitHubReleaseLatest(BaseModel):
+    model_config = ConfigDict(extra='ignore')
+
+    tag_name: str
+
+
+class _GitHubTagEntry(BaseModel):
+    model_config = ConfigDict(extra='ignore')
+
+    name: str
+
+
+class _PyPiPackageInfo(BaseModel):
+    model_config = ConfigDict(extra='ignore')
+
+    version: str
+
+
+class _PyPiPackageResponse(BaseModel):
+    model_config = ConfigDict(extra='ignore')
+
+    info: _PyPiPackageInfo
+
+
+_GITHUB_TAGS_ADAPTER: TypeAdapter[list[_GitHubTagEntry]] = TypeAdapter(list[_GitHubTagEntry])
 
 
 def _pluralize(count: int) -> str:
@@ -51,8 +79,8 @@ def ensure_virtualenv(repo_root: Path) -> None:
             sys.exit(1)
 
 
-def fetch_json(url: str) -> object:
-    """Fetch JSON data from an HTTP URL."""
+def fetch_json_bytes(url: str) -> bytes | None:
+    """Fetch raw JSON response bytes from an HTTP(S) URL."""
     parsed_url = urllib.parse.urlparse(url)
     if parsed_url.scheme not in ('http', 'https'):
         return None
@@ -66,8 +94,8 @@ def fetch_json(url: str) -> object:
     )
     try:
         with urllib.request.urlopen(request, timeout=10) as response:
-            return json.loads(response.read().decode('utf-8'))
-    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
+            return cast('bytes', response.read())
+    except (urllib.error.URLError, TimeoutError):
         return None
 
 
@@ -87,41 +115,34 @@ def get_normalized_semver(tag: str) -> Version | None:
 
 def get_latest_github_tag(owner: str, repository: str) -> str | None:
     """Query GitHub API for the latest release tag or highest semver tag."""
-    release_data: object = fetch_json(f'https://api.github.com/repos/{owner}/{repository}/releases/latest')
-    if isinstance(release_data, dict):
-        release_dict = cast('dict[str, object]', release_data)
-        tag_name = release_dict.get('tag_name')
-        if isinstance(tag_name, str):
-            return tag_name
+    release_payload = fetch_json_bytes(f'https://api.github.com/repos/{owner}/{repository}/releases/latest')
+    if release_payload is not None:
+        try:
+            return _GitHubReleaseLatest.model_validate_json(release_payload).tag_name
+        except ValidationError:
+            pass
 
-    tags_data: object = fetch_json(f'https://api.github.com/repos/{owner}/{repository}/tags?per_page=100')
-    if not isinstance(tags_data, list) or not tags_data:
+    tags_payload = fetch_json_bytes(f'https://api.github.com/repos/{owner}/{repository}/tags?per_page=100')
+    if tags_payload is None:
+        return None
+    try:
+        tags_list = _GITHUB_TAGS_ADAPTER.validate_json(tags_payload)
+    except ValidationError:
+        return None
+    if not tags_list:
         return None
 
-    tags_list = cast('list[object]', tags_data)
     semver_tags: list[tuple[Version, str]] = []
     for tag_entry in tags_list:
-        if not isinstance(tag_entry, dict):
-            continue
-        tag_dict = cast('dict[str, object]', tag_entry)
-        tag_name_value = tag_dict.get('name')
-        if not isinstance(tag_name_value, str):
-            continue
-        version = get_normalized_semver(tag_name_value)
+        version = get_normalized_semver(tag_entry.name)
         if version is not None:
-            semver_tags.append((version, tag_name_value))
+            semver_tags.append((version, tag_entry.name))
 
     if semver_tags:
         semver_tags.sort(key=lambda item: item[0])
         return semver_tags[-1][1]
 
-    first_tag = tags_list[0]
-    if isinstance(first_tag, dict):
-        first_dict = cast('dict[str, object]', first_tag)
-        name_value = first_dict.get('name')
-        if isinstance(name_value, str):
-            return name_value
-    return None
+    return tags_list[0].name
 
 
 def check_pip_version() -> None:
@@ -135,16 +156,13 @@ def check_pip_version() -> None:
         print(f'{YELLOW}Warning: Failed to probe pip version.{RESET}')
 
     if current_pip_version is not None:
-        pypi_data: object = fetch_json('https://pypi.org/pypi/pip/json')
+        pypi_payload = fetch_json_bytes('https://pypi.org/pypi/pip/json')
         latest_pip_version: str | None = None
-        if isinstance(pypi_data, dict):
-            pypi_dict = cast('dict[str, object]', pypi_data)
-            info_data = pypi_dict.get('info')
-            if isinstance(info_data, dict):
-                info_dict = cast('dict[str, object]', info_data)
-                version_value = info_dict.get('version')
-                if isinstance(version_value, str):
-                    latest_pip_version = version_value
+        if pypi_payload is not None:
+            try:
+                latest_pip_version = _PyPiPackageResponse.model_validate_json(pypi_payload).info.version
+            except ValidationError:
+                latest_pip_version = None
 
         if latest_pip_version is not None:
             if current_pip_version != latest_pip_version:

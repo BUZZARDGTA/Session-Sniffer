@@ -1,10 +1,12 @@
-"""Pydantic models for IP-API batch response validation.
+"""Pydantic models for IP-API response validation.
 
-This module provides validation for IP geolocation API batch responses
+This module provides validation for IP geolocation API single and batch responses
 from ip-api.com.
 """
 
-from pydantic import BaseModel, Field
+from typing import Annotated, Literal
+
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
 IPAPI_FIELDS = (
     'status,continent,continentCode,country,countryCode,region,regionName,city,district,zip,lat,lon,timezone,offset,currency,isp,org,as,asname,mobile,proxy,hosting,query'
@@ -12,13 +14,12 @@ IPAPI_FIELDS = (
 
 
 class IpApiResponse(BaseModel):
-    """Model for a single IP lookup result from ip-api.com batch endpoint.
+    """Model for a single successful IP lookup result from ip-api.com."""
 
-    Used to validate individual items returned by the ip-api.com batch endpoint.
-    """
+    model_config = ConfigDict(allow_inf_nan=False)
 
     # Response status
-    status: str
+    status: Literal['success']
 
     # Location information
     continent: str
@@ -53,3 +54,19 @@ class IpApiResponse(BaseModel):
 
     # Query IP (the IP that was looked up)
     query: str
+
+
+class IpApiFailResponse(BaseModel):
+    """Model for a single failed IP lookup result from ip-api.com."""
+
+    status: Literal['fail']
+    query: str = ''
+    message: str = ''
+
+
+type IpApiLookupItem = IpApiResponse | IpApiFailResponse
+
+IPAPI_ITEM_ADAPTER: TypeAdapter[IpApiLookupItem] = TypeAdapter(
+    Annotated[IpApiLookupItem, Field(discriminator='status')],
+)
+IPAPI_RAW_LIST_ADAPTER: TypeAdapter[list[object]] = TypeAdapter(list[object])

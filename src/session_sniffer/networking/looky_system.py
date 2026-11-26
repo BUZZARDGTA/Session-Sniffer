@@ -11,14 +11,16 @@ from dataclasses import dataclass
 from datetime import UTC
 from http import HTTPStatus
 from ipaddress import IPv4Address
-from typing import TYPE_CHECKING, ClassVar, cast
+from typing import TYPE_CHECKING, ClassVar
 from urllib.parse import quote
 
 import requests
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ValidationError
 
 from session_sniffer.constants.standalone import LOOKY_BASE_HOST
 from session_sniffer.models.looky_system import (
+    LookyApiErrorResponse,
+    LookyInstructionResponse,
     LookyInstructionStatus,
     LookyInstructionStatusEvent,
     LookyInstructionStatusInitialResponse,
@@ -128,19 +130,20 @@ def extract_rate_limit_message(exc: requests.HTTPError) -> str:
     return extract_api_error_message(exc) or 'Too Many Requests'
 
 
-def extract_api_error_message(exc: requests.HTTPError) -> str | None:
-    """Return the API error message from an `HTTPError` response JSON `message` field, or `None` if not present."""
+def _parse_api_error_response(exc: requests.HTTPError) -> LookyApiErrorResponse | None:
+    """Validate and return a Looky API error/rate-limit JSON body, or `None` if not parseable."""
     if exc.response is None:
         return None
     try:
-        body: object = exc.response.json()
-    except requests.JSONDecodeError:
+        return LookyApiErrorResponse.model_validate_json(exc.response.content)
+    except ValidationError:
         return None
-    if isinstance(body, dict):
-        raw_message: object = cast('dict[str, object]', body).get('message')
-        if isinstance(raw_message, str) and raw_message.strip():
-            return raw_message.strip()
-    return None
+
+
+def extract_api_error_message(exc: requests.HTTPError) -> str | None:
+    """Return the API error message from an `HTTPError` response JSON `message` field, or `None` if not present."""
+    parsed = _parse_api_error_response(exc)
+    return parsed.message if parsed is not None else None
 
 
 def is_terminal_instruction_status(status: str) -> bool:
@@ -159,22 +162,19 @@ def extract_rate_limit_wait_seconds(exc: requests.HTTPError) -> int | None:
         return None
     if (retry_after_header := exc.response.headers.get('Retry-After')) is not None and retry_after_header:
         try:
-            return max(1, int(float(retry_after_header)))
+            header_seconds = float(retry_after_header)
         except ValueError:
             pass
-    try:
-        body: object = exc.response.json()
-    except requests.JSONDecodeError:
+        else:
+            if math.isfinite(header_seconds) and header_seconds > 0:
+                return max(1, int(header_seconds))
+    parsed = _parse_api_error_response(exc)
+    if parsed is None:
         return None
-    if isinstance(body, dict):
-        typed_body = cast('dict[str, object]', body)
-        for field in ('retryAfter', 'waitSeconds', 'retry_after'):
-            value = typed_body.get(field)
-            if not isinstance(value, bool) and isinstance(value, (int, float)) and value > 0:
-                return max(1, int(value))
-        raw_message = typed_body.get('message')
-        if isinstance(raw_message, str) and (match := re.search(r'(\d+)\s+second', raw_message)):
-            return max(1, int(match.group(1)))
+    if parsed.retry_after_seconds is not None:
+        return parsed.retry_after_seconds
+    if parsed.message is not None and (match := re.search(r'(\d+)\s+second', parsed.message)):
+        return max(1, int(match.group(1)))
     return None
 
 
@@ -191,7 +191,7 @@ def verify_token(api_key: str) -> LookyWhoAmI:
     """Verify a Looky System API key via `GET /api/whoami`."""
     response = session.get(LOOKY_WHOAMI_URL, headers=_auth_headers(api_key), timeout=(3.0, 10.0))
     response.raise_for_status()
-    return LookyWhoAmI.model_validate(response.json())
+    return LookyWhoAmI.model_validate_json(response.content)
 
 
 _CACHE_LOCK = threading.Lock()
@@ -884,13 +884,13 @@ def _post_instruction(url: str, api_key: str, referer: str, payload: dict[str, o
     try:
         response = session.post(url, headers=headers, json=payload, timeout=(3.0, 10.0))
         response.raise_for_status()
-        return str(response.json()['trackingId'])
+        return LookyInstructionResponse.model_validate_json(response.content).tracking_id
     except requests.HTTPError as e:
         status_code = e.response.status_code if e.response is not None else '?'
         text = e.response.text if e.response is not None else ''
         logger.debug('Looky %s HTTP error: HTTP %s (response: %s)', context_desc, status_code, text)
         raise
-    except (requests.RequestException, ValueError, KeyError) as e:
+    except (requests.RequestException, ValidationError) as e:
         logger.debug('Looky %s request error: %s', context_desc, e)
         raise
 
@@ -945,7 +945,7 @@ def watch_instruction_status(
             logger.debug('Looky initial status request error for %s: %s', context.tracking_id, e)
             raise
 
-        initial_data = LookyInstructionStatusInitialResponse.model_validate(initial_response.json())
+        initial_data = LookyInstructionStatusInitialResponse.model_validate_json(initial_response.content)
         if not initial_data.success:
             logger.debug('Looky initial status returned success=False for %s', context.tracking_id)
         yield initial_data.instruction.status, initial_data.instruction.result
