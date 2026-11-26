@@ -1,16 +1,16 @@
 {
     "latest_prerelease": {
-        "version": "1.5.2rc2+20261124.632",
-        "release_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/tag/v1.5.2rc.2%2B20261124.0632",
-        "download_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/download/v1.5.2rc.2%2B20261124.0632/Session_Sniffer.exe",
-        "sha256": "958533bf7189f9be5635d2e7451f7d07fd3d3a7769ec0ec4836e496b82a88884",
-        "file_size": 46501002,
-        "linux_download_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/download/v1.5.2rc.2%2B20261124.0632/Session_Sniffer",
-        "linux_sha256": "3088d2329bd4b92789ec8476f1c62bab8d20c378c1fd144ce426609c64dd46db",
-        "linux_file_size": 93843136,
-        "darwin_download_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/download/v1.5.2rc.2%2B20261124.0632/Session_Sniffer_macOS",
-        "darwin_sha256": "2d8ec02ec4102c2dd130c41d586afc2456751dd848dfb9f3ce407a922833df94",
-        "darwin_file_size": 45431760,
+        "version": "1.5.2rc3+20261126.631",
+        "release_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/tag/v1.5.2rc.3%2B20261126.0631",
+        "download_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/download/v1.5.2rc.3%2B20261126.0631/Session_Sniffer.exe",
+        "sha256": "0aa65ad1d94da67bd64fb835f2558fd840d028e39eda34337e6878f7e2abca23",
+        "file_size": 46613229,
+        "linux_download_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/download/v1.5.2rc.3%2B20261126.0631/Session_Sniffer",
+        "linux_sha256": "be70001ebbbe7538c9147f9d3d9ce2d84405044b8f777244403701112956aac5",
+        "linux_file_size": 93950848,
+        "darwin_download_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/download/v1.5.2rc.3%2B20261126.0631/Session_Sniffer_macOS",
+        "darwin_sha256": "a9b3585a7ffff4290815c9afbb06efba9938a98637baf4a8f9c1a2f862f7e3c0",
+        "darwin_file_size": 45541536,
         "is_prerelease": true
     },
     "latest_stable": {
