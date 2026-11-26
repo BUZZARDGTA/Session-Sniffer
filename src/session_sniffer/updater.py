@@ -5,6 +5,7 @@ import hashlib
 import logging
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -32,7 +33,13 @@ from session_sniffer.models import GithubVersionsResponse, VersionInfo
 from session_sniffer.networking.http_session import session
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import format_triple_quoted_text
-from session_sniffer.utils import ensure_app_dir_ownership, format_project_version, is_pyinstaller_compiled
+from session_sniffer.utils import (
+    ensure_app_dir_ownership,
+    format_project_version,
+    is_pyinstaller_compiled,
+    repair_sudo_file_ownership,
+    spawn_detached_relaunch,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -144,14 +151,52 @@ def _remove_file_if_possible(path: Path) -> None:
         logger.debug('Failed to remove file %s: %s', path, e)
 
 
+_POSIX_RELAUNCH_CHECK_SECONDS = 0.25
+
+
+def _clear_macos_quarantine(executable_path: Path) -> None:
+    """Best-effort remove `com.apple.quarantine` from *executable_path* on macOS."""
+    if sys.platform != 'darwin':
+        return
+    xattr_executable = shutil.which('xattr') or '/usr/bin/xattr'
+    try:
+        subprocess.run(
+            [xattr_executable, '-d', 'com.apple.quarantine', str(executable_path)],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as e:
+        logger.debug('Failed to clear macOS quarantine attribute on %s: %s', executable_path, e)
+
+
+def _format_posix_exit_error(returncode: int) -> str:
+    """Format a non-zero POSIX relaunch exit status or terminating signal name."""
+    if returncode < 0:
+        signal_number = -returncode
+        try:
+            signal_name = signal.Signals(signal_number).name
+        except ValueError:
+            signal_name = f'SIG{signal_number}'
+        return f'{signal_name} ({returncode})'
+    return f'exit status {returncode}'
+
+
+def _check_posix_relaunch_health(process: subprocess.Popen[bytes]) -> int | None:
+    """Wait briefly on POSIX to detect immediate relaunch failures (e.g. macOS SIGKILL)."""
+    if sys.platform == 'win32':
+        return None
+    try:
+        return process.wait(timeout=_POSIX_RELAUNCH_CHECK_SECONDS)
+    except subprocess.TimeoutExpired:
+        return None
+
+
 def _launch_updated_executable(executable_path: Path) -> subprocess.Popen[bytes]:
     """Launch the updated executable in an independent detached process."""
-    return subprocess.Popen(
-        [str(executable_path)],
-        cwd=str(executable_path.parent),
-        env={**os.environ, 'PYINSTALLER_RESET_ENVIRONMENT': '1'},
-        close_fds=True,
-    )
+    return spawn_detached_relaunch([str(executable_path)], cwd=executable_path.parent)
 
 
 def _apply_update(new_exe: Path) -> None:
@@ -165,6 +210,14 @@ def _apply_update(new_exe: Path) -> None:
     current_exe = Path(sys.executable)
     old_exe = current_exe.with_name(f'{current_exe.name}.old')
     logger.info('Applying update: replacing %s', current_exe)
+
+    original_owner: tuple[int, int] | None = None
+    if sys.platform != 'win32':
+        try:
+            current_stat = current_exe.stat()
+            original_owner = (current_stat.st_uid, current_stat.st_gid)
+        except OSError:
+            original_owner = None
 
     try:
         old_exe.unlink(missing_ok=True)
@@ -229,6 +282,10 @@ def _apply_update(new_exe: Path) -> None:
         return
 
     _remove_file_if_possible(new_exe)
+    if sys.platform != 'win32':
+        repair_sudo_file_ownership(current_exe, original_owner=original_owner)
+        repair_sudo_file_ownership(old_exe, original_owner=original_owner)
+        _clear_macos_quarantine(current_exe)
     flush_all_loggers()
     ensure_app_dir_ownership(APP_DIR_LOCAL)
     ensure_app_dir_ownership(APP_DIR_ROAMING)
@@ -238,14 +295,23 @@ def _apply_update(new_exe: Path) -> None:
     # sub-process of the same app instance and reuses the parent's _MEI temp dir.
     # Setting PYINSTALLER_RESET_ENVIRONMENT=1 tells the bootloader that this is a
     # new independent application launch, so it extracts to its own fresh _MEI dir.
+    relaunch_error: str | None = None
     try:
-        _launch_updated_executable(current_exe)
+        launched_process = _launch_updated_executable(current_exe)
     except OSError as e:
         logger.exception('Failed to launch updated executable')
+        relaunch_error = str(e)
+    else:
+        early_exit_code = _check_posix_relaunch_health(launched_process)
+        if early_exit_code is not None and early_exit_code:
+            relaunch_error = _format_posix_exit_error(early_exit_code)
+            logger.error('Updated executable exited immediately after launch (%s)', relaunch_error)
+    if relaunch_error is not None:
+        flush_all_loggers()
         msgbox.show(
             title=TITLE,
             text=format_triple_quoted_text(
-                tr('The application was updated, but failed to automatically restart.\n\nPlease start it manually.\n\nError: {error}', error=e),
+                tr('The application was updated, but failed to automatically restart.\n\nPlease start it manually.\n\nError: {error}', error=relaunch_error),
             ),
             style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONWARNING | msgbox.Style.MB_SETFOREGROUND,
         )

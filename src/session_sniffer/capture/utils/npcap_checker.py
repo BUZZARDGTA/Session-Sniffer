@@ -10,7 +10,6 @@ import os
 import shlex
 import socket
 import struct
-import subprocess
 import sys
 import time
 import webbrowser
@@ -28,7 +27,7 @@ from session_sniffer.guis.dependency_prompt_dialog import show_dependency_prompt
 from session_sniffer.i18n import tr
 from session_sniffer.launcher.single_instance import release_single_instance
 from session_sniffer.logging_setup import flush_all_loggers
-from session_sniffer.utils import is_pyinstaller_compiled, run_elevated_powershell_command
+from session_sniffer.utils import is_pyinstaller_compiled, run_elevated_powershell_command, spawn_detached_relaunch
 
 logger = logging.getLogger(__name__)
 
@@ -94,23 +93,14 @@ def _has_linux_executable_file_capabilities() -> bool:
     return False
 
 
-def _spawn_relaunch_process() -> subprocess.Popen[bytes]:
-    """Spawn a detached process for relaunching with newly granted Linux file capabilities."""
-    command = [sys.executable, *sys.argv[1:]] if is_pyinstaller_compiled() else [sys.executable, '-m', 'session_sniffer', *sys.argv[1:]]
-    return subprocess.Popen(
-        command,
-        cwd=str(Path(sys.executable).parent) if is_pyinstaller_compiled() else None,
-        env={**os.environ, 'PYINSTALLER_RESET_ENVIRONMENT': '1'},
-        close_fds=True,
-    )
-
-
 def _relaunch_with_linux_capabilities() -> None:
     """Relaunch the current process so newly granted Linux file capabilities take effect."""
     flush_all_loggers()
     release_single_instance()
+    command = [sys.executable, *sys.argv[1:]] if is_pyinstaller_compiled() else [sys.executable, '-m', 'session_sniffer', *sys.argv[1:]]
+    cwd = Path(sys.executable).parent if is_pyinstaller_compiled() else None
     try:
-        _spawn_relaunch_process()
+        spawn_detached_relaunch(command, cwd=cwd)
     except OSError:
         logger.exception('Failed to relaunch process with Linux capabilities')
         flush_all_loggers()

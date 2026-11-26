@@ -163,6 +163,52 @@ def ensure_app_dir_ownership(app_dir: Path) -> None:
                 _repair_path_ownership(Path(root_dir) / file_name, target_uid, target_gid)
 
 
+def repair_sudo_file_ownership(target_path: Path, *, original_owner: tuple[int, int] | None = None) -> None:
+    """Restore *target_path* ownership after replacing a file under sudo on POSIX.
+
+    Preserves *original_owner* when non-root; otherwise repairs ownership to the invoking
+    `SUDO_USER` only when *target_path*'s parent directory is owned by that user (so binaries
+    in root-owned system directories such as `/usr/local/bin` remain owned by root).
+    """
+    if sys.platform == 'win32':
+        return
+    if original_owner is not None and original_owner[0]:
+        _repair_path_ownership(target_path, original_owner[0], original_owner[1])
+        return
+    user_identity = _get_target_user_identity()
+    if user_identity is not None:
+        target_uid, target_gid, _ = user_identity
+        try:
+            parent_stat = target_path.parent.stat()
+        except OSError:
+            parent_stat = None
+        if parent_stat is not None and parent_stat.st_uid == target_uid:
+            _repair_path_ownership(target_path, target_uid, target_gid)
+
+
+def spawn_detached_relaunch(command: list[str], *, cwd: Path | None = None) -> subprocess.Popen[bytes]:
+    """Spawn a detached child process with a fresh PyInstaller runtime environment."""
+    env = {**os.environ, 'PYINSTALLER_RESET_ENVIRONMENT': '1'}
+    cwd_str = str(cwd) if cwd is not None else None
+    if sys.platform != 'win32':
+        return subprocess.Popen(
+            command,
+            cwd=cwd_str,
+            env=env,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            close_fds=True,
+            start_new_session=True,
+        )
+    return subprocess.Popen(
+        command,
+        cwd=cwd_str,
+        env=env,
+        close_fds=True,
+    )
+
+
 def get_app_dir(*, scope: Literal['roaming', 'local']) -> Path:
     """Return the per-user application data directory.
 
