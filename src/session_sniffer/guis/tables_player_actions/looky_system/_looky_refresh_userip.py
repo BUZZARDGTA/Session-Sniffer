@@ -29,6 +29,7 @@ from shiboken6 import isValid
 
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis._userip_tree_batch_ops import populate_userip_databases_menu
+from session_sniffer.guis.app import activate_window
 from session_sniffer.guis.delegates import SearchHighlightDelegate
 from session_sniffer.guis.fonts import get_monospace_font
 from session_sniffer.guis.live_language import register_language_refresh, set_i18n_colon_label, set_tree_headers
@@ -62,7 +63,6 @@ from session_sniffer.guis.tables_player_actions.looky_system._looky_refresh_engi
 from session_sniffer.guis.theming import get_themed_icon
 from session_sniffer.guis.userip_manager_helpers import refresh_userip_and_wake_renderer
 from session_sniffer.guis.utils import (
-    activate_window,
     apply_adaptive_window_size,
     apply_search_icon,
     render_svg_icon_from_resource,

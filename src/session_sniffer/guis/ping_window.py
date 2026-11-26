@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
 from session_sniffer.constants.standalone import MAX_PORT, MIN_PORT, TITLE
 from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis._crashing_qthread import CrashingQThread
+from session_sniffer.guis.app import activate_window
 from session_sniffer.guis.fonts import get_monospace_font
 from session_sniffer.guis.live_language import register_language_refresh, set_i18n_colon_label
 from session_sniffer.guis.stylesheets import (
@@ -37,7 +38,7 @@ from session_sniffer.guis.stylesheets import (
     DIALOG_PRIMARY_BUTTON_STYLESHEET,
 )
 from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qss, themed_text_qcolor
-from session_sniffer.guis.utils import activate_window, animate_button_feedback, render_svg_icon_from_resource, scale_by_ui
+from session_sniffer.guis.utils import animate_button_feedback, render_svg_icon_from_resource, scale_by_ui
 from session_sniffer.i18n import tr
 from session_sniffer.networking.ping import (
     IcmpEchoEngine,

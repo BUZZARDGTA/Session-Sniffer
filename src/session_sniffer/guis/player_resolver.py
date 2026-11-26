@@ -9,11 +9,12 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from session_sniffer.guis.app import activate_window
 from session_sniffer.guis.high_rate_monitor import HighRateMonitorWidget
 from session_sniffer.guis.live_language import register_language_refresh
 from session_sniffer.guis.player_identifier import PlayerIdentifierWidget
 from session_sniffer.guis.theming import ICONS_DIR_PATH
-from session_sniffer.guis.utils import ToggleAlwaysOnTopMixin, activate_window, scale_by_ui
+from session_sniffer.guis.utils import ToggleAlwaysOnTopMixin, scale_by_ui
 from session_sniffer.i18n import tr
 from session_sniffer.settings import Settings
 

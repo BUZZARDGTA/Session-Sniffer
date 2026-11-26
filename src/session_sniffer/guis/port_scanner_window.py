@@ -38,6 +38,7 @@ from session_sniffer.constants.tables import (
 )
 from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis._crashing_qthread import CrashingQThread
+from session_sniffer.guis.app import activate_window
 from session_sniffer.guis.fonts import get_monospace_font
 from session_sniffer.guis.live_language import register_language_refresh, set_i18n_colon_label, set_table_headers
 from session_sniffer.guis.ping_window import PingWindow
@@ -50,7 +51,6 @@ from session_sniffer.guis.stylesheets import (
 from session_sniffer.guis.table_column_resizing import TableColumnResizeController, setup_table_header_context_menu
 from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qss, themed_text_qcolor
 from session_sniffer.guis.utils import (
-    activate_window,
     animate_button_feedback,
     render_svg_icon_from_resource,
     scale_by_ui,

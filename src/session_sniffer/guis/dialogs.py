@@ -14,9 +14,9 @@ from PySide6.QtWidgets import (
 )
 
 from session_sniffer.constants.standalone import TITLE
+from session_sniffer.guis.app import activate_window
 from session_sniffer.guis.utils import (
     ActiveDialogRegistry,
-    activate_window,
     animate_button_feedback,
     find_main_window,
     scale_by_ui,

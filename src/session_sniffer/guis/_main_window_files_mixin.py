@@ -49,6 +49,7 @@ from session_sniffer.constants.standalone import (
     TITLE,
     WEBSITE_URL,
 )
+from session_sniffer.guis.app import activate_window
 from session_sniffer.guis.detections_manager import DetectionsManagerDialog
 from session_sniffer.guis.interface_selection_dialog import InterfaceSelectionDialog
 from session_sniffer.guis.live_language import add_i18n_menu_actions
@@ -56,7 +57,7 @@ from session_sniffer.guis.loading_overlay import run_async_with_loading
 from session_sniffer.guis.logs_manager import LogsManager
 from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qss
 from session_sniffer.guis.userip_manager import UserIPDatabasesManager
-from session_sniffer.guis.utils import activate_window, animate_button_feedback, scale_by_ui, set_clipboard_text, show_or_focus_window
+from session_sniffer.guis.utils import animate_button_feedback, scale_by_ui, set_clipboard_text, show_or_focus_window
 from session_sniffer.i18n import tr
 from session_sniffer.settings import Settings
 from session_sniffer.updater import UpdateCheckOutcome, check_for_updates

@@ -37,6 +37,7 @@ from session_sniffer.guis._spike_sound_controls import (
     SpikeSoundQuickBarState,
     SpikeVolumePersistMode,
 )
+from session_sniffer.guis.app import activate_window
 from session_sniffer.guis.live_language import register_language_refresh
 from session_sniffer.guis.player_rate_graph import (
     PlayerRateGraphWindow,
@@ -45,7 +46,7 @@ from session_sniffer.guis.player_rate_graph import (
     SpikeAlertGraphState,
 )
 from session_sniffer.guis.theming import themed_qss
-from session_sniffer.guis.utils import activate_window, scale_by_ui
+from session_sniffer.guis.utils import scale_by_ui
 from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.models.player_traffic import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
