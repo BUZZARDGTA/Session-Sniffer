@@ -557,6 +557,7 @@ class SessionTableSection(QWidget):
             self.table_view.clear_custom_column_widths(added_columns)
 
         self.table_model.reset_columns(column_names)
+        self.table_view.reapply_column_order()
         if sort_column_name is not None:
             self.table_view.apply_sort(sort_column_name, sort_order)
         self.table_view.request_column_recalculation()

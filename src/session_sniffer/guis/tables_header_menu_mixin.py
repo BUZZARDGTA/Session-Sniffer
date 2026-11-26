@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QPoint, QSignalBlocker, Qt
 from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QHeaderView, QTableView
+from PySide6.QtWidgets import QTableView
 
 from session_sniffer.constants.tables import (
     BANDWIDTH_RATE_STAT_COLUMNS,
@@ -17,9 +17,8 @@ from session_sniffer.constants.tables import (
 from session_sniffer.guis.live_language import CANONICAL_HEADER_ROLE
 from session_sniffer.guis.stylesheets import CATEGORY_SUBMENU_CHECKBOX_STYLESHEET
 from session_sniffer.guis.table_column_resizing import (
+    TableColumnLayoutController,
     add_column_sizing_actions,
-    adjust_last_visible_column_to_viewport,
-    get_column_min_width,
     setup_static_table_column_resizing,
 )
 from session_sniffer.guis.utils import PersistentMenu, add_icon_menu_action, create_styled_context_menu
@@ -29,7 +28,7 @@ from session_sniffer.settings.defaults import SETTING_DEFAULTS
 from session_sniffer.settings.settings import Settings
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
 
 # Category groupings for the Choose Columns submenu.
@@ -75,8 +74,7 @@ class TableHeaderMenuMixin(QTableView):
         is_connected_table: bool
         min_column_widths: dict[str, int]
         max_column_widths: dict[str, int]
-        _custom_column_widths: dict[str, int] | None
-        _is_programmatic_resizing: bool
+        _column_layout: TableColumnLayoutController
         _has_auto_sized_with_data: bool
         _recalculation_payloads_remaining: int
 
@@ -94,7 +92,12 @@ class TableHeaderMenuMixin(QTableView):
                 clicked_column_name = header_label
 
         menu = create_styled_context_menu(self)
-        add_column_sizing_actions(menu, self, clicked_column=clicked_column, on_reset=self._reset_column_sizes)
+        add_column_sizing_actions(
+            menu,
+            self,
+            clicked_column=clicked_column,
+            callbacks=self._column_layout.menu_callbacks(on_reset=self._reset_column_sizes, on_reset_order=self._reset_column_order),
+        )
         menu.addSeparator()
 
         if clicked_column_name is not None:
@@ -285,63 +288,25 @@ class TableHeaderMenuMixin(QTableView):
         shown.difference_update(columns)
         self._apply_shown_columns_set(shown)
 
-    @property
-    def has_custom_column_widths(self) -> bool:
-        """Return True if the user has manually resized columns or custom widths were applied."""
-        return self._custom_column_widths is not None
+    def get_persisted_column_widths(self) -> dict[str, int] | None:
+        """Return custom column widths to persist, or `None` when using automatic sizing."""
+        return self._column_layout.get_persisted_widths()
 
-    def _on_section_resized(self, logical_index: int, _old_size: int, new_size: int) -> None:
-        """Track user-driven column resizing."""
-        if self._is_programmatic_resizing:
-            return
-        model = self.model()
-        header_text = model.headerData(logical_index, Qt.Orientation.Horizontal, CANONICAL_HEADER_ROLE)
-        if header_text is not None and header_text:
-            if self._custom_column_widths is None:
-                self._custom_column_widths = self.get_column_widths()
-            min_width = get_column_min_width(self.horizontalHeader(), logical_index, str(header_text), self.min_column_widths)
-            self._is_programmatic_resizing = True
-            try:
-                if new_size < min_width:
-                    self.horizontalHeader().resizeSection(logical_index, min_width)
-                    new_size = min_width
-                self._custom_column_widths[header_text] = new_size
-                adjust_last_visible_column_to_viewport(
-                    self,
-                    resized_column=logical_index,
-                    min_column_widths=self.min_column_widths,
-                    custom_widths=self._custom_column_widths,
-                )
-            finally:
-                self._is_programmatic_resizing = False
-
-    def get_column_widths(self) -> dict[str, int]:
-        """Return a mapping of column header names to their current section widths."""
-        model = self.model()
-        header = self.horizontalHeader()
-        widths: dict[str, int] = {}
-        for column in range(model.columnCount()):
-            header_label = model.headerData(column, Qt.Orientation.Horizontal, CANONICAL_HEADER_ROLE)
-            if header_label is not None and header_label:
-                widths[header_label] = header.sectionSize(column)
-        return widths
+    def get_persisted_column_order(self) -> list[str] | None:
+        """Return custom column order to persist, or `None` when using default order."""
+        return self._column_layout.get_persisted_order()
 
     def apply_column_widths(self, widths: dict[str, int]) -> None:
         """Apply saved column widths to matching header sections."""
-        self._is_programmatic_resizing = True
-        try:
-            model = self.model()
-            header = self.horizontalHeader()
-            for column in range(model.columnCount()):
-                header_label = model.headerData(column, Qt.Orientation.Horizontal, CANONICAL_HEADER_ROLE)
-                if isinstance(header_label, str) and header_label in widths and widths[header_label] > 0:
-                    min_width = get_column_min_width(header, column, header_label, self.min_column_widths)
-                    width = max(min_width, widths[header_label])
-                    header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
-                    header.resizeSection(column, width)
-            self._custom_column_widths = dict(widths)
-        finally:
-            self._is_programmatic_resizing = False
+        self._column_layout.apply_column_widths(widths)
+
+    def apply_column_order(self, column_order: Sequence[str]) -> None:
+        """Apply saved visual column order to matching header sections."""
+        self._column_layout.apply_column_order(column_order, preserve_hidden=True)
+
+    def reapply_column_order(self) -> None:
+        """Reset stale header section mappings after model column changes and re-apply any custom order."""
+        self._column_layout.reapply_column_order()
 
     def request_column_recalculation(self) -> None:
         """Flag that columns should be recalculated and resized on subsequent data updates."""
@@ -349,11 +314,11 @@ class TableHeaderMenuMixin(QTableView):
 
     def clear_custom_column_widths(self, column_names: set[str] | list[str] | tuple[str, ...]) -> None:
         """Remove custom widths for specific columns so they can be recalculated from content."""
-        if self._custom_column_widths is not None:
+        if self._column_layout.custom_widths is not None:
             for column_name in column_names:
-                self._custom_column_widths.pop(column_name, None)
-            if not self._custom_column_widths:
-                self._custom_column_widths = None
+                self._column_layout.custom_widths.pop(column_name, None)
+            if not self._column_layout.custom_widths:
+                self._column_layout.custom_widths = None
         if Settings.gui_remember_window_layout:
             gui_state = GUIState.load()
             widths = gui_state.connected_table_column_widths if self.is_connected_table else gui_state.disconnected_table_column_widths
@@ -373,16 +338,13 @@ class TableHeaderMenuMixin(QTableView):
 
     def setup_static_column_resizing(self) -> None:
         """Set up column sizing for the table, fitting columns and distributing extra space to flexible columns."""
-        self._is_programmatic_resizing = True
-        try:
+        with self._column_layout.programmatic_resize():
             setup_static_table_column_resizing(
                 self,
-                custom_widths=self._custom_column_widths,
+                custom_widths=self._column_layout.custom_widths,
                 min_column_widths=self.min_column_widths,
                 max_column_widths=self.max_column_widths,
             )
-        finally:
-            self._is_programmatic_resizing = False
 
     def check_initial_data_column_sizing(self) -> None:
         """Perform initial or requested content-aware column sizing when row data is populated."""
@@ -392,7 +354,7 @@ class TableHeaderMenuMixin(QTableView):
             self.setup_static_column_resizing()
         elif not self._has_auto_sized_with_data and self.model().rowCount() > 0:
             self._has_auto_sized_with_data = True
-            if self._custom_column_widths is None:
+            if self._column_layout.custom_widths is None:
                 self.setup_static_column_resizing()
         elif not self.model().rowCount():
             self._has_auto_sized_with_data = False
@@ -404,7 +366,7 @@ class TableHeaderMenuMixin(QTableView):
 
     def _reset_column_sizes(self) -> None:
         """Restore the default column sizing rules (Stretch / ResizeToContents)."""
-        self._custom_column_widths = None
+        self._column_layout.custom_widths = None
         self._has_auto_sized_with_data = False
         self.setup_static_column_resizing()
         if Settings.gui_remember_window_layout:
@@ -413,4 +375,16 @@ class TableHeaderMenuMixin(QTableView):
                 gui_state.connected_table_column_widths = None
             else:
                 gui_state.disconnected_table_column_widths = None
+            gui_state.save()
+
+    def _reset_column_order(self) -> None:
+        """Restore the default column visual order and clear persisted order when layout memory is enabled."""
+        self._column_layout.reset_column_order()
+        self.setup_static_column_resizing()
+        if Settings.gui_remember_window_layout:
+            gui_state = GUIState.load()
+            if self.is_connected_table:
+                gui_state.connected_table_column_order = None
+            else:
+                gui_state.disconnected_table_column_order = None
             gui_state.save()

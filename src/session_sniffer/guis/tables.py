@@ -35,6 +35,7 @@ from session_sniffer.error_messages import ensure_instance, format_type_error
 from session_sniffer.guis.delegates import ElidedTextTooltipDelegate
 from session_sniffer.guis.fonts import get_ui_font
 from session_sniffer.guis.live_language import CANONICAL_HEADER_ROLE, register_language_refresh
+from session_sniffer.guis.table_column_resizing import TableColumnLayoutController
 from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables_context_menu_mixin import TableContextMenuMixin
 from session_sniffer.guis.tables_header_menu_mixin import TableHeaderMenuMixin
@@ -86,10 +87,13 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
         self._saved_selection: list[tuple[str, int]] = []  # (ip, column) pairs for selection preservation
         self._saved_h_scroll: int | None = None
         self._saved_v_scroll: int | None = None
-        self._custom_column_widths: dict[str, int] | None = None
-        self._is_programmatic_resizing: bool = False
         self._has_auto_sized_with_data: bool = False
         self._recalculation_payloads_remaining: int = 0
+        self._column_layout: TableColumnLayoutController = TableColumnLayoutController(
+            self,
+            min_column_widths=self.min_column_widths,
+            on_after_move=self.setup_static_column_resizing,
+        )
         self._empty_icon_filename = 'user-round-check.svg' if is_connected_table else 'user-round-x.svg'
         self._empty_icon_gen = get_theme_generation()
         self._empty_icon_renderer = QSvgRenderer((ICONS_DIR_PATH / self._empty_icon_filename).as_posix())
@@ -114,7 +118,8 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
         horizontal_header.setMinimumSectionSize(scale_by_ui(DEFAULT_MIN_COLUMN_WIDTH))
         horizontal_header.setSectionsClickable(True)
         horizontal_header.sectionClicked.connect(self._on_section_clicked)
-        horizontal_header.sectionResized.connect(self._on_section_resized)
+        horizontal_header.sectionResized.connect(self._column_layout.on_section_resized)
+        horizontal_header.sectionMoved.connect(self._column_layout.on_section_moved)
         horizontal_header.setSectionsMovable(True)
         horizontal_header.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         horizontal_header.customContextMenuRequested.connect(self._show_header_context_menu)

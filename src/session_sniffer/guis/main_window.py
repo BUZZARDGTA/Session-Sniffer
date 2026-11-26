@@ -378,8 +378,14 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, ShortcutsMixin, 
                 self._saved_splitter_sizes = list(gui_state.main_window_splitter_sizes)
                 self._tables_splitter.setSizes(self._saved_splitter_sizes)
 
+            if gui_state.connected_table_column_order is not None and gui_state.connected_table_column_order:
+                self._connected.table_view.apply_column_order(gui_state.connected_table_column_order)
+
             if gui_state.connected_table_column_widths is not None and gui_state.connected_table_column_widths:
                 self._connected.table_view.apply_column_widths(gui_state.connected_table_column_widths)
+
+            if gui_state.disconnected_table_column_order is not None and gui_state.disconnected_table_column_order:
+                self._disconnected.table_view.apply_column_order(gui_state.disconnected_table_column_order)
 
             if gui_state.disconnected_table_column_widths is not None and gui_state.disconnected_table_column_widths:
                 self._disconnected.table_view.apply_column_widths(gui_state.disconnected_table_column_widths)
@@ -531,15 +537,10 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, ShortcutsMixin, 
             elif self._saved_splitter_sizes:
                 gui_state.main_window_splitter_sizes = self._saved_splitter_sizes
 
-            if self._connected.table_view.has_custom_column_widths:
-                gui_state.connected_table_column_widths = self._connected.table_view.get_column_widths()
-            else:
-                gui_state.connected_table_column_widths = None
-
-            if self._disconnected.table_view.has_custom_column_widths:
-                gui_state.disconnected_table_column_widths = self._disconnected.table_view.get_column_widths()
-            else:
-                gui_state.disconnected_table_column_widths = None
+            gui_state.connected_table_column_widths = self._connected.table_view.get_persisted_column_widths()
+            gui_state.connected_table_column_order = self._connected.table_view.get_persisted_column_order()
+            gui_state.disconnected_table_column_widths = self._disconnected.table_view.get_persisted_column_widths()
+            gui_state.disconnected_table_column_order = self._disconnected.table_view.get_persisted_column_order()
 
             gui_state.save()
 

@@ -1,5 +1,7 @@
 """Utilities for sizing and interactively resizing QTableView, QTreeView, and QTableWidget columns."""
 
+from contextlib import contextmanager
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QAbstractItemModel, QPoint, QSize, Qt
@@ -19,7 +21,17 @@ _MINIMUM_VIEWPORT_WIDTH_THRESHOLD = 100
 _STANDARD_ICON_SIZE = 16
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Generator, Sequence
+
+
+@dataclass(frozen=True, slots=True)
+class ColumnSizingMenuCallbacks:
+    """Optional callbacks for column sizing and order actions in a table header context menu."""
+
+    on_reset: Callable[[], None] | None = None
+    on_reset_order: Callable[[], None] | None = None
+    on_fit_column: Callable[[int], None] | None = None
+    on_fit_all: Callable[[], None] | None = None
 
 
 def _get_canonical_header_label(model: QAbstractItemModel, column: int) -> str:
@@ -36,6 +48,112 @@ def _get_horizontal_header(table: QTableView | QTreeView | QTableWidget) -> QHea
     if isinstance(table, QTableView):
         return table.horizontalHeader()
     return table.header()
+
+
+def get_header_column_order(table: QTableView | QTreeView) -> list[str]:
+    """Return canonical column header names in left-to-right visual order."""
+    table_model = table.model()
+    horizontal_header = _get_horizontal_header(table)
+    if not table_model or not horizontal_header:
+        return []
+    column_count = table_model.columnCount()
+    order: list[str] = []
+    for visual_index in range(horizontal_header.count()):
+        logical_index = horizontal_header.logicalIndex(visual_index)
+        if 0 <= logical_index < column_count:
+            label = _get_canonical_header_label(table_model, logical_index)
+            if label:
+                order.append(label)
+    return order
+
+
+def is_default_column_order(table: QTableView | QTreeView) -> bool:
+    """Return `True` if every horizontal header section sits at its default logical visual index."""
+    horizontal_header = _get_horizontal_header(table)
+    if not horizontal_header:
+        return True
+    return all(horizontal_header.logicalIndex(visual_index) == visual_index for visual_index in range(horizontal_header.count()))
+
+
+def merge_column_order(previous_order: Sequence[str] | None, current_order: Sequence[str]) -> list[str]:
+    """Merge *current_order* of active columns with any hidden columns remembered from *previous_order*."""
+    merged = list(dict.fromkeys(current_order))
+    if previous_order is None or not previous_order:
+        return merged
+
+    deduped_previous = list(dict.fromkeys(previous_order))
+    active_set = set(merged)
+    for index, column_name in enumerate(deduped_previous):
+        if column_name in active_set:
+            continue
+        insert_position = 0
+        for preceding_index in range(index - 1, -1, -1):
+            preceding_name = deduped_previous[preceding_index]
+            if preceding_name in merged:
+                insert_position = merged.index(preceding_name) + 1
+                break
+        merged.insert(insert_position, column_name)
+    return merged
+
+
+def apply_header_column_order(table: QTableView | QTreeView, column_order: Sequence[str]) -> bool:
+    """Reorder horizontal header sections of *table* to match canonical names in *column_order*.
+
+    Callers should guard their own `sectionMoved` slot with a programmatic flag rather than
+    blocking header signals, because Qt views listen to `sectionMoved` internally to repaint.
+    """
+    table_model = table.model()
+    horizontal_header = _get_horizontal_header(table)
+    if not table_model or not horizontal_header or not column_order:
+        return False
+
+    section_count = min(horizontal_header.count(), table_model.columnCount())
+    if section_count <= 1:
+        return False
+
+    label_to_logical: dict[str, int] = {}
+    for logical_index in range(section_count):
+        label = _get_canonical_header_label(table_model, logical_index)
+        if label and label not in label_to_logical:
+            label_to_logical[label] = logical_index
+
+    target_logical_order: list[int] = []
+    seen_logical: set[int] = set()
+    for column_name in column_order:
+        matched_logical = label_to_logical.get(column_name)
+        if matched_logical is not None and matched_logical not in seen_logical:
+            target_logical_order.append(matched_logical)
+            seen_logical.add(matched_logical)
+
+    if not target_logical_order:
+        return False
+
+    for logical_index in range(section_count):
+        if logical_index in seen_logical:
+            continue
+        if not logical_index:
+            target_logical_order.insert(0, 0)
+        else:
+            previous_position = target_logical_order.index(logical_index - 1)
+            target_logical_order.insert(previous_position + 1, logical_index)
+        seen_logical.add(logical_index)
+
+    for target_visual, logical_index in enumerate(target_logical_order):
+        current_visual = horizontal_header.visualIndex(logical_index)
+        if current_visual != target_visual:
+            horizontal_header.moveSection(current_visual, target_visual)
+    return True
+
+
+def reset_header_column_order(table: QTableView | QTreeView) -> None:
+    """Restore every horizontal header section in *table* to its default logical order."""
+    horizontal_header = _get_horizontal_header(table)
+    if not horizontal_header:
+        return
+    for target_visual in range(horizontal_header.count()):
+        current_visual = horizontal_header.visualIndex(target_visual)
+        if current_visual != target_visual:
+            horizontal_header.moveSection(current_visual, target_visual)
 
 
 def get_column_min_width(
@@ -127,6 +245,7 @@ def adjust_last_visible_column_to_viewport(
     resized_column: int | None = None,
     min_column_widths: dict[str, int] | None = None,
     custom_widths: dict[str, int] | None = None,
+    preserve_custom_widths: bool = False,
 ) -> None:
     """Adjust the last visible column so the table stays flush with the viewport right edge when columns are resized."""
     table_model = table.model()
@@ -159,6 +278,15 @@ def adjust_last_visible_column_to_viewport(
     ]
     other_widths = sum(horizontal_header.sectionSize(column) for column, _ in preceding_columns)
     current_last_width = horizontal_header.sectionSize(last_column)
+
+    if preserve_custom_widths and custom_widths is not None:
+        saved_last_width = custom_widths.get(last_label) if last_label else None
+        base_last_width = max(last_min_width, saved_last_width) if saved_last_width is not None and saved_last_width > 0 else max(last_min_width, current_last_width)
+        target_last_width = max(base_last_width, viewport_width - other_widths)
+        if target_last_width != current_last_width:
+            horizontal_header.setSectionResizeMode(last_column, QHeaderView.ResizeMode.Interactive)
+            horizontal_header.resizeSection(last_column, target_last_width)
+        return
 
     if resized_column == last_column:
         target_last_width = max(last_min_width, current_last_width)
@@ -198,7 +326,12 @@ def adjust_last_visible_column_to_viewport(
         custom_widths[last_label] = horizontal_header.sectionSize(last_column)
 
 
-def size_column_to_fit(table: QTableView | QTreeView, column_index: int) -> None:
+def size_column_to_fit(
+    table: QTableView | QTreeView,
+    column_index: int,
+    *,
+    min_column_widths: dict[str, int] | None = None,
+) -> None:
     """Resize a single column to fit its contents (header label and cell values)."""
     table_model = table.model()
     if not table_model:
@@ -213,20 +346,37 @@ def size_column_to_fit(table: QTableView | QTreeView, column_index: int) -> None
 
     horizontal_header.setSectionResizeMode(column_index, QHeaderView.ResizeMode.Interactive)
     table.resizeColumnToContents(column_index)
-    adjust_last_visible_column_to_viewport(table, resized_column=column_index)
+    if min_column_widths is not None:
+        header_label = _get_canonical_header_label(table_model, column_index)
+        min_width = get_column_min_width(horizontal_header, column_index, header_label, min_column_widths)
+        if horizontal_header.sectionSize(column_index) < min_width:
+            horizontal_header.resizeSection(column_index, min_width)
+    adjust_last_visible_column_to_viewport(table, resized_column=column_index, min_column_widths=min_column_widths)
 
 
-def size_all_columns_to_fit(table: QTableView | QTreeView) -> None:
+def size_all_columns_to_fit(
+    table: QTableView | QTreeView,
+    *,
+    min_column_widths: dict[str, int] | None = None,
+) -> None:
     """Resize all visible columns in *table* to fit their contents."""
+    table_model = table.model()
     horizontal_header = _get_horizontal_header(table)
-    if not horizontal_header:
+    if not table_model or not horizontal_header:
         return
 
-    for column_index in range(horizontal_header.count()):
-        if not horizontal_header.isSectionHidden(column_index):
+    column_count = table_model.columnCount()
+    for visual_index in range(horizontal_header.count()):
+        column_index = horizontal_header.logicalIndex(visual_index)
+        if 0 <= column_index < column_count and not horizontal_header.isSectionHidden(column_index):
             horizontal_header.setSectionResizeMode(column_index, QHeaderView.ResizeMode.Interactive)
             table.resizeColumnToContents(column_index)
-    adjust_last_visible_column_to_viewport(table)
+            if min_column_widths is not None:
+                header_label = _get_canonical_header_label(table_model, column_index)
+                min_width = get_column_min_width(horizontal_header, column_index, header_label, min_column_widths)
+                if horizontal_header.sectionSize(column_index) < min_width:
+                    horizontal_header.resizeSection(column_index, min_width)
+    adjust_last_visible_column_to_viewport(table, min_column_widths=min_column_widths)
 
 
 def add_column_sizing_actions(
@@ -234,9 +384,10 @@ def add_column_sizing_actions(
     table: QTableView | QTreeView,
     *,
     clicked_column: int | None = None,
-    on_reset: Callable[[], None] | None = None,
+    callbacks: ColumnSizingMenuCallbacks | None = None,
 ) -> None:
-    """Add standardized 'Size Column to Fit', 'Size All Columns to Fit', and optional 'Reset Column Sizes' actions to *menu*."""
+    """Add standardized column sizing and optional reset actions to *menu*."""
+    resolved = callbacks if callbacks is not None else ColumnSizingMenuCallbacks()
     table_model = table.model()
     clicked_column_name: str | None = None
     is_valid_clicked_column = False
@@ -260,7 +411,10 @@ def add_column_sizing_actions(
         target_column = clicked_column
 
         def _size_clicked() -> None:
-            size_column_to_fit(table, target_column)
+            if resolved.on_fit_column is not None:
+                resolved.on_fit_column(target_column)
+            else:
+                size_column_to_fit(table, target_column)
 
         size_column_cb = _size_clicked
     size_column_action = add_icon_menu_action(menu, 'move-horizontal.svg', tr('Size Column to Fit'), size_column_cb, tooltip=size_column_tooltip)
@@ -270,17 +424,26 @@ def add_column_sizing_actions(
         menu,
         'move-vertical.svg',
         tr('Size All Columns to Fit'),
-        lambda: size_all_columns_to_fit(table),
+        resolved.on_fit_all if resolved.on_fit_all is not None else lambda: size_all_columns_to_fit(table),
         tooltip=tr('Resize all visible columns so that any truncated text across the entire table is fully visible without ellipses.'),
     )
 
-    if on_reset is not None:
+    if resolved.on_reset is not None:
         add_icon_menu_action(
             menu,
             'refresh-cw.svg',
             tr('Reset Column Sizes'),
-            on_reset,
+            resolved.on_reset,
             tooltip=tr('Reset all column widths back to their initial default layout.'),
+        )
+
+    if resolved.on_reset_order is not None:
+        add_icon_menu_action(
+            menu,
+            'rotate-ccw.svg',
+            tr('Reset Column Order'),
+            resolved.on_reset_order,
+            tooltip=tr('Reset all columns back to their initial default order.'),
         )
 
 
@@ -288,6 +451,7 @@ def setup_table_header_context_menu(
     table: QTableView | QTreeView,
     *,
     on_reset: Callable[[], None] | None = None,
+    callbacks: ColumnSizingMenuCallbacks | None = None,
 ) -> None:
     """Configure the horizontal header of *table* with a standardized right-click context menu for column sizing."""
     horizontal_header = _get_horizontal_header(table)
@@ -295,12 +459,13 @@ def setup_table_header_context_menu(
         message = 'Failed to get horizontal header from table'
         raise RuntimeError(message)
 
+    resolved_callbacks = callbacks if callbacks is not None else ColumnSizingMenuCallbacks(on_reset=on_reset)
     horizontal_header.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
 
     def _on_header_context_menu_requested(position: QPoint) -> None:
         clicked_column = horizontal_header.logicalIndexAt(position)
         menu = create_styled_context_menu(table)
-        add_column_sizing_actions(menu, table, clicked_column=clicked_column, on_reset=on_reset)
+        add_column_sizing_actions(menu, table, clicked_column=clicked_column, callbacks=resolved_callbacks)
         menu.popup(horizontal_header.mapToGlobal(position))
 
     horizontal_header.customContextMenuRequested.connect(_on_header_context_menu_requested)
@@ -340,8 +505,10 @@ def setup_static_table_column_resizing(
 
     visible_columns: list[tuple[int, str, int, int]] = []
     min_bounds: dict[int, int] = {}
-    for column in range(table_model.columnCount()):
-        if horizontal_header.isSectionHidden(column):
+    column_count = table_model.columnCount()
+    for visual_index in range(horizontal_header.count()):
+        column = horizontal_header.logicalIndex(visual_index)
+        if column < 0 or column >= column_count or horizontal_header.isSectionHidden(column):
             continue
         header_key = _get_canonical_header_label(table_model, column)
         display_label = str(table_model.headerData(column, Qt.Orientation.Horizontal, Qt.ItemDataRole.DisplayRole) or '')
@@ -388,7 +555,9 @@ def setup_static_table_column_resizing(
 
     # Detect truncated columns: columns whose needed content width exceeds currently allocated floor width
     truncated_columns: dict[int, int] = {}
-    for column_index, _, floor_width, needed_width in visible_columns:
+    for column_index, header_key, floor_width, needed_width in visible_columns:
+        if custom_widths is not None and header_key in custom_widths:
+            continue
         if needed_width > floor_width:
             truncated_columns[column_index] = needed_width - floor_width
 
@@ -436,10 +605,15 @@ def setup_static_table_column_resizing(
             if label in FLEXIBLE_STRETCH_COLUMNS and (custom_widths is None or label not in custom_widths)
         ]
         if not flexible_columns:
-            flexible_columns = [(column_index, label) for column_index, label, _, _ in visible_columns if label in FLEXIBLE_STRETCH_COLUMNS]
-        if not flexible_columns:
             non_custom_visible = [(column_index, label) for column_index, label, _, _ in visible_columns if custom_widths is None or label not in custom_widths]
-            flexible_columns = [non_custom_visible[-1]] if non_custom_visible else [(visible_columns[-1][0], visible_columns[-1][1])]
+            if non_custom_visible:
+                flexible_columns = [non_custom_visible[-1]]
+            elif custom_widths is not None:
+                flexible_columns = [(visible_columns[-1][0], visible_columns[-1][1])]
+            else:
+                flexible_columns = [(column_index, label) for column_index, label, _, _ in visible_columns if label in FLEXIBLE_STRETCH_COLUMNS]
+                if not flexible_columns:
+                    flexible_columns = [(visible_columns[-1][0], visible_columns[-1][1])]
 
         total_weight = sum(FLEXIBLE_COLUMN_WEIGHTS.get(label, 1) for _, label in flexible_columns)
         if total_weight <= 0:
@@ -543,3 +717,183 @@ class TableColumnResizeController:
         """Reset column widths back to their initial default layout."""
         self.custom_widths = None
         self.setup_column_resizing()
+
+
+class TableColumnLayoutController:
+    """Tracks custom column widths and visual column order for movable, resizable tables."""
+
+    def __init__(
+        self,
+        table: QTableView | QTreeView,
+        *,
+        min_column_widths: dict[str, int] | None = None,
+        clamp_to_min: bool = True,
+        on_after_move: Callable[[], None] | None = None,
+    ) -> None:
+        """Initialize column width and order tracking for *table*."""
+        self._table = table
+        self._min_column_widths = min_column_widths
+        self._clamp_to_min = clamp_to_min
+        self._on_after_move = on_after_move
+        self.custom_widths: dict[str, int] | None = None
+        self.custom_order: list[str] | None = None
+        self._is_programmatic_resizing: bool = False
+        self._is_programmatic_reordering: bool = False
+
+    @contextmanager
+    def programmatic_resize(self) -> Generator[None]:
+        """Suppress `on_section_resized` tracking during programmatic section width updates."""
+        previous_state = self._is_programmatic_resizing
+        self._is_programmatic_resizing = True
+        try:
+            yield
+        finally:
+            self._is_programmatic_resizing = previous_state
+
+    @contextmanager
+    def programmatic_reorder(self) -> Generator[None]:
+        """Suppress `on_section_moved` tracking during programmatic section moves."""
+        previous_state = self._is_programmatic_reordering
+        self._is_programmatic_reordering = True
+        try:
+            yield
+        finally:
+            self._is_programmatic_reordering = previous_state
+
+    def on_section_resized(self, logical_index: int, _old_size: int, new_size: int) -> None:
+        """Track user-driven column resizing while keeping the rightmost column flush with the viewport."""
+        if self._is_programmatic_resizing:
+            return
+        table_model = self._table.model()
+        horizontal_header = _get_horizontal_header(self._table)
+        if not table_model or not horizontal_header:
+            return
+        header_label = _get_canonical_header_label(table_model, logical_index)
+        if not header_label:
+            return
+        if self.custom_widths is None:
+            self.custom_widths = self.get_column_widths()
+        with self.programmatic_resize():
+            effective_size = new_size
+            if self._clamp_to_min:
+                min_width = get_column_min_width(horizontal_header, logical_index, header_label, self._min_column_widths or {})
+                if new_size < min_width:
+                    horizontal_header.resizeSection(logical_index, min_width)
+                    effective_size = min_width
+            self.custom_widths[header_label] = effective_size
+            adjust_last_visible_column_to_viewport(
+                self._table,
+                resized_column=logical_index,
+                min_column_widths=self._min_column_widths,
+                custom_widths=self.custom_widths,
+            )
+
+    def on_section_moved(self, _logical_index: int, _old_visual_index: int, _new_visual_index: int) -> None:
+        """Track user-driven column reordering across active and remembered columns."""
+        if self._is_programmatic_reordering:
+            return
+        current_order = get_header_column_order(self._table)
+        if not current_order:
+            return
+        if self.custom_order is None and is_default_column_order(self._table):
+            return
+        merged = merge_column_order(self.custom_order, current_order)
+        if len(merged) == len(current_order) and is_default_column_order(self._table):
+            self.custom_order = None
+        else:
+            self.custom_order = merged
+        if self.custom_widths is not None and self._on_after_move is not None:
+            self._on_after_move()
+
+    def get_column_widths(self) -> dict[str, int]:
+        """Return visible column widths by canonical name while preserving widths for hidden columns."""
+        widths = dict(self.custom_widths) if self.custom_widths is not None else {}
+        table_model = self._table.model()
+        horizontal_header = _get_horizontal_header(self._table)
+        if not table_model or not horizontal_header:
+            return widths
+        for column_index in range(table_model.columnCount()):
+            if horizontal_header.isSectionHidden(column_index):
+                continue
+            width = horizontal_header.sectionSize(column_index)
+            if width > 0 and (header_label := _get_canonical_header_label(table_model, column_index)):
+                widths[header_label] = width
+        return widths
+
+    def get_persisted_widths(self) -> dict[str, int] | None:
+        """Return custom widths to persist, or `None` when using automatic/default sizing."""
+        return dict(self.custom_widths) if self.custom_widths is not None else None
+
+    def get_persisted_order(self) -> list[str] | None:
+        """Return custom visual column order to persist, or `None` when using default order."""
+        return list(self.custom_order) if self.custom_order is not None else None
+
+    def apply_column_widths(self, widths: dict[str, int]) -> None:
+        """Apply saved column widths to matching visible header sections."""
+        table_model = self._table.model()
+        horizontal_header = _get_horizontal_header(self._table)
+        if not table_model or not horizontal_header:
+            return
+        with self.programmatic_resize():
+            for column_index in range(table_model.columnCount()):
+                if horizontal_header.isSectionHidden(column_index):
+                    continue
+                header_label = _get_canonical_header_label(table_model, column_index)
+                if header_label in widths and widths[header_label] > 0:
+                    target_width = widths[header_label]
+                    if self._clamp_to_min:
+                        min_width = get_column_min_width(horizontal_header, column_index, header_label, self._min_column_widths or {})
+                        target_width = max(min_width, target_width)
+                    horizontal_header.setSectionResizeMode(column_index, QHeaderView.ResizeMode.Interactive)
+                    horizontal_header.resizeSection(column_index, target_width)
+            self.custom_widths = dict(widths)
+
+    def apply_column_order(self, column_order: Sequence[str], *, preserve_hidden: bool = False) -> None:
+        """Apply saved visual column order to matching header sections."""
+        if not column_order:
+            return
+        with self.programmatic_reorder():
+            apply_header_column_order(self._table, column_order)
+            if preserve_hidden:
+                self.custom_order = list(column_order)
+            else:
+                self.custom_order = None if is_default_column_order(self._table) else list(column_order)
+
+    def reapply_column_order(self) -> None:
+        """Reset stale Qt section mappings after model header changes and re-apply any custom order."""
+        with self.programmatic_reorder():
+            reset_header_column_order(self._table)
+            if self.custom_order is not None:
+                apply_header_column_order(self._table, self.custom_order)
+
+    def reset_column_order(self) -> None:
+        """Restore default logical column order and clear tracked custom order."""
+        self.custom_order = None
+        with self.programmatic_reorder():
+            reset_header_column_order(self._table)
+
+    def size_column_to_fit(self, column_index: int) -> None:
+        """Fit *column_index* to its contents and record resulting custom widths."""
+        with self.programmatic_resize():
+            size_column_to_fit(self._table, column_index, min_column_widths=self._min_column_widths)
+            self.custom_widths = self.get_column_widths()
+
+    def size_all_columns_to_fit(self) -> None:
+        """Fit all visible columns to their contents and record resulting custom widths."""
+        with self.programmatic_resize():
+            size_all_columns_to_fit(self._table, min_column_widths=self._min_column_widths)
+            self.custom_widths = self.get_column_widths()
+
+    def menu_callbacks(
+        self,
+        *,
+        on_reset: Callable[[], None],
+        on_reset_order: Callable[[], None],
+    ) -> ColumnSizingMenuCallbacks:
+        """Build a `ColumnSizingMenuCallbacks` bundle wired to this controller's fit actions."""
+        return ColumnSizingMenuCallbacks(
+            on_reset=on_reset,
+            on_reset_order=on_reset_order,
+            on_fit_column=self.size_column_to_fit,
+            on_fit_all=self.size_all_columns_to_fit,
+        )

@@ -55,9 +55,9 @@ SETTING_METADATA: dict[str, SettingMeta] = {
     'gui_remember_window_layout': SettingMeta(
         category='General', group='Application Window', display_label='Remember Window & Tables Layout', setting_type=SettingType.BOOLEAN,
         tooltip=(
-            'Save and restore the main window tables layout (connected/disconnected splitter\n'
-            'and column widths) and the UserIP Manager window geometry and splitter across\n'
-            'application launches.'
+            'Save and restore the main window tables layout (connected/disconnected splitter,\n'
+            'column widths, and column order), the UserIP Manager window geometry, splitter,\n'
+            'and table columns, and the Logs Manager CSV table columns across application launches.'
         ),
     ),
     'gui_interface_selection_auto_connect': SettingMeta(

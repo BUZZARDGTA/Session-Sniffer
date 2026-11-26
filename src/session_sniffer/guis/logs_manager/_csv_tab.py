@@ -37,6 +37,7 @@ from PySide6.QtWidgets import (
 
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.constants.standard import LOCAL_TZ
+from session_sniffer.constants.tables import DEFAULT_MIN_COLUMN_WIDTH
 from session_sniffer.guis.delegates import SearchHighlightDelegate
 from session_sniffer.guis.file_watch import DebouncedFileWatcher
 from session_sniffer.guis.live_language import CANONICAL_HEADER_ROLE, register_language_refresh, set_i18n_colon_label
@@ -55,18 +56,22 @@ from session_sniffer.guis.logs_manager._helpers import (
     purge_log_file,
 )
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET, SVG_ICON_CONTEXT_MENU_STYLESHEET
-from session_sniffer.guis.table_column_resizing import add_column_sizing_actions
+from session_sniffer.guis.table_column_resizing import (
+    TableColumnLayoutController,
+    add_column_sizing_actions,
+    adjust_last_visible_column_to_viewport,
+)
 from session_sniffer.guis.tables_player_actions import (
     create_ping_menu,
     scan_ports_ip,
     show_detailed_ip_lookup,
 )
 from session_sniffer.guis.theming import ICONS_DIR_PATH
-from session_sniffer.guis.utils import animate_button_feedback, set_clipboard_text
+from session_sniffer.guis.utils import animate_button_feedback, scale_by_ui, set_clipboard_text
 from session_sniffer.i18n import tr, tr_plural
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Callable, Sequence
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +99,8 @@ class CsvLogTabConfig:
     default_sort_order: Qt.SortOrder = Qt.SortOrder.AscendingOrder
     stretch_column: int | None = None
     column_min_widths: dict[int, int] = field(default_factory=dict[int, int])
+    on_reset_persisted_widths: Callable[[], None] | None = None
+    on_reset_persisted_order: Callable[[], None] | None = None
 
 
 class CsvLogTab(QWidget):
@@ -113,6 +120,8 @@ class CsvLogTab(QWidget):
         self._default_sort_order = config.default_sort_order
         self._stretch_column = config.stretch_column
         self._column_min_widths = config.column_min_widths
+        self._on_reset_persisted_widths = config.on_reset_persisted_widths
+        self._on_reset_persisted_order = config.on_reset_persisted_order
         self._truncated = False
         self._initial_loaded = False
         self._raw_csv_headers: list[str] = list(self._expected_headers)
@@ -181,14 +190,21 @@ class CsvLogTab(QWidget):
             v_header.setVisible(False)
             v_header.setDefaultSectionSize(26)
 
+        self._column_layout: TableColumnLayoutController = TableColumnLayoutController(
+            self._table,
+            on_after_move=self._adjust_stretch_column_width,
+        )
         horizontal_header = self._table.horizontalHeader()
         if horizontal_header:
             horizontal_header.setHighlightSections(False)
             horizontal_header.setStretchLastSection(False)
             horizontal_header.setSectionsMovable(True)
+            horizontal_header.setMinimumSectionSize(scale_by_ui(DEFAULT_MIN_COLUMN_WIDTH))
+            horizontal_header.sectionResized.connect(self._column_layout.on_section_resized)
+            horizontal_header.sectionMoved.connect(self._column_layout.on_section_moved)
             horizontal_header.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
             horizontal_header.customContextMenuRequested.connect(self._on_header_context_menu)
-        self._reset_column_sizes()
+        self._apply_default_column_widths()
 
         layout.addWidget(self._table, stretch=1)
 
@@ -368,7 +384,10 @@ class CsvLogTab(QWidget):
 
         prev_col = self._get_active_search_column()
         prev_canonical = self._raw_csv_headers[prev_col] if 0 <= prev_col < len(self._raw_csv_headers) else None
+        headers_changed = list(file_headers) != self._raw_csv_headers
         self._set_model_headers(file_headers)
+        if headers_changed:
+            self._column_layout.reapply_column_order()
         self._rebuild_column_combo(file_headers, prev_canonical)
 
         if valid_rows:
@@ -403,11 +422,17 @@ class CsvLogTab(QWidget):
         if self._initial_loaded:
             if scrollbar:
                 scrollbar.setValue(min(previous_scroll, scrollbar.maximum()))
+            if headers_changed and self._column_layout.custom_widths is not None:
+                self._column_layout.apply_column_widths(self._column_layout.custom_widths)
             self._adjust_stretch_column_width()
         else:
             self._apply_default_sort()
             self._initial_loaded = True
-            self._reset_column_sizes()
+            if self._column_layout.custom_widths is not None:
+                self._column_layout.apply_column_widths(self._column_layout.custom_widths)
+                self._adjust_stretch_column_width()
+            else:
+                self._apply_default_column_widths()
         self._update_counts()
         self._metadata_label.setText(file_metadata_text(self._file_path))
         self._purge_button.setEnabled(self._model.rowCount() > 0)
@@ -526,6 +551,34 @@ class CsvLogTab(QWidget):
         super().resizeEvent(event)
         self._adjust_stretch_column_width()
 
+    def _canonical_header(self, column: int) -> str:
+        """Return the canonical header name for *column*."""
+        if 0 <= column < len(self._raw_csv_headers):
+            return self._raw_csv_headers[column]
+        raw = self._model.headerData(column, Qt.Orientation.Horizontal, CANONICAL_HEADER_ROLE)
+        return raw if isinstance(raw, str) else ''
+
+    def apply_column_layout(
+        self,
+        *,
+        widths: dict[str, int] | None,
+        order: Sequence[str] | None,
+    ) -> None:
+        """Restore saved column order and widths from persistent GUI state."""
+        if order is not None and order:
+            self._column_layout.apply_column_order(order)
+        if widths is not None and widths:
+            self._column_layout.apply_column_widths(widths)
+        self._adjust_stretch_column_width()
+
+    def get_persisted_column_widths(self) -> dict[str, int] | None:
+        """Return custom column widths to persist, or `None` when using default sizing."""
+        return self._column_layout.get_persisted_widths()
+
+    def get_persisted_column_order(self) -> list[str] | None:
+        """Return custom column order to persist, or `None` when using default order."""
+        return self._column_layout.get_persisted_order()
+
     def _adjust_stretch_column_width(self) -> None:
         """Stretch the configured stretch column (or last visible column) to fill the remaining viewport width."""
         horizontal_header = self._table.horizontalHeader()
@@ -534,48 +587,73 @@ class CsvLogTab(QWidget):
         total_columns = self._model.columnCount()
         if not total_columns:
             return
-        viewport = self._table.viewport()
-        available_width = viewport.width() if viewport and viewport.width() > 0 else self._table.width()
+        with self._column_layout.programmatic_resize():
+            if self._column_layout.custom_widths is not None:
+                adjust_last_visible_column_to_viewport(
+                    self._table,
+                    custom_widths=self._column_layout.custom_widths,
+                    preserve_custom_widths=True,
+                )
+                return
 
-        if self._stretch_column is not None and 0 <= self._stretch_column < total_columns and not horizontal_header.isSectionHidden(self._stretch_column):
-            configured_widths = sum(
-                self._table.columnWidth(column_index)
-                for column_index in range(total_columns)
-                if column_index != self._stretch_column and not horizontal_header.isSectionHidden(column_index)
-            )
-            stretch_width = max(150, available_width - configured_widths)
-            horizontal_header.resizeSection(self._stretch_column, stretch_width)
-        else:
-            last_visible_column: int | None = None
-            for column_index in range(total_columns):
-                if not horizontal_header.isSectionHidden(column_index):
-                    last_visible_column = column_index
-            if last_visible_column is not None:
-                other_widths = sum(
+            viewport = self._table.viewport()
+            available_width = viewport.width() if viewport and viewport.width() > 0 else self._table.width()
+
+            if self._stretch_column is not None and 0 <= self._stretch_column < total_columns and not horizontal_header.isSectionHidden(self._stretch_column):
+                configured_widths = sum(
                     self._table.columnWidth(column_index)
                     for column_index in range(total_columns)
-                    if column_index != last_visible_column and not horizontal_header.isSectionHidden(column_index)
+                    if column_index != self._stretch_column and not horizontal_header.isSectionHidden(column_index)
                 )
-                last_width = max(100, available_width - other_widths)
-                horizontal_header.resizeSection(last_visible_column, last_width)
+                stretch_width = max(150, available_width - configured_widths)
+                horizontal_header.resizeSection(self._stretch_column, stretch_width)
+            else:
+                last_visible_column: int | None = None
+                for visual_index in range(horizontal_header.count()):
+                    column_index = horizontal_header.logicalIndex(visual_index)
+                    if 0 <= column_index < total_columns and not horizontal_header.isSectionHidden(column_index):
+                        last_visible_column = column_index
+                if last_visible_column is not None:
+                    other_widths = sum(
+                        self._table.columnWidth(column_index)
+                        for column_index in range(total_columns)
+                        if column_index != last_visible_column and not horizontal_header.isSectionHidden(column_index)
+                    )
+                    last_width = max(100, available_width - other_widths)
+                    horizontal_header.resizeSection(last_visible_column, last_width)
 
-    def _reset_column_sizes(self) -> None:
-        """Reset column widths back to their initial default layout and stretch flexible column."""
+    def _apply_default_column_widths(self) -> None:
+        """Apply default column widths without altering custom tracking or persisted state."""
         horizontal_header = self._table.horizontalHeader()
         if not horizontal_header:
             return
         total_columns = self._model.columnCount()
         if not total_columns:
             return
-        for column_index in range(total_columns):
-            horizontal_header.setSectionResizeMode(column_index, QHeaderView.ResizeMode.Interactive)
-            if column_index in self._column_min_widths:
-                horizontal_header.resizeSection(column_index, self._column_min_widths[column_index])
-            else:
-                header_name = self._raw_csv_headers[column_index] if column_index < len(self._raw_csv_headers) else ''
-                base_width = _DEFAULT_HEADER_BASE_WIDTHS.get(header_name, 100)
-                horizontal_header.resizeSection(column_index, base_width)
+        with self._column_layout.programmatic_resize():
+            for column_index in range(total_columns):
+                horizontal_header.setSectionResizeMode(column_index, QHeaderView.ResizeMode.Interactive)
+                if column_index in self._column_min_widths:
+                    horizontal_header.resizeSection(column_index, self._column_min_widths[column_index])
+                else:
+                    header_name = self._raw_csv_headers[column_index] if column_index < len(self._raw_csv_headers) else ''
+                    base_width = _DEFAULT_HEADER_BASE_WIDTHS.get(header_name, 100)
+                    horizontal_header.resizeSection(column_index, base_width)
         self._adjust_stretch_column_width()
+
+    def _reset_column_sizes(self) -> None:
+        """Reset column widths back to their initial default layout and stretch flexible column."""
+        self._column_layout.custom_widths = None
+        self._apply_default_column_widths()
+        if self._on_reset_persisted_widths is not None:
+            self._on_reset_persisted_widths()
+
+    def _reset_column_order(self) -> None:
+        """Reset column visual order back to the initial default layout."""
+        self._column_layout.reset_column_order()
+        self._adjust_stretch_column_width()
+        if self._on_reset_persisted_order is not None:
+            self._on_reset_persisted_order()
 
     # ------------------------------------------------------------------
     # Column visibility & Context Menus
@@ -589,7 +667,12 @@ class CsvLogTab(QWidget):
         menu = QMenu(self)
         menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
         menu.setToolTipsVisible(True)
-        add_column_sizing_actions(menu, self._table, clicked_column=clicked_column, on_reset=self._reset_column_sizes)
+        add_column_sizing_actions(
+            menu,
+            self._table,
+            clicked_column=clicked_column,
+            callbacks=self._column_layout.menu_callbacks(on_reset=self._reset_column_sizes, on_reset_order=self._reset_column_order),
+        )
         menu.addSeparator()
         for column in range(self._model.columnCount()):
             name = self._model.headerData(column, Qt.Orientation.Horizontal)
@@ -724,7 +807,18 @@ class CsvLogTab(QWidget):
         action = self.sender()
         if isinstance(action, QAction):
             column = action.data()
-            self._table.setColumnHidden(column, not action.isChecked())
+            show_column = action.isChecked()
+            self._table.setColumnHidden(column, not show_column)
+            if show_column and self._column_layout.custom_widths is not None and (horizontal_header := self._table.horizontalHeader()):
+                header_label = self._canonical_header(column)
+                saved_width = self._column_layout.custom_widths.get(header_label)
+                target_width = (
+                    saved_width
+                    if saved_width is not None and saved_width > 0
+                    else self._column_min_widths.get(column, _DEFAULT_HEADER_BASE_WIDTHS.get(header_label, 100))
+                )
+                with self._column_layout.programmatic_resize():
+                    horizontal_header.resizeSection(column, target_width)
             self._adjust_stretch_column_width()
 
     # ------------------------------------------------------------------

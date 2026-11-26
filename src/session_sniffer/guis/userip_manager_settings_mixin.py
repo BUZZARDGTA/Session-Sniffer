@@ -39,10 +39,14 @@ from session_sniffer.guis.stylesheets import (
     userip_settings_body_stylesheet,
     userip_settings_toggle_stylesheet,
 )
-from session_sniffer.guis.table_column_resizing import adjust_last_visible_column_to_viewport
+from session_sniffer.guis.table_column_resizing import (
+    TableColumnLayoutController,
+    adjust_last_visible_column_to_viewport,
+)
 from session_sniffer.guis.theming import get_themed_icon, themed_qss
 from session_sniffer.guis.userip_conflict_resolver import update_resolve_conflicts_button
 from session_sniffer.guis.userip_manager_helpers import (
+    DATABASE_COLUMN,
     ENTRY_TABLE_HEADERS,
     human_readable_size,
     iter_userip_databases,
@@ -104,17 +108,13 @@ class SettingsPanelMixin(QDialog):
     _proxy: EntriesSortProxy
     _entries_table: QTreeView
     _global_search_active: bool
-    _custom_column_widths: dict[str, int] | None
-    _is_programmatic_resizing: bool
+    _column_layout: TableColumnLayoutController
 
     if TYPE_CHECKING:
         _cached_column_widths: ClassVar[dict[str, int] | None]
+        _cached_column_order: ClassVar[list[str] | None]
 
         def _mark_settings_dirty(self) -> None: ...
-
-        def _canonical_entry_header(self, column: int) -> str:
-            del column
-            raise NotImplementedError
 
     @staticmethod
     def _is_protection_supported() -> bool:
@@ -405,64 +405,46 @@ class SettingsPanelMixin(QDialog):
         self._stats_label.setText(themed_qss('<br>'.join(parts)))
         update_resolve_conflicts_button(self._resolve_conflicts_button)
 
-    def _on_section_resized(self, logical_index: int, _old_size: int, new_size: int) -> None:
-        """Track user-driven column resizing in the entries table."""
-        if self._is_programmatic_resizing:
-            return
-        if header_label := self._canonical_entry_header(logical_index):
-            if self._custom_column_widths is None:
-                self._custom_column_widths = self._get_column_widths()
-            self._custom_column_widths[header_label] = new_size
-            self._is_programmatic_resizing = True
-            try:
-                adjust_last_visible_column_to_viewport(
-                    self._entries_table, resized_column=logical_index, min_column_widths=_DEFAULT_ENTRY_COLUMN_WIDTHS, custom_widths=self._custom_column_widths,
-                )
-            finally:
-                self._is_programmatic_resizing = False
-
-    def _get_column_widths(self) -> dict[str, int]:
-        """Return a mapping of column header names to their current section widths."""
-        return {
-            header_label: self._entries_table.columnWidth(column)
-            for column in range(self._model.columnCount())
-            if (header_label := self._canonical_entry_header(column))
-        }
-
-    def _apply_column_widths(self, widths: dict[str, int]) -> None:
-        """Apply saved column widths to matching entries table header sections."""
-        if not (header := self._entries_table.header()):
-            return
-        self._is_programmatic_resizing = True
-        try:
-            for column in range(self._model.columnCount()):
-                header_label = self._canonical_entry_header(column)
-                if header_label in widths and widths[header_label] > 0:
-                    header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
-                    self._entries_table.setColumnWidth(column, widths[header_label])
-            self._custom_column_widths = dict(widths)
-        finally:
-            self._is_programmatic_resizing = False
+    @staticmethod
+    def _default_entry_column_widths() -> dict[str, int]:
+        """Return default unscaled widths for entries table columns."""
+        return _DEFAULT_ENTRY_COLUMN_WIDTHS
 
     def _adjust_username_column_width(self) -> None:
         """Adjust the last visible column width so the entries table fits the viewport without trailing blank space."""
-        self._is_programmatic_resizing = True
-        try:
-            adjust_last_visible_column_to_viewport(self._entries_table, min_column_widths=_DEFAULT_ENTRY_COLUMN_WIDTHS, custom_widths=self._custom_column_widths)
-        finally:
-            self._is_programmatic_resizing = False
+        with self._column_layout.programmatic_resize():
+            adjust_last_visible_column_to_viewport(
+                self._entries_table,
+                min_column_widths=_DEFAULT_ENTRY_COLUMN_WIDTHS,
+                custom_widths=self._column_layout.custom_widths,
+                preserve_custom_widths=self._column_layout.custom_widths is not None,
+            )
+
+    def _on_database_column_visibility_changed(self, *, visible: bool) -> None:
+        """Adjust widths when toggling the Database column without discarding custom widths."""
+        if self._column_layout.custom_widths is None:
+            self._apply_default_column_widths()
+            return
+        if visible:
+            with self._column_layout.programmatic_resize():
+                saved_width = self._column_layout.custom_widths.get('Database')
+                target_width = saved_width if saved_width is not None and saved_width > 0 else scale_by_ui(_DEFAULT_ENTRY_COLUMN_WIDTHS['Database'])
+                self._entries_table.setColumnWidth(DATABASE_COLUMN, target_width)
+        self._adjust_username_column_width()
 
     @classmethod
     def _clear_cached_column_widths(cls) -> None:
         """Clear the session-cached column widths on the concrete manager class."""
         cls._cached_column_widths = None
 
-    def _reset_column_sizes(self) -> None:
-        """Reset column widths back to their initial default layout."""
-        self._custom_column_widths = None
-        self._clear_cached_column_widths()
-        self._is_programmatic_resizing = True
-        try:
+    @classmethod
+    def _clear_cached_column_order(cls) -> None:
+        """Clear the session-cached column order on the concrete manager class."""
+        cls._cached_column_order = None
+
+    def _apply_default_column_widths(self) -> None:
+        """Apply default scaled column widths without altering caches or persisted GUI state."""
+        with self._column_layout.programmatic_resize():
             header = self._entries_table.header()
             if not header:
                 return
@@ -471,10 +453,25 @@ class SettingsPanelMixin(QDialog):
                 header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
                 self._entries_table.setColumnWidth(column, scale_by_ui(_DEFAULT_ENTRY_COLUMN_WIDTHS[header_label]))
             self._adjust_username_column_width()
-        finally:
-            self._is_programmatic_resizing = False
+
+    def _reset_column_sizes(self) -> None:
+        """Reset column widths back to their initial default layout."""
+        self._column_layout.custom_widths = None
+        self._clear_cached_column_widths()
+        self._apply_default_column_widths()
 
         if Settings.gui_remember_window_layout:
             gui_state = GUIState.load()
             gui_state.userip_manager_table_column_widths = None
+            gui_state.save()
+
+    def _reset_column_order(self) -> None:
+        """Reset column visual order back to the initial default layout."""
+        self._column_layout.reset_column_order()
+        self._clear_cached_column_order()
+        self._adjust_username_column_width()
+
+        if Settings.gui_remember_window_layout:
+            gui_state = GUIState.load()
+            gui_state.userip_manager_table_column_order = None
             gui_state.save()
