@@ -2,11 +2,17 @@
 
 from typing import TYPE_CHECKING, ClassVar, override
 
-from PySide6.QtCore import QByteArray, QRect, Qt
+from PySide6.QtCore import QByteArray, QPoint, QRect, Qt
 from PySide6.QtWidgets import QApplication, QHeaderView, QSplitter, QTableView, QTreeView, QWidget
 
 from session_sniffer.guis.live_language import CANONICAL_HEADER_ROLE
-from session_sniffer.guis.utils import RateGraphWindowMixin, center_window_on_screen, consume_maximize_on_show, set_maximize_on_show
+from session_sniffer.guis.utils import (
+    RateGraphWindowMixin,
+    center_window_on_screen,
+    consume_maximize_on_show,
+    is_maximize_on_show,
+    set_maximize_on_show,
+)
 from session_sniffer.models import GUIState
 from session_sniffer.settings import Settings
 
@@ -21,8 +27,25 @@ if TYPE_CHECKING:
 _MIN_VISIBLE_WINDOW_WIDTH = 100
 _MIN_VISIBLE_WINDOW_HEIGHT = 60
 _TITLEBAR_TOP_TOLERANCE = 40
+_LAYOUT_GENERATION_PROP = '_ss_layout_generation'
+_CASCADE_STEP_PX = 28
+_WINDOW_SIZE_COMPONENTS = 2
 
+_layout_reset_state: dict[str, int] = {'generation': 0}
 _layout_cache_resetters: list[Callable[[], None]] = []
+
+
+def stamp_window_layout_generation(window: QWidget) -> None:
+    """Stamp *window* with the current layout-reset generation."""
+    window.setProperty(_LAYOUT_GENERATION_PROP, _layout_reset_state['generation'])
+
+
+def should_save_window_layout(window: QWidget) -> bool:
+    """Return `True` when layout memory is enabled and *window* does not predate the last layout reset."""
+    if not Settings.gui_remember_window_layout:
+        return False
+    stamped = window.property(_LAYOUT_GENERATION_PROP)
+    return not (isinstance(stamped, int) and stamped < _layout_reset_state['generation'])
 
 
 def _rect_is_usable_on_screen(window_rect: QRect, screen_available: QRect) -> bool:
@@ -97,6 +120,7 @@ def restore_window_geometry_safely(
     if maximized:
         set_maximize_on_show(window, maximize=True)
     else:
+        set_maximize_on_show(window, maximize=False)
         window.setWindowState(window.windowState() & ~Qt.WindowState.WindowMaximized)
     return True
 
@@ -121,6 +145,7 @@ def restore_window_layout(
     gui_state: GUIState | None = None,
 ) -> WindowLayoutState | None:
     """Restore *window*'s saved geometry when layout memory is enabled, else invoke *fallback_resize*."""
+    stamp_window_layout_generation(window)
     if not Settings.gui_remember_window_layout:
         if fallback_resize is not None:
             fallback_resize()
@@ -140,7 +165,7 @@ def save_window_layout(
     gui_state: GUIState | None = None,
 ) -> WindowLayoutState | None:
     """Capture and save *window*'s geometry when layout memory is enabled."""
-    if not Settings.gui_remember_window_layout:
+    if not should_save_window_layout(window):
         return None
     state = gui_state if gui_state is not None else GUIState.load()
     window_state = state.ensure_window(window_key)
@@ -148,6 +173,92 @@ def save_window_layout(
     if gui_state is None:
         state.save()
     return window_state
+
+
+def restore_window_size_layout(
+    window: QWidget,
+    window_key: str,
+    *,
+    fallback_resize: Callable[[], None] | None = None,
+    gui_state: GUIState | None = None,
+) -> WindowLayoutState | None:
+    """Restore only *window*'s saved width and height (without pinning position) for multi-instance windows."""
+    stamp_window_layout_generation(window)
+    if not Settings.gui_remember_window_layout:
+        if fallback_resize is not None:
+            fallback_resize()
+        return None
+
+    state = gui_state if gui_state is not None else GUIState.load()
+    window_state = state.get_window(window_key)
+    restored = False
+    if window_state is not None and window_state.window_size is not None and len(window_state.window_size) == _WINDOW_SIZE_COMPONENTS:
+        raw_width, raw_height = window_state.window_size
+        if raw_width > 0 and raw_height > 0:
+            screens = QApplication.screens()
+            if screens:
+                available = (QApplication.primaryScreen() or screens[0]).availableGeometry()
+                clamped_width = min(max(raw_width, window.minimumWidth()), available.width())
+                clamped_height = min(max(raw_height, window.minimumHeight()), available.height())
+            else:
+                clamped_width = max(raw_width, window.minimumWidth())
+                clamped_height = max(raw_height, window.minimumHeight())
+            window.resize(clamped_width, clamped_height)
+            restored = True
+    if not restored and fallback_resize is not None:
+        fallback_resize()
+    return window_state
+
+
+def save_window_size_layout(
+    window: QWidget,
+    window_key: str,
+    *,
+    gui_state: GUIState | None = None,
+) -> WindowLayoutState | None:
+    """Capture and save only *window*'s width and height when layout memory is enabled."""
+    if not should_save_window_layout(window):
+        return None
+    state = gui_state if gui_state is not None else GUIState.load()
+    window_state = state.ensure_window(window_key)
+    size = window.normalGeometry().size() if (window.windowState() & Qt.WindowState.WindowMaximized) else window.size()
+    if size.width() > 0 and size.height() > 0:
+        window_state.window_size = [size.width(), size.height()]
+    if gui_state is None:
+        state.save()
+    return window_state
+
+
+def cascade_window_if_overlapping(
+    window: QWidget,
+    other_windows: Sequence[QWidget],
+    *,
+    step: int = _CASCADE_STEP_PX,
+) -> None:
+    """Shift *window* diagonally when its top-left position overlaps another live instance in *other_windows*."""
+    if (window.windowState() & Qt.WindowState.WindowMaximized) or is_maximize_on_show(window):
+        return
+    other_positions = [
+        other.pos()
+        for other in other_windows
+        if other is not window and not (other.windowState() & Qt.WindowState.WindowMaximized)
+    ]
+    if not other_positions:
+        return
+    pos = QPoint(window.pos())
+    screens = QApplication.screens()
+    available = (QApplication.screenAt(pos) or QApplication.primaryScreen()).availableGeometry() if screens else None
+    threshold = max(1, step // 2)
+    for _ in range(len(other_positions) + 2):
+        if not any(abs(pos.x() - other_pos.x()) < threshold and abs(pos.y() - other_pos.y()) < threshold for other_pos in other_positions):
+            break
+        pos += QPoint(step, step)
+        if available is not None:
+            max_x = max(available.left(), available.right() - _MIN_VISIBLE_WINDOW_WIDTH)
+            max_y = max(available.top(), available.bottom() - _MIN_VISIBLE_WINDOW_HEIGHT)
+            if pos.x() > max_x or pos.y() > max_y:
+                pos = QPoint(available.left() + step, available.top() + step)
+    window.move(pos)
 
 
 def save_window_layout_with_always_on_top(
@@ -312,13 +423,21 @@ def make_table_reset_callbacks(table_key: str, controller: TableColumnLayoutCont
     return controller.menu_callbacks(on_reset=_on_reset_sizes, on_reset_order=_on_reset_order)
 
 
-def save_window_and_table_layout(window: QWidget, layout_key: str, controller: TableColumnLayoutController) -> None:
-    """Persist both window geometry and table column layout under *layout_key* when layout memory is enabled."""
-    if not Settings.gui_remember_window_layout:
+def save_window_and_table_layout(
+    window: QWidget,
+    layout_key: str,
+    controller: TableColumnLayoutController,
+    *,
+    sort_view: QTableView | QTreeView | None = None,
+) -> None:
+    """Persist window geometry, table column layout, and optional sort state under *layout_key*."""
+    if not should_save_window_layout(window):
         return
     gui_state = GUIState.load()
-    save_window_layout(window, layout_key, gui_state=gui_state)
-    save_table_layout(layout_key, controller, gui_state=gui_state)
+    if save_window_layout(window, layout_key, gui_state=gui_state) is None:
+        return
+    if (table_state := save_table_layout(layout_key, controller, gui_state=gui_state)) is not None and sort_view is not None:
+        capture_table_sort_state(table_state, sort_view)
     gui_state.save()
 
 
@@ -328,35 +447,42 @@ def register_layout_cache_reset(callback: Callable[[], None]) -> None:
         _layout_cache_resetters.append(callback)
 
 
-def unregister_layout_cache_reset(callback: Callable[[], None]) -> None:
-    """Unregister a previously registered layout cache reset callback."""
-    if callback in _layout_cache_resetters:
-        _layout_cache_resetters.remove(callback)
-
-
 def reset_all_saved_layouts() -> bool:
     """Delete persisted GUI layout state and reset all registered in-memory layout caches."""
     deleted = GUIState.clear_file()
+    if deleted:
+        _layout_reset_state['generation'] += 1
     for callback in tuple(_layout_cache_resetters):
         callback()
     return deleted
 
 
 class PersistentRateGraphWindowMixin(RateGraphWindowMixin):
-    """`RateGraphWindowMixin` subclass persisting geometry, Always on Top, and Max History when `LAYOUT_KEY` is set."""
+    """`RateGraphWindowMixin` subclass persisting geometry/size, Always on Top, and Max History when `LAYOUT_KEY` is set."""
 
     LAYOUT_KEY: ClassVar[str | None] = None
+    PERSIST_SIZE_ONLY: ClassVar[bool] = False
 
     @override
     def _on_max_history_changed(self, new_max_history: int) -> None:
         """Handle max history changes (implemented by concrete graph subclasses)."""
         raise NotImplementedError
 
+    def _restore_extra_rate_graph_state(self, win_state: WindowLayoutState) -> None:
+        """Restore subclass-specific state from *win_state* (override as needed)."""
+
+    def _save_extra_rate_graph_state(self, win_state: WindowLayoutState) -> None:
+        """Capture subclass-specific state into *win_state* (override as needed)."""
+
     def _restore_rate_graph_layout(self) -> None:
-        """Restore saved geometry, Always on Top, and Max History for single-instance graph windows."""
-        if self.LAYOUT_KEY is None or not Settings.gui_remember_window_layout:
+        """Restore saved geometry (or size), Always on Top, Max History, and subclass state."""
+        if self.LAYOUT_KEY is None:
             return
-        win_state = restore_window_layout(self, self.LAYOUT_KEY)
+        win_state = (
+            restore_window_size_layout(self, self.LAYOUT_KEY)
+            if self.PERSIST_SIZE_ONLY
+            else restore_window_layout(self, self.LAYOUT_KEY)
+        )
         if win_state is None:
             return
         if win_state.always_on_top is not None and self._aot_checkbox is not None:
@@ -365,6 +491,7 @@ class PersistentRateGraphWindowMixin(RateGraphWindowMixin):
             history_index = self._history_combo.findData(win_state.max_history)
             if history_index >= 0:
                 self._history_combo.setCurrentIndex(history_index)
+        self._restore_extra_rate_graph_state(win_state)
 
     @override
     def showEvent(self, event: QShowEvent) -> None:
@@ -374,11 +501,18 @@ class PersistentRateGraphWindowMixin(RateGraphWindowMixin):
 
     @override
     def closeEvent(self, event: QCloseEvent) -> None:
-        """Persist geometry, Always on Top, and Max History for single-instance graph windows on close."""
-        if self.LAYOUT_KEY is not None and Settings.gui_remember_window_layout:
+        """Persist geometry/size, Always on Top, Max History, and subclass state on close."""
+        if self.LAYOUT_KEY is not None and should_save_window_layout(self):
             gui_state = GUIState.load()
-            win_state = save_window_layout_with_always_on_top(self, self.LAYOUT_KEY, gui_state=gui_state)
-            if win_state is not None and self._history_combo is not None and isinstance(raw_history := self._history_combo.currentData(), int):
-                win_state.max_history = raw_history
-            gui_state.save()
+            if self.PERSIST_SIZE_ONLY:
+                win_state = save_window_size_layout(self, self.LAYOUT_KEY, gui_state=gui_state)
+                if win_state is not None:
+                    win_state.always_on_top = bool(self.windowFlags() & Qt.WindowType.WindowStaysOnTopHint)
+            else:
+                win_state = save_window_layout_with_always_on_top(self, self.LAYOUT_KEY, gui_state=gui_state)
+            if win_state is not None:
+                if self._history_combo is not None and isinstance(raw_history := self._history_combo.currentData(), int):
+                    win_state.max_history = raw_history
+                self._save_extra_rate_graph_state(win_state)
+                gui_state.save()
         super().closeEvent(event)

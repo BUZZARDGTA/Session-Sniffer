@@ -33,6 +33,8 @@ from session_sniffer.guis.window_layout import (
     restore_window_layout,
     save_table_layout,
     save_window_layout_with_always_on_top,
+    should_save_window_layout,
+    stamp_window_layout_generation,
 )
 from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.models import GUIState
@@ -254,13 +256,16 @@ class StatTableWindowMixin(ToggleAlwaysOnTopMixin):
         )
         effective_always_on_top = always_on_top
         self._saved_table_state = None
-        if self.LAYOUT_KEY is not None and Settings.gui_remember_window_layout:
-            gui_state = GUIState.load()
-            win_state = restore_window_layout(self, self.LAYOUT_KEY, gui_state=gui_state)
-            if win_state is not None and win_state.always_on_top is not None:
-                effective_always_on_top = win_state.always_on_top
-                apply_always_on_top(self, checked=effective_always_on_top)
-            self._saved_table_state = restore_table_layout(self.LAYOUT_KEY, self._column_resizer, gui_state=gui_state)
+        if self.LAYOUT_KEY is not None:
+            if Settings.gui_remember_window_layout:
+                gui_state = GUIState.load()
+                win_state = restore_window_layout(self, self.LAYOUT_KEY, gui_state=gui_state)
+                if win_state is not None and win_state.always_on_top is not None:
+                    effective_always_on_top = win_state.always_on_top
+                    apply_always_on_top(self, checked=effective_always_on_top)
+                self._saved_table_state = restore_table_layout(self.LAYOUT_KEY, self._column_resizer, gui_state=gui_state)
+            else:
+                stamp_window_layout_generation(self)
         self.add_always_on_top_checkbox(layout, always_on_top=effective_always_on_top)
 
     def _apply_default_or_saved_sort(self, default_column: int, default_order: Qt.SortOrder) -> None:
@@ -306,7 +311,7 @@ class StatTableWindowMixin(ToggleAlwaysOnTopMixin):
     @override
     def closeEvent(self, event: QCloseEvent) -> None:
         """Persist window geometry, Always on Top, and table column/sort state on close."""
-        if self.LAYOUT_KEY is not None and Settings.gui_remember_window_layout:
+        if self.LAYOUT_KEY is not None and should_save_window_layout(self):
             gui_state = GUIState.load()
             save_window_layout_with_always_on_top(self, self.LAYOUT_KEY, gui_state=gui_state)
             if (table_state := save_table_layout(self.LAYOUT_KEY, self._column_resizer, gui_state=gui_state)) is not None:

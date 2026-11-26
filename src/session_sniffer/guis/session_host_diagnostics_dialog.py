@@ -1,10 +1,10 @@
 """Dedicated dialog for inspecting Session Host detection diagnostics."""
 
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont, QIcon
+from PySide6.QtGui import QCloseEvent, QFont, QIcon, QShowEvent
 from PySide6.QtWidgets import (
     QDialog,
     QFrame,
@@ -46,6 +46,7 @@ from session_sniffer.guis.utils import (
     set_clipboard_text,
     set_dialog_window_flags,
 )
+from session_sniffer.guis.window_layout import apply_maximize_on_show, restore_window_layout, save_window_layout
 from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.player.host_diagnostics_checklist import ChecklistBadgeTone, build_host_diagnostics_checklist
 from session_sniffer.text_utils import format_elapsed_time
@@ -85,7 +86,8 @@ class SessionHostDiagnosticsDialog(QDialog):
 
         self.setMinimumWidth(scale_by_ui(660))
         self.setMinimumHeight(scale_by_ui(520))
-        self.resize(scale_by_ui(720), scale_by_ui(620))
+        self._layout_saved = False
+        restore_window_layout(self, 'session_host_diagnostics', fallback_resize=lambda: self.resize(scale_by_ui(720), scale_by_ui(620)))
 
         root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(12, 12, 12, 12)
@@ -639,8 +641,36 @@ class SessionHostDiagnosticsDialog(QDialog):
             if new_snapshot is not None:
                 self.update_snapshot(new_snapshot)
 
+    def _save_dialog_layout_once(self) -> None:
+        if not self._layout_saved:
+            self._layout_saved = True
+            save_window_layout(self, 'session_host_diagnostics')
+
+    @override
+    def showEvent(self, arg__1: QShowEvent) -> None:
+        """Apply deferred maximization when the diagnostics dialog is shown."""
+        super().showEvent(arg__1)
+        apply_maximize_on_show(self)
+
+    @override
+    def done(self, arg__1: int) -> None:
+        """Persist dialog geometry before closing via accept/reject."""
+        self._save_dialog_layout_once()
+        super().done(arg__1)
+
+    @override
+    def closeEvent(self, arg__1: QCloseEvent) -> None:
+        """Persist dialog geometry when closed directly."""
+        self._save_dialog_layout_once()
+        super().closeEvent(arg__1)
+
 
 _active_host_diagnostics_dialogs: ActiveDialogRegistry[str, SessionHostDiagnosticsDialog] = ActiveDialogRegistry()
+
+
+def close_all_session_host_diagnostics_dialogs() -> None:
+    """Close all active Session Host Diagnostics dialogs so their layouts persist cleanly on exit."""
+    _active_host_diagnostics_dialogs.close_all()
 
 
 def show_session_host_diagnostics_dialog(

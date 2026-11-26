@@ -2,7 +2,7 @@
 
 from collections import deque
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, override
+from typing import TYPE_CHECKING, ClassVar, override
 
 from PySide6.QtCore import QSignalBlocker, Qt
 from PySide6.QtGui import QColor
@@ -209,6 +209,7 @@ class DualRateGraphBase(PersistentRateGraphWindowMixin):
 
     PPS_Y_FLOOR: float = 10.0
     BPS_Y_FLOOR: float = 1.0
+    DEFAULT_SIZE: ClassVar[tuple[int, int]] = (700, 500)
     _max_history: int
     _dual_graph_idle: bool
     _BYTES_TO_KBS: int = 1024
@@ -254,7 +255,8 @@ class DualRateGraphBase(PersistentRateGraphWindowMixin):
     def _finish_graph_init(self) -> None:
         """Initialize the common window layout, widgets, and history buffers."""
         self._max_history = DEFAULT_MAX_HISTORY
-        self.resize(scale_by_ui(700), scale_by_ui(500))
+        default_width, default_height = self.DEFAULT_SIZE
+        self.resize(scale_by_ui(default_width), scale_by_ui(default_height))
         layout = self.setup_window_layout(always_on_top=True, margins=(0, 0, 0, 0), spacing=0)
         self._setup_dual_graph_widgets(layout)
         _attach_controls_dock(self, layout, pre_footer_widget=self._create_pre_footer_controls())
@@ -401,6 +403,9 @@ class PlayerSpikeVisualUpdate:
 class PlayerRateGraphWindow(DualRateGraphBase):
     """A standalone window with separate PPS and BPS graphs stacked vertically."""
 
+    LAYOUT_KEY = 'player_rate_graph'
+    PERSIST_SIZE_ONLY = True
+    DEFAULT_SIZE = (860, 535)
     PPS_Y_FLOOR = 100.0
     BPS_Y_FLOOR = 50.0
 
@@ -455,7 +460,6 @@ class PlayerRateGraphWindow(DualRateGraphBase):
         self._update_window_title()
         register_language_refresh(self, self._update_window_title)
         self._finish_graph_init()
-        self.resize(scale_by_ui(860), scale_by_ui(535))
 
     @property
     def monitor_mode(self) -> str:

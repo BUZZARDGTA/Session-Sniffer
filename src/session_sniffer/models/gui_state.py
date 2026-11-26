@@ -15,11 +15,14 @@ class WindowLayoutState(BaseModel):
 
     geometry: str | None = None
     maximized: bool = False
+    window_size: list[int] | None = None
     splitter: str | None = None
     splitter_sizes: list[int] | None = None
     always_on_top: bool | None = None
     active_tab: int | None = None
+    active_tab_key: str | None = None
     max_history: int | None = None
+    latency_all_time: bool | None = None
 
     model_config = ConfigDict(extra='ignore')
 

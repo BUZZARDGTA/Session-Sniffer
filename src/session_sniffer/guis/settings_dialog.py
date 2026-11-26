@@ -119,7 +119,7 @@ class SettingsDialog(
         self.setWindowTitle(f"{tr('Settings')} - {TITLE}")
         set_dialog_window_flags(self)
         self.setMinimumSize(scale_by_ui(950), scale_by_ui(750))
-        restore_window_layout(self, 'settings_dialog', fallback_resize=lambda: resize_window_for_screen(self))
+        win_state = restore_window_layout(self, 'settings_dialog', fallback_resize=lambda: resize_window_for_screen(self))
 
         self._capture = capture
         self._on_change_interface = on_change_interface
@@ -234,6 +234,9 @@ class SettingsDialog(
         if isinstance(preset_widget, QComboBox):
             preset_widget.currentIndexChanged.connect(lambda _index=0, pw=preset_widget: self._on_feature_set_changed(combo_canonical_value(pw)))
             self._on_feature_set_changed(combo_canonical_value(preset_widget))
+
+        if win_state is not None and win_state.active_tab_key is not None:
+            self.select_category(win_state.active_tab_key)
 
         # Show/hide Account Information based on API key presence.
         api_key_widget = self._widgets.get('looky_api_key')

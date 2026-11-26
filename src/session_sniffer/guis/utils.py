@@ -247,9 +247,14 @@ def set_maximize_on_show(window: QWidget, *, maximize: bool) -> None:
     window.setProperty(_MAXIMIZE_ON_SHOW_PROPERTY, maximize)
 
 
+def is_maximize_on_show(window: QWidget) -> bool:
+    """Return whether *window* is currently marked for deferred maximization on show."""
+    return window.property(_MAXIMIZE_ON_SHOW_PROPERTY) is True
+
+
 def consume_maximize_on_show(window: QWidget) -> bool:
     """Return whether *window* was marked to be maximized on show, clearing the mark."""
-    if window.property(_MAXIMIZE_ON_SHOW_PROPERTY) is not True:
+    if not is_maximize_on_show(window):
         return False
     set_maximize_on_show(window, maximize=False)
     return True
@@ -571,11 +576,17 @@ class ActiveDialogRegistry[K, V: QWidget]:
             return True
         return False
 
+    def active_dialogs(self) -> list[V]:
+        """Return all currently live dialogs tracked by this registry."""
+        stale = [key for key, dialog in self._dialogs.items() if not isValid(dialog)]
+        for key in stale:
+            self._dialogs.pop(key, None)
+        return list(self._dialogs.values())
+
     def close_all(self) -> None:
         """Close all tracked dialogs."""
-        for dialog in list(self._dialogs.values()):
-            if isValid(dialog):
-                dialog.close()
+        for dialog in self.active_dialogs():
+            dialog.close()
         self._dialogs.clear()
 
     def show_or_focus(self, key: K, factory: Callable[[], V]) -> V:

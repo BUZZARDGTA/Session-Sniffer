@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, override, runtime_checkable
 
 from PySide6.QtCore import QEvent, QObject, QPoint, QSignalBlocker, QSize, Qt
-from PySide6.QtGui import QBrush, QColor, QFont, QKeyEvent
+from PySide6.QtGui import QBrush, QCloseEvent, QColor, QFont, QKeyEvent, QShowEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -46,7 +46,7 @@ from session_sniffer.guis.stylesheets import (
     LOOKY_REVIEW_TABLE_STYLESHEET,
     SVG_ICON_CONTEXT_MENU_STYLESHEET,
 )
-from session_sniffer.guis.table_column_resizing import setup_table_header_context_menu
+from session_sniffer.guis.table_column_resizing import TableColumnLayoutController, setup_table_header_context_menu
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
 from session_sniffer.guis.tables_player_actions.looky_system._looky_helpers import LookyRefreshLoadingDialog, check_looky_prerequisites
 from session_sniffer.guis.tables_player_actions.looky_system._looky_refresh_engine import (
@@ -70,7 +70,17 @@ from session_sniffer.guis.utils import (
     set_clipboard_text,
     set_dialog_window_flags,
 )
+from session_sniffer.guis.window_layout import (
+    apply_maximize_on_show,
+    apply_table_sort_state,
+    cascade_window_if_overlapping,
+    clear_table_layout,
+    restore_table_layout,
+    restore_window_layout,
+    save_window_and_table_layout,
+)
 from session_sniffer.i18n import tr, tr_plural
+from session_sniffer.models import GUIState
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.player.userip_groups import get_excluded_looky_usernames_cf, record_looky_db_correlation
 from session_sniffer.settings.settings import Settings
@@ -166,7 +176,15 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         parent.destroyed.connect(self.close)
         self.setWindowTitle(f'{get_looky_title()} \u2014 {tr("UserIP Refresh Review")}')
         self.setStyleSheet(f'{LOOKY_REVIEW_DIALOG_STYLESHEET}{_COMBO_STYLESHEET}')
-        apply_adaptive_window_size(self, min_size=(980, 560), size_1080p=(1280, 720), size_720p=(1040, 620))
+        self.setMinimumSize(scale_by_ui(980), scale_by_ui(560))
+        self._layout_saved = False
+        initial_gui_state = GUIState.load() if Settings.gui_remember_window_layout else None
+        restore_window_layout(
+            self,
+            'looky_refresh_review',
+            fallback_resize=lambda: apply_adaptive_window_size(self, min_size=(980, 560), size_1080p=(1280, 720), size_720p=(1040, 620)),
+            gui_state=initial_gui_state,
+        )
 
         unique_dbs = {entry.db_path for entry in pending_entries} | {rem.db_path for rem in standalone_removals}
         self._available_dbs = list_available_databases(unique_dbs | {entry.target_db_path for entry in pending_entries})
@@ -194,36 +212,20 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         self._stat_cards: list[tuple[QLabel, QLabel, Callable[[], str], Callable[[], str]]] = []
         summary_specs: list[tuple[Callable[[], str], str, Callable[[], str]]] = [
             (
-                lambda: tr_plural('IP w/ Results', 'IPs w/ Results', self._ips_with_results_count),
-                str(ips_with_results_count),
+                lambda: tr_plural('IP w/ Results', 'IPs w/ Results', self._ips_with_results_count), str(ips_with_results_count),
                 lambda: tr('Number of queried database IPs for which Looky returned results.'),
             ),
+            (lambda: tr('Matches in DB'), str(total_matches), lambda: tr('Usernames returned by Looky that match a username already in your database.')),
+            *([(
+                lambda: tr('Wrong Candidate Rows'), str(total_suspects),
+                lambda: tr('Unconfirmed candidate rows in Searchlist (0 detections) that will be deleted.'),
+            )] if total_suspects > 0 else []),
+            *([(
+                lambda: tr_plural('New Username', 'New Usernames', self._total_new), str(total_new),
+                lambda: tr('Additional usernames returned by Looky on these IPs that do not exist in your database yet.'),
+            )] if total_new > 0 else []),
             (
-                lambda: tr('Matches in DB'),
-                str(total_matches),
-                lambda: tr('Usernames returned by Looky that match a username already in your database.'),
-            ),
-            *(
-                [(
-                    lambda: tr('Wrong Candidate Rows'),
-                    str(total_suspects),
-                    lambda: tr('Unconfirmed candidate rows in Searchlist (0 detections) that will be deleted.'),
-                )]
-                if total_suspects > 0
-                else []
-            ),
-            *(
-                [(
-                    lambda: tr_plural('New Username', 'New Usernames', self._total_new),
-                    str(total_new),
-                    lambda: tr('Additional usernames returned by Looky on these IPs that do not exist in your database yet.'),
-                )]
-                if total_new > 0
-                else []
-            ),
-            (
-                lambda: tr_plural('Database', 'Databases', self._unique_dbs_count),
-                str(self._unique_dbs_count),
+                lambda: tr_plural('Database', 'Databases', self._unique_dbs_count), str(self._unique_dbs_count),
                 lambda: tr('Number of source UserIP database files included in this Looky review.'),
             ),
         ]
@@ -322,11 +324,23 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._tree.customContextMenuRequested.connect(self._show_context_menu)
         self._tree.installEventFilter(self)
-        setup_table_header_context_menu(self._tree, on_reset=self._reset_column_sizes)
+        self._column_layout = TableColumnLayoutController(self._tree, clamp_to_min=False)
+        if header := self._tree.header():
+            header.setSectionsMovable(True)
+            header.sectionResized.connect(self._column_layout.on_section_resized)
+            header.sectionMoved.connect(self._column_layout.on_section_moved)
+        setup_table_header_context_menu(
+            self._tree,
+            callbacks=self._column_layout.menu_callbacks(on_reset=self._reset_column_sizes, on_reset_order=self._reset_column_order),
+        )
         self._new_items, self._removal_items = list[tuple[QTreeWidgetItem, PendingEntry]](), list[tuple[QTreeWidgetItem, SuspectRemoval]]()
         self._entry_to_removal_children, self._item_to_db_combo = dict[int, list[QTreeWidgetItem]](), dict[int, tuple[QComboBox, Path]]()
         self._populate_tree_items(pending_entries, standalone_removals)
-        self._reset_column_sizes()
+        self._apply_default_column_sizes()
+        saved_table_state = restore_table_layout('looky_refresh_review', self._column_layout, gui_state=initial_gui_state)
+        if not apply_table_sort_state(self._tree, saved_table_state):
+            self._tree.sortByColumn(0, Qt.SortOrder.AscendingOrder)
+        self._tree.setSortingEnabled(True)
         self._tree.itemChanged.connect(self._on_item_changed)
         outer_layout.addWidget(self._tree, stretch=1)
         button_layout = QHBoxLayout()
@@ -334,19 +348,11 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         button_layout.addStretch(1)
         self._accept_btn = QPushButton(f'\u2713 {tr("Accept Selected")}')
         self._cancel_btn = QPushButton(tr('Cancel'))
+        accept_tip = tr('Apply only the checked rows: add/confirm/move checked Looky entries and delete checked wrong candidate IPs.')
+        cancel_tip = tr('Close this dialog without modifying any UserIP database files.')
         for btn, style, tip, slot in (
-            (
-                self._accept_btn,
-                LOOKY_PRIMARY_ACTION_BUTTON_STYLESHEET,
-                tr('Apply only the checked rows: add/confirm/move checked Looky entries and delete checked wrong candidate IPs.'),
-                self.accept,
-            ),
-            (
-                self._cancel_btn,
-                LOOKY_ACTION_BUTTON_STYLESHEET,
-                tr('Close this dialog without modifying any UserIP database files.'),
-                self.reject,
-            ),
+            (self._accept_btn, LOOKY_PRIMARY_ACTION_BUTTON_STYLESHEET, accept_tip, self.accept),
+            (self._cancel_btn, LOOKY_ACTION_BUTTON_STYLESHEET, cancel_tip, self.reject),
         ):
             btn.setStyleSheet(style)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -418,12 +424,7 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         """Apply checked Looky updates behind an animated loading overlay before closing the review dialog."""
         if self._on_commit is not None:
             on_commit = self._on_commit
-            self.commit_summary = run_blocking_with_loading(
-                self,
-                tr('Applying Looky Changes\u2026'),
-                tr('Updating UserIP databases\u2026'),
-                lambda: on_commit(self),
-            )
+            self.commit_summary = run_blocking_with_loading(self, tr('Applying Looky Changes\u2026'), tr('Updating UserIP databases\u2026'), lambda: on_commit(self))
         super().accept()
 
     @override
@@ -479,68 +480,38 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
             action_text = tr('Move to {target}', target=target_label)
             user_color = _COLOR_DB_LABEL if is_new_username else _COLOR_CONFIRMED
             action_color = _COLOR_CONFIRMED
-            details = tr(
-                'Move from {source} to {target} (Source = Looky){cleanup}',
-                source=source_label,
-                target=target_label,
-                cleanup=cleanup_suffix,
-            )
+            details = tr('Move from {source} to {target} (Source = Looky){cleanup}', source=source_label, target=target_label, cleanup=cleanup_suffix)
             tip = tr(
                 'Looky resolved "{username}" on IP {ip}.\n\n\u2022 Checked: Saves "{username} = {ip}" (Source = Looky) '
                 'into "{target}" and removes it from "{source}".\n\u2022 Unchecked: Leaves this entry untouched.',
-                username=entry.username,
-                ip=entry.ip,
-                target=target_label,
-                source=source_label,
+                username=entry.username, ip=entry.ip, target=target_label, source=source_label,
             )
         elif entry.is_confirmation:
             icon = render_svg_icon_from_resource('user-round-check.svg', icon_px, icon_px, _COLOR_CONFIRMED.name())
             action_text, user_color, action_color = tr('Confirm Looky'), _COLOR_CONFIRMED, _COLOR_CONFIRMED
-            details = tr(
-                'Already on {ip} in {source} \u2192 Looky confirmed it is correct{cleanup}',
-                ip=entry.ip,
-                source=source_label,
-                cleanup=cleanup_suffix,
-            )
+            details = tr('Already on {ip} in {source} \u2192 Looky confirmed it is correct{cleanup}', ip=entry.ip, source=source_label, cleanup=cleanup_suffix)
             tip = tr(
                 'Looky confirmed that IP {ip} belongs to "{username}" in "{source}".\n\n\u2022 Checked: Marks "{username} = {ip}" '
                 'as Source = Looky in "{source}".\n\u2022 Tip: Change "Target Database" on the right to move this player into another database.',
-                ip=entry.ip,
-                username=entry.username,
-                source=source_label,
+                ip=entry.ip, username=entry.username, source=source_label,
             )
         elif entry.is_known_in_db:
             icon = render_svg_icon_from_resource('user-round-search.svg', icon_px, icon_px, _COLOR_MATCH_TAG.name())
             action_text, user_color, action_color = tr('Add Real IP'), _COLOR_NEW, _COLOR_MATCH_TAG
-            details = tr(
-                'Tracked in {source} \u2192 Looky found real IP {ip}{cleanup}',
-                source=source_label,
-                ip=entry.ip,
-                cleanup=cleanup_suffix,
-            )
+            details = tr('Tracked in {source} \u2192 Looky found real IP {ip}{cleanup}', source=source_label, ip=entry.ip, cleanup=cleanup_suffix)
             tip = tr(
                 '"{username}" is tracked in "{source}", and Looky resolved their real IP as {ip}!\n\n\u2022 Checked: Saves "{username} = {ip}" '
                 '(Source = Looky) in "{target}".\n\u2022 Tip: Change "Target Database" on the right to move this player directly to another database.',
-                username=entry.username,
-                source=source_label,
-                ip=entry.ip,
-                target=target_label,
+                username=entry.username, source=source_label, ip=entry.ip, target=target_label,
             )
         else:
             icon = render_svg_icon_from_resource('user-plus.svg', icon_px, icon_px, _COLOR_NEW_TAG.name())
             action_text, user_color, action_color = tr('Add New Username'), _COLOR_DB_LABEL, _COLOR_NEW_TAG
-            details = tr(
-                'New username returned by Looky on {ip} (not in {source} yet)',
-                ip=entry.ip,
-                source=source_label,
-            )
+            details = tr('New username returned by Looky on {ip} (not in {source} yet)', ip=entry.ip, source=source_label)
             tip = tr(
                 'Looky returned "{username}" on IP {ip}. This username is not in "{source}" yet.\n\n'
                 '\u2022 Checked: Adds "{username} = {ip}" (Source = Looky) to "{target}".\n\u2022 Unchecked: Ignores this username.',
-                username=entry.username,
-                ip=entry.ip,
-                source=source_label,
-                target=target_label,
+                username=entry.username, ip=entry.ip, source=source_label, target=target_label,
             )
         for col, text, color in ((0, user_text, user_color), (_COL_ACTION, action_text, action_color), (_COL_DETAILS, details, _COLOR_DB_LABEL)):
             item.setText(col, text)
@@ -618,8 +589,6 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
             rem_item = self._create_removal_item(rem, mono_font, bold_font)
             self._tree.addTopLevelItem(rem_item)
             self._removal_items.append((rem_item, rem))
-        self._tree.sortByColumn(0, Qt.SortOrder.AscendingOrder)
-        self._tree.setSortingEnabled(True)
 
     def _on_row_combo_changed(self, item: QTreeWidgetItem, entry: PendingEntry, combo: QComboBox, _index: int = 0) -> None:
         """Update *entry*'s target database when its per-row combo box selection changes."""
@@ -725,23 +694,9 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         checked_actionable, checked_removals = len(self.get_accepted_entries()), len(self.get_accepted_removals())
         checked_visual = sum(1 for item, _ in self._new_items if item.checkState(0) == Qt.CheckState.Checked)
         total_visual, total_rem = len(self._new_items), len(self._removal_items)
-        rem_text = tr_plural(
-            '{checked} / {count} wrong candidate row to delete',
-            '{checked} / {count} wrong candidate rows to delete',
-            total_rem,
-            checked=checked_removals,
-        )
-        looky_part = tr(
-            '{checked}/{total} Looky to add/confirm/move',
-            checked=checked_visual,
-            total=total_visual,
-        )
-        rem_part = tr_plural(
-            '{checked}/{count} wrong candidate row to delete',
-            '{checked}/{count} wrong candidate rows to delete',
-            total_rem,
-            checked=checked_removals,
-        )
+        rem_text = tr_plural('{checked} / {count} wrong candidate row to delete', '{checked} / {count} wrong candidate rows to delete', total_rem, checked=checked_removals)
+        looky_part = tr('{checked}/{total} Looky to add/confirm/move', checked=checked_visual, total=total_visual)
+        rem_part = tr_plural('{checked}/{count} wrong candidate row to delete', '{checked}/{count} wrong candidate rows to delete', total_rem, checked=checked_removals)
         both_text = f'{looky_part} \u00b7 {rem_part}'
         single_text = rem_text if self._removal_items else tr('{checked} / {total} selected', checked=checked_visual, total=total_visual)
         self._counter_label.setText(both_text if self._new_items and self._removal_items else single_text)
@@ -776,19 +731,51 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         """Return the list of unconfirmed suspect IP entries the user checked for removal."""
         return [rem for item, rem in self._removal_items if item.checkState(0) == Qt.CheckState.Checked]
 
-    def _reset_column_sizes(self) -> None:
-        """Reset column widths back to their initial default layout."""
+    def _apply_default_column_sizes(self) -> None:
         if not (header := self._tree.header()):
             return
         col_bounds = (
             (0, 140, 260), (_COL_IP, 115, 160), (_COL_LOOKY_USER, 130, 220), (_COL_ACTION, 185, 240),
             (_COL_NOTES, 75, 145), (_COL_DETECTIONS, 85, 110), (_COL_TARGET_DB, 155, 155),
         )
-        for col, min_w, max_w in col_bounds:
-            header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
-            self._tree.setColumnWidth(col, min(max(self._tree.sizeHintForColumn(col) + 16, min_w), max_w))
-        header.setSectionResizeMode(_COL_DETAILS, QHeaderView.ResizeMode.Stretch)
-        header.setMinimumSectionSize(30)
+        with self._column_layout.programmatic_resize():
+            for col, min_w, max_w in col_bounds:
+                header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
+                self._tree.setColumnWidth(col, min(max(self._tree.sizeHintForColumn(col) + 16, min_w), max_w))
+            header.setSectionResizeMode(_COL_DETAILS, QHeaderView.ResizeMode.Stretch)
+            header.setMinimumSectionSize(30)
+
+    def _reset_column_sizes(self) -> None:
+        self._column_layout.custom_widths = None
+        self._apply_default_column_sizes()
+        clear_table_layout('looky_refresh_review', reset_widths=True)
+
+    def _reset_column_order(self) -> None:
+        self._column_layout.reset_column_order()
+        clear_table_layout('looky_refresh_review', reset_order=True)
+
+    def _save_dialog_layout_once(self) -> None:
+        if not self._layout_saved:
+            self._layout_saved = True
+            save_window_and_table_layout(self, 'looky_refresh_review', self._column_layout, sort_view=self._tree)
+
+    @override
+    def showEvent(self, a0: QShowEvent) -> None:
+        """Apply deferred maximization when the Looky review dialog is shown."""
+        super().showEvent(a0)
+        apply_maximize_on_show(self)
+
+    @override
+    def done(self, r: int) -> None:
+        """Persist dialog geometry and tree layout before closing via accept/reject."""
+        self._save_dialog_layout_once()
+        super().done(r)
+
+    @override
+    def closeEvent(self, event: QCloseEvent) -> None:
+        """Persist dialog geometry and tree layout when closed directly."""
+        self._save_dialog_layout_once()
+        super().closeEvent(event)
 
     def _show_context_menu(self, pos: QPoint) -> None:
         """Show a right-click context menu to batch check/uncheck, copy, set Target Database, or jump to UserIP Databases Manager."""
@@ -877,6 +864,14 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
 _active_review_dialogs: set[LookyRefreshReviewDialog] = set()
 
 
+def close_all_looky_refresh_review_dialogs() -> None:
+    """Close all active Looky UserIP Refresh Review dialogs so their layouts persist cleanly on exit."""
+    for dialog in list(_active_review_dialogs):
+        if isValid(dialog):
+            dialog.close()
+    _active_review_dialogs.clear()
+
+
 def looky_refresh_userip_entries(parent: QWidget, entries: list[tuple[Path, list[str]]], *, restriction: str | None = None) -> None:
     """Look up IPs and resolve usernames from UserIP databases via the Looky System and open the review dialog."""
     if (api_key := check_looky_prerequisites(parent, restriction=restriction)) is None:
@@ -953,10 +948,12 @@ def looky_refresh_userip_entries(parent: QWidget, entries: list[tuple[Path, list
             )
             QMessageBox.information(parent if isValid(parent) else None, TITLE, summary_message)
 
+        existing_dialogs = [dlg for dlg in _active_review_dialogs if isValid(dlg)]
         dialog.accepted.connect(_on_review_accepted)
         dialog.finished.connect(lambda: _active_review_dialogs.discard(dialog))
         _active_review_dialogs.add(dialog)
         activate_window(dialog)
+        cascade_window_if_overlapping(dialog, existing_dialogs)
 
     worker_links = ((worker.finished_ok, _on_finished_ok), (worker.finished_error, loading_dialog.show_error), (worker.progress_updated, loading_dialog.update_progress))
     for sig, slot in worker_links:

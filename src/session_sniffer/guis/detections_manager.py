@@ -55,8 +55,9 @@ from session_sniffer.guis.utils import (
     scale_by_ui,
     set_dialog_window_flags,
 )
-from session_sniffer.guis.window_layout import apply_maximize_on_show, restore_window_layout, save_window_layout
+from session_sniffer.guis.window_layout import apply_maximize_on_show, restore_window_layout, save_window_layout, should_save_window_layout
 from session_sniffer.i18n import tr, tr_plural
+from session_sniffer.models import GUIState
 from session_sniffer.models.combo_rules import ComboRule
 from session_sniffer.models.detections import DetectionsFile
 from session_sniffer.player.combo_rules import ComboRulesManager
@@ -112,7 +113,7 @@ class DetectionsManagerDialog(DetectionsManagerTabsMixin, QDialog):
         self.setWindowTitle(tr('{title} - Detections Manager', title=TITLE))
         set_dialog_window_flags(self)
         self.setMinimumSize(scale_by_ui(720), scale_by_ui(500))
-        restore_window_layout(self, 'detections_manager', fallback_resize=lambda: resize_window_for_screen(self))
+        win_state = restore_window_layout(self, 'detections_manager', fallback_resize=lambda: resize_window_for_screen(self))
 
         # Static widget references (per-rule controls are accessed dynamically via prefix)
         self.continent_list: QListWidget
@@ -142,6 +143,8 @@ class DetectionsManagerDialog(DetectionsManagerTabsMixin, QDialog):
         if Settings.is_gta5_feature_set():
             self._tab_title_keys.append('GTA5 Relays')
             self._tabs.addTab(self.create_gta5_relays_tab(), QIcon(str(ICONS_DIR_PATH / 'route.svg')), tr('GTA5 Relays'))
+        if win_state is not None and win_state.active_tab_key is not None:
+            self.select_tab(win_state.active_tab_key)
         layout.addWidget(self._tabs)
 
         # Bottom buttons
@@ -913,10 +916,15 @@ class DetectionsManagerDialog(DetectionsManagerTabsMixin, QDialog):
 
     @override
     def closeEvent(self, event: QCloseEvent) -> None:
-        """Persist window geometry when closing the detections manager."""
+        """Persist window geometry and active tab when closing the detections manager."""
         super().closeEvent(event)
-        if event.isAccepted():
-            save_window_layout(self, 'detections_manager')
+        if event.isAccepted() and should_save_window_layout(self):
+            gui_state = GUIState.load()
+            if (win_state := save_window_layout(self, 'detections_manager', gui_state=gui_state)) is not None:
+                current_idx = self._tabs.currentIndex()
+                if 0 <= current_idx < len(self._tab_title_keys):
+                    win_state.active_tab_key = self._tab_title_keys[current_idx]
+                gui_state.save()
 
 
 def open_combo_rule_editor_for_player(parent: QWidget, player: Player) -> None:

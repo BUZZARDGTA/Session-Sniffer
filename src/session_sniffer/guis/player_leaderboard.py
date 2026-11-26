@@ -89,6 +89,7 @@ from session_sniffer.guis.window_layout import (
     restore_window_layout,
     save_table_layout,
     save_window_layout_with_always_on_top,
+    should_save_window_layout,
 )
 from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.models import GUIState
@@ -968,7 +969,7 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
     @override
     def closeEvent(self, event: QCloseEvent) -> None:
         """Persist window/table layout, stop live refresh, and cancel in-flight workers before destruction."""
-        if Settings.gui_remember_window_layout:
+        if should_save_window_layout(self):
             gui_state = GUIState.load()
             save_window_layout_with_always_on_top(self, 'player_leaderboard', gui_state=gui_state)
             if (table_state := save_table_layout('player_leaderboard', self._table.column_layout, gui_state=gui_state)) is not None:

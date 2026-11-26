@@ -72,7 +72,7 @@ from session_sniffer.guis.utils import (
     scale_by_ui,
     set_dialog_window_flags,
 )
-from session_sniffer.guis.window_layout import apply_maximize_on_show, restore_window_layout, save_table_layout, save_window_layout
+from session_sniffer.guis.window_layout import apply_maximize_on_show, restore_window_layout, save_table_layout, save_window_layout, should_save_window_layout
 from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.models import GUIState
 from session_sniffer.models.userip_settings_model import (
@@ -420,11 +420,12 @@ class UserIPConflictResolverDialog(QDialog):
     def closeEvent(self, event: QCloseEvent) -> None:
         """Stop auto-refresh and persist window geometry and tree column layouts on close."""
         self._refresh_timer.stop()
-        gui_state = GUIState.load()
-        if save_window_layout(self, 'userip_conflict_resolver', gui_state=gui_state) is not None:
-            save_table_layout('userip_conflicts', self._column_layout, gui_state=gui_state)
-            self._split_groups_tab.save_column_layout(gui_state)
-            gui_state.save()
+        if should_save_window_layout(self):
+            gui_state = GUIState.load()
+            if save_window_layout(self, 'userip_conflict_resolver', gui_state=gui_state) is not None:
+                save_table_layout('userip_conflicts', self._column_layout, gui_state=gui_state)
+                self._split_groups_tab.save_column_layout(gui_state)
+                gui_state.save()
         super().closeEvent(event)
 
     def _retranslate(self) -> None:

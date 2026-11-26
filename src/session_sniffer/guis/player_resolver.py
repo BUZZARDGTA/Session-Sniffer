@@ -15,7 +15,12 @@ from session_sniffer.guis.live_language import register_language_refresh
 from session_sniffer.guis.player_identifier import PlayerIdentifierWidget
 from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.utils import ToggleAlwaysOnTopMixin, scale_by_ui
-from session_sniffer.guis.window_layout import apply_maximize_on_show, restore_window_layout, save_window_layout_with_always_on_top
+from session_sniffer.guis.window_layout import (
+    apply_maximize_on_show,
+    restore_window_layout,
+    save_window_layout_with_always_on_top,
+    should_save_window_layout,
+)
 from session_sniffer.i18n import tr
 from session_sniffer.models import GUIState
 from session_sniffer.settings import Settings
@@ -99,7 +104,7 @@ class PlayerResolverWindow(ToggleAlwaysOnTopMixin):
     @override
     def closeEvent(self, event: QCloseEvent) -> None:
         """Persist window layout when shown and stop monitoring when background running is disabled."""
-        if self._has_been_shown and Settings.gui_remember_window_layout:
+        if self._has_been_shown and should_save_window_layout(self):
             gui_state = GUIState.load()
             if (win_state := save_window_layout_with_always_on_top(self, 'player_resolver', gui_state=gui_state)) is not None:
                 win_state.active_tab = self._tabs.currentIndex()

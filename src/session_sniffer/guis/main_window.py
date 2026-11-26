@@ -38,15 +38,18 @@ from session_sniffer.guis.loading_overlay import LoadingOverlay, run_blocking_wi
 from session_sniffer.guis.ping_window import PingWindow
 from session_sniffer.guis.player_resolver import PlayerResolverWindow
 from session_sniffer.guis.port_scanner_window import PortScannerWindow
+from session_sniffer.guis.session_host_diagnostics_dialog import close_all_session_host_diagnostics_dialogs
 from session_sniffer.guis.settings_dialog import SettingsDialog
 from session_sniffer.guis.tables_player_actions._detection_dialogs import close_all_detection_notification_dialogs
+from session_sniffer.guis.tables_player_actions._player_joins_dialog import close_all_player_joins_windows
 from session_sniffer.guis.tables_player_actions._userip_dialog import close_all_userip_detected_dialogs
 from session_sniffer.guis.tables_player_actions.looky_system._looky_crawler_request_dialog import close_all_crawler_dialogs
 from session_sniffer.guis.tables_player_actions.looky_system._looky_lookup_dialog import close_all_lookup_dialogs
+from session_sniffer.guis.tables_player_actions.looky_system._looky_refresh_userip import close_all_looky_refresh_review_dialogs
 from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qss
 from session_sniffer.guis.userip_conflict_resolver import close_userip_conflict_resolver, open_userip_conflict_resolver
 from session_sniffer.guis.utils import apply_always_on_top, render_svg_pixmap_from_resource, resize_window_for_screen, scale_by_ui, show_or_focus_window
-from session_sniffer.guis.window_layout import apply_maximize_on_show, register_layout_cache_reset, restore_window_layout, save_window_layout, unregister_layout_cache_reset
+from session_sniffer.guis.window_layout import apply_maximize_on_show, restore_window_layout, save_window_layout, should_save_window_layout
 from session_sniffer.guis.worker_thread import GUIWorkerThread
 from session_sniffer.i18n import tr
 from session_sniffer.models import GUIState
@@ -270,8 +273,6 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, ShortcutsMixin, 
 
         self.setWindowTitle(TITLE)
         self.setMinimumSize(scale_by_ui(1024), scale_by_ui(600))
-        self._skip_layout_save_on_close = False
-        register_layout_cache_reset(self._on_saved_layouts_reset)
         initial_gui_state = GUIState.load() if Settings.gui_remember_window_layout else None
         restore_window_layout(self, 'main_window', fallback_resize=lambda: resize_window_for_screen(self, screen_size), gui_state=initial_gui_state)
         if initial_gui_state is not None and initial_gui_state.main_window.tables_merged is not None:
@@ -512,20 +513,14 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, ShortcutsMixin, 
             running_qthreads,
         )
 
-    def _on_saved_layouts_reset(self) -> None:
-        """Skip persisting stale main window layout on exit after the user explicitly resets all saved layouts."""
-        if isValid(self):
-            self._skip_layout_save_on_close = True
-
     @override
     def closeEvent(self, a0: QCloseEvent | None) -> None:
         """Handle the main window close event and terminate background work."""
-        unregister_layout_cache_reset(self._on_saved_layouts_reset)
         self._thread_health_timer.stop()
         self._unregister_global_hotkeys()
         self._stats_timer.stop()
         self._config_watcher.stop()
-        if Settings.gui_remember_window_layout and not self._skip_layout_save_on_close:
+        if should_save_window_layout(self):
             gui_state = GUIState.load()
             win_state = save_window_layout(self, 'main_window', gui_state=gui_state)
             selected_session = SessionFilterState.get_selected_session()
@@ -551,6 +546,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, ShortcutsMixin, 
         GUIRenderingState.wake()
         wake_all_player_cores()
         logger.debug('MainWindow closeEvent: closing child windows')
+        self._player_resolver_window.high_rate_monitor.close_all_graph_windows()
         self._player_resolver_window.close()
         for child_window in (
             self._settings_dialog_window, self._userip_manager_window, self._logs_manager_window,
@@ -562,14 +558,13 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, ShortcutsMixin, 
             if child_window is not None and isValid(child_window):
                 child_window.close()
 
-        PingWindow.close_window()
-        PortScannerWindow.close_window()
-        close_userip_conflict_resolver()
-
-        close_all_crawler_dialogs()
-        close_all_lookup_dialogs()
-        close_all_userip_detected_dialogs()
-        close_all_detection_notification_dialogs()
+        for close_fn in (
+            PingWindow.close_window, PortScannerWindow.close_window, close_userip_conflict_resolver,
+            close_all_player_joins_windows, close_all_session_host_diagnostics_dialogs,
+            close_all_looky_refresh_review_dialogs, close_all_crawler_dialogs, close_all_lookup_dialogs,
+            close_all_userip_detected_dialogs, close_all_detection_notification_dialogs,
+        ):
+            close_fn()
         if self.capture.is_running():
             logger.debug('MainWindow closeEvent: stopping packet capture')
             self.capture.stop()
@@ -764,8 +759,13 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, ShortcutsMixin, 
             created = True
             window = SettingsDialog(None, self.capture.get(), self._on_change_interface)
             window.rejected.connect(self._sync_shortcuts)
+
+            def _reset_merge_override_if_changed(dlg: SettingsDialog = window) -> None:
+                if 'gui_disconnected_players_enabled' in dlg.changed_settings:
+                    TableMergeState.reset_override()
+
             for callback in (
-                TableMergeState.reset_override,
+                _reset_merge_override_if_changed,
                 self._apply_always_on_top,
                 self._refresh_game_feature_set_ui,
                 self._update_splitter_visibility,

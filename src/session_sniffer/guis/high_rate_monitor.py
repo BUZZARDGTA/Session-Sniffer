@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from shiboken6 import isValid
 
 from session_sniffer.background.voice_notifications import play_spike_sound
 from session_sniffer.guis._high_rate_monitor_core import (
@@ -691,6 +692,13 @@ class HighRateMonitorWidget(QWidget):
     def has_open_graphs(self) -> bool:
         """Return whether any live Player Rate Graph windows are currently open."""
         return bool(self._graph_windows)
+
+    def close_all_graph_windows(self) -> None:
+        """Close all open per-player rate graph windows so their layouts persist cleanly on exit."""
+        for graph in list(self._graph_windows.values()):
+            if isValid(graph):
+                graph.close()
+        self._graph_windows.clear()
 
     def open_graph(self, ip: str, *, focus: bool = True) -> None:
         """Open (and optionally focus) a live rate graph window for the given player IP."""

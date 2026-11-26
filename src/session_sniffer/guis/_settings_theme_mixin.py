@@ -71,7 +71,7 @@ from session_sniffer.guis.theming import (
     themed_text_qcolor,
 )
 from session_sniffer.guis.utils import animate_button_feedback, get_ui_scale, render_svg_icon_from_resource, scale_by_ui
-from session_sniffer.guis.window_layout import apply_maximize_on_show, reset_all_saved_layouts, save_window_layout
+from session_sniffer.guis.window_layout import apply_maximize_on_show, reset_all_saved_layouts, save_window_layout, should_save_window_layout
 from session_sniffer.i18n import (
     SUPPORTED_LANGUAGES,
     detect_system_language,
@@ -80,6 +80,7 @@ from session_sniffer.i18n import (
     resolve_effective_language,
     tr,
 )
+from session_sniffer.models import GUIState
 from session_sniffer.settings import SETTING_METADATA
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import format_triple_quoted_text
@@ -87,6 +88,8 @@ from session_sniffer.utils_exceptions import InvalidFileError
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
+
+    from PySide6.QtWidgets import QTabWidget
 
     from session_sniffer.guis._settings_runtime import SettingValue
     from session_sniffer.models.themes import ThemesFile
@@ -131,6 +134,7 @@ class SettingsDialogThemeMixin(UnsavedChangesMixin, QDialog):
 
     _widgets: dict[str, QWidget]
     _labels: dict[str, QLabel]
+    _tabs: QTabWidget
     _old_values: dict[str, SettingValue]
     _initial_values: dict[str, SettingValue]
     _loading_settings: bool
@@ -201,7 +205,12 @@ class SettingsDialogThemeMixin(UnsavedChangesMixin, QDialog):
     def _save_dialog_layout_once(self) -> None:
         if not self._layout_saved:
             self._layout_saved = True
-            save_window_layout(self, 'settings_dialog')
+            if should_save_window_layout(self):
+                gui_state = GUIState.load()
+                if (win_state := save_window_layout(self, 'settings_dialog', gui_state=gui_state)) is not None:
+                    if self._tabs.currentIndex() >= 0 and isinstance(category := self._tabs.currentWidget().property('category'), str) and category:
+                        win_state.active_tab_key = category
+                    gui_state.save()
 
     @override
     def showEvent(self, event: QShowEvent) -> None:
@@ -347,7 +356,6 @@ class SettingsDialogThemeMixin(UnsavedChangesMixin, QDialog):
         if not reset_all_saved_layouts():
             QMessageBox.warning(self, TITLE, tr('Failed to delete the saved layout file.'))
             return
-        self._layout_saved = True
         if self._reset_layout_button is not None:
             animate_button_feedback(
                 self._reset_layout_button,

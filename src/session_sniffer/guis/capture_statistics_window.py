@@ -31,6 +31,8 @@ from session_sniffer.settings import Settings
 if TYPE_CHECKING:
     from PySide6.QtCore import SignalInstance
 
+    from session_sniffer.models.gui_state import WindowLayoutState
+
 _FLOOR_MS = 1.0
 _FLOOR_PPS = 10
 _FLOOR_KBS = 1.0
@@ -605,6 +607,17 @@ class CaptureStatisticsWindow(PersistentRateGraphWindowMixin):
             self._label_avg.setText(placeholder)
             self._label_min.setText(placeholder)
             self._label_max.setText(placeholder)
+
+    @override
+    def _restore_extra_rate_graph_state(self, win_state: WindowLayoutState) -> None:
+        """Restore the persisted All time latency toggle state."""
+        if win_state.latency_all_time is not None:
+            self._checkbox_all_time.setChecked(win_state.latency_all_time)
+
+    @override
+    def _save_extra_rate_graph_state(self, win_state: WindowLayoutState) -> None:
+        """Persist the All time latency toggle state."""
+        win_state.latency_all_time = self._checkbox_all_time.isChecked()
 
     def _on_all_time_toggled(self) -> None:
         self._latency_group.setTitle(tr('Latency (all time)') if self._checkbox_all_time.isChecked() else tr('Latency (60s)'))

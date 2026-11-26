@@ -60,6 +60,7 @@ from session_sniffer.guis.window_layout import (
     restore_window_layout,
     save_table_layout,
     save_window_layout,
+    should_save_window_layout,
 )
 from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.models import GUIState
@@ -747,6 +748,18 @@ class PortScannerTabWidget(QWidget):
         """Apply smart column resizing to the results table."""
         self._column_resizer.setup_column_resizing()
 
+    def get_column_layout(self) -> tuple[dict[str, int] | None, list[str] | None]:
+        """Return this tab's current persisted column widths and visual column order."""
+        return self._column_resizer.get_persisted_widths(), self._column_resizer.get_persisted_order()
+
+    def apply_column_layout(self, widths: dict[str, int] | None, order: list[str] | None) -> None:
+        """Apply *widths* and *order* onto this tab's results table."""
+        if order is not None and order:
+            self._column_resizer.apply_column_order(order)
+        if widths is not None and widths:
+            self._column_resizer.apply_column_widths(widths)
+        self._setup_column_resizing()
+
     def save_column_layout(self, gui_state: GUIState) -> None:
         """Persist this tab's table column widths and order into *gui_state*."""
         save_table_layout('port_scanner', self._column_resizer, gui_state=gui_state)
@@ -915,7 +928,12 @@ class PortScannerWindow(QWidget):
                 self._tab_widget.setCurrentIndex(i)
                 return
 
+        source_tab = self._tab_widget.currentWidget()
+        source_layout = source_tab.get_column_layout() if isinstance(source_tab, PortScannerTabWidget) else None
+
         tab_page = PortScannerTabWidget(normalized_target or None, tab_widget=self._tab_widget, parent=self._tab_widget)
+        if source_layout is not None:
+            tab_page.apply_column_layout(*source_layout)
         new_index = self._tab_widget.addTab(tab_page, tab_page.target)
         self._tab_widget.setCurrentIndex(new_index)
 
@@ -935,12 +953,13 @@ class PortScannerWindow(QWidget):
 
     def _close_tab(self, index: int) -> None:
         """Stop scan on a tab and close it."""
+        if self._tab_widget.count() <= 1:
+            self.close()
+            return
         target_tab = self._tab_widget.widget(index)
         if isinstance(target_tab, PortScannerTabWidget):
             target_tab.stop_scan()
         self._tab_widget.removeTab(index)
-        if not self._tab_widget.count():
-            self.close()
 
     def _prompt_add_target(self) -> None:
         """Prompt user for a new IP address or hostname to scan."""
@@ -959,17 +978,18 @@ class PortScannerWindow(QWidget):
     @override
     def closeEvent(self, event: QCloseEvent) -> None:
         """Stop all workers and persist window and table layouts before closing."""
-        gui_state = GUIState.load()
-        if save_window_layout(self, 'port_scanner', gui_state=gui_state) is not None:
-            active_tab = self._tab_widget.currentWidget()
-            if isinstance(active_tab, PortScannerTabWidget):
-                active_tab.save_column_layout(gui_state)
-            else:
-                for idx in range(self._tab_widget.count()):
-                    tab = self._tab_widget.widget(idx)
-                    if isinstance(tab, PortScannerTabWidget):
-                        tab.save_column_layout(gui_state)
-                        break
-            gui_state.save()
+        if should_save_window_layout(self):
+            gui_state = GUIState.load()
+            if save_window_layout(self, 'port_scanner', gui_state=gui_state) is not None:
+                active_tab = self._tab_widget.currentWidget()
+                if isinstance(active_tab, PortScannerTabWidget):
+                    active_tab.save_column_layout(gui_state)
+                else:
+                    for idx in range(self._tab_widget.count()):
+                        tab = self._tab_widget.widget(idx)
+                        if isinstance(tab, PortScannerTabWidget):
+                            tab.save_column_layout(gui_state)
+                            break
+                gui_state.save()
         self.stop_all_tabs()
         super().closeEvent(event)

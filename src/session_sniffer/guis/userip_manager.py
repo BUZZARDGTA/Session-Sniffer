@@ -73,6 +73,8 @@ from session_sniffer.guis.window_layout import (
     restore_splitter_state,
     restore_window_geometry_safely,
     save_table_layout,
+    should_save_window_layout,
+    stamp_window_layout_generation,
 )
 from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.models import GUIState
@@ -215,6 +217,7 @@ class UserIPDatabasesManager(
         elif not Settings.gui_remember_window_layout:
             UserIPDatabasesManager.reset_layout_caches()
 
+        stamp_window_layout_generation(self)
         if not restore_window_geometry_safely(self, UserIPDatabasesManager._cached_geometry, maximized=UserIPDatabasesManager._cached_maximized):
             resize_window_for_screen(self, get_screen_size())
 
@@ -948,7 +951,7 @@ class UserIPDatabasesManager(
 
         self._fs_watcher.stop()
         super().closeEvent(event)
-        if event.isAccepted() and Settings.gui_remember_window_layout:
+        if event.isAccepted() and should_save_window_layout(self):
             gui_state = GUIState.load()
             win_state = gui_state.ensure_window('userip_manager')
             capture_window_geometry(win_state, self)

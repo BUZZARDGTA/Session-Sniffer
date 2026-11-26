@@ -27,6 +27,7 @@ from session_sniffer.guis.utils import (
     format_player_display,
     setup_stat_table,
 )
+from session_sniffer.guis.window_layout import cascade_window_if_overlapping
 from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.models.player_traffic import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
@@ -332,4 +333,13 @@ _active_windows: ActiveDialogRegistry[str, PlayerJoinsWindow] = ActiveDialogRegi
 
 def show_player_joins(parent: QWidget | None, player: Player) -> None:
     """Open or focus the Player Joins window for *player*."""
-    _active_windows.show_or_focus(player.ip, lambda: PlayerJoinsWindow(parent, player))
+    existing_windows = _active_windows.active_dialogs()
+    already_open = _active_windows.get(player.ip) is not None
+    window = _active_windows.show_or_focus(player.ip, lambda: PlayerJoinsWindow(parent, player))
+    if not already_open:
+        cascade_window_if_overlapping(window, existing_windows)
+
+
+def close_all_player_joins_windows() -> None:
+    """Close all active Player Joins windows so their layouts persist cleanly on app exit."""
+    _active_windows.close_all()

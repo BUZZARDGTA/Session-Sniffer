@@ -32,7 +32,13 @@ from session_sniffer.guis.logs_manager._text_tab import TextLogTab
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
 from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.utils import resize_window_for_screen, scale_by_ui, set_dialog_window_flags
-from session_sniffer.guis.window_layout import apply_maximize_on_show, clear_table_layout, restore_window_layout, save_window_layout
+from session_sniffer.guis.window_layout import (
+    apply_maximize_on_show,
+    clear_table_layout,
+    restore_window_layout,
+    save_window_layout,
+    should_save_window_layout,
+)
 from session_sniffer.i18n import tr
 from session_sniffer.models import GUIState
 from session_sniffer.rendering_core.renderer import SESSIONS_LOGGING_PATH
@@ -321,7 +327,7 @@ class LogsManager(QDialog):
         """Stop all background filesystem watchers and persist window, splitter, and CSV table layouts when closed."""
         self._stop_all_watchers()
         super().closeEvent(event)
-        if event.isAccepted() and Settings.gui_remember_window_layout:
+        if event.isAccepted() and should_save_window_layout(self):
             gui_state = GUIState.load()
             win_state = save_window_layout(self, 'logs_manager', gui_state=gui_state)
             if win_state is not None:
