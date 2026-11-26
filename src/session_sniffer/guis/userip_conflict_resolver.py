@@ -2,10 +2,10 @@
 
 import html
 from pathlib import Path
-from typing import TYPE_CHECKING, NamedTuple
+from typing import TYPE_CHECKING, NamedTuple, override
 
 from PySide6.QtCore import QPoint, QSignalBlocker, Qt, QTimer
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QCloseEvent, QIcon, QShowEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QDialog,
@@ -72,7 +72,9 @@ from session_sniffer.guis.utils import (
     scale_by_ui,
     set_dialog_window_flags,
 )
+from session_sniffer.guis.window_layout import apply_maximize_on_show, restore_window_layout, save_table_layout, save_window_layout
 from session_sniffer.i18n import tr, tr_plural
+from session_sniffer.models import GUIState
 from session_sniffer.models.userip_settings_model import (
     UserIPEntryModel,
     get_current_iso_timestamp,
@@ -352,9 +354,10 @@ class UserIPConflictResolverDialog(QDialog):
         self._summary_label.setWordWrap(True)
         layout.addWidget(self._summary_label)
 
-        self._tree, self._edit_selected_usernames, self._edit_selected_note = create_configured_resolver_tree(
+        self._tree, self._column_layout, self._edit_selected_usernames, self._edit_selected_note = create_configured_resolver_tree(
             layout,
             ResolverTreeCallbacks(self._show_context_menu, self._update_buttons, self._on_item_changed, self._edit_selected, self._delete_selected),
+            table_key='userip_conflicts',
         )
 
         buttons_layout = QHBoxLayout()
@@ -402,10 +405,27 @@ class UserIPConflictResolverDialog(QDialog):
         self._refresh_timer.timeout.connect(self._refresh_if_rebuilt)
         self._refresh_timer.start()
 
-        self.resize(scale_by_ui(1120), scale_by_ui(540))
+        restore_window_layout(self, 'userip_conflict_resolver', fallback_resize=lambda: self.resize(scale_by_ui(1120), scale_by_ui(540)))
         self._refresh()
         self.select_most_relevant_tab()
         register_language_refresh(self, self._retranslate)
+
+    @override
+    def showEvent(self, event: QShowEvent) -> None:
+        """Apply deferred maximization when the resolver dialog is shown."""
+        super().showEvent(event)
+        apply_maximize_on_show(self)
+
+    @override
+    def closeEvent(self, event: QCloseEvent) -> None:
+        """Stop auto-refresh and persist window geometry and tree column layouts on close."""
+        self._refresh_timer.stop()
+        gui_state = GUIState.load()
+        if save_window_layout(self, 'userip_conflict_resolver', gui_state=gui_state) is not None:
+            save_table_layout('userip_conflicts', self._column_layout, gui_state=gui_state)
+            self._split_groups_tab.save_column_layout(gui_state)
+            gui_state.save()
+        super().closeEvent(event)
 
     def _retranslate(self) -> None:
         """Refresh dialog title, tab titles, tree headers, buttons, and dynamic summaries on language change."""
@@ -825,6 +845,11 @@ def update_resolve_conflicts_button(button: QPushButton) -> None:
         )
     else:
         button.setToolTip(tr('Open the UserIP Conflict Resolver to review IP/range conflicts or account groups split across databases'))
+
+
+def close_userip_conflict_resolver() -> None:
+    """Close the active UserIP Conflict Resolver dialog if open."""
+    _active_resolver_dialogs.close_all()
 
 
 def open_userip_conflict_resolver(focus_entry: str | None = None, *, focus_split_username: str | None = None) -> None:

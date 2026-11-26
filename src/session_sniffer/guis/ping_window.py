@@ -7,7 +7,7 @@ from threading import Event
 from typing import Final, override
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QCloseEvent, QColor, QIcon, QTextCursor
+from PySide6.QtGui import QCloseEvent, QColor, QIcon, QShowEvent, QTextCursor
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -39,6 +39,7 @@ from session_sniffer.guis.stylesheets import (
 )
 from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qss, themed_text_qcolor
 from session_sniffer.guis.utils import animate_button_feedback, render_svg_icon_from_resource, scale_by_ui
+from session_sniffer.guis.window_layout import apply_maximize_on_show, restore_window_layout, save_window_layout
 from session_sniffer.i18n import tr
 from session_sniffer.networking.ping import (
     IcmpEchoEngine,
@@ -670,7 +671,7 @@ class PingWindow(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.destroyed.connect(lambda: setattr(PingWindow, '_instance', None) if PingWindow._instance is self else None)
         self.setWindowIcon(QIcon(str(ICONS_DIR_PATH / 'radio-tower.svg')))
-        self.resize(scale_by_ui(860), scale_by_ui(560))
+        restore_window_layout(self, 'ping_window', fallback_resize=lambda: self.resize(scale_by_ui(860), scale_by_ui(560)))
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(10, 10, 10, 10)
@@ -821,7 +822,14 @@ class PingWindow(QWidget):
             self.add_target_tab(target_str, auto_start=should_auto_start)
 
     @override
+    def showEvent(self, event: QShowEvent) -> None:
+        """Apply deferred maximization when the window is shown."""
+        super().showEvent(event)
+        apply_maximize_on_show(self)
+
+    @override
     def closeEvent(self, event: QCloseEvent) -> None:
-        """Stop all workers before closing window."""
+        """Stop all workers and persist window geometry before closing."""
+        save_window_layout(self, 'ping_window')
         self.stop_all_tabs()
         super().closeEvent(event)

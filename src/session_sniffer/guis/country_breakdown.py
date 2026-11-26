@@ -14,6 +14,8 @@ from session_sniffer.player.registry import PlayersRegistry
 class CountryBreakdownWindow(StatTableWindowMixin):
     """A standalone window showing all players grouped and ranked by country."""
 
+    LAYOUT_KEY = 'country_breakdown'
+
     def __init__(self, *, always_on_top: bool = True) -> None:
         """Initialize the country breakdown window."""
         super().__init__()
@@ -27,8 +29,8 @@ class CountryBreakdownWindow(StatTableWindowMixin):
         set_table_headers(self._table, ['Country', 'Players'])
         setup_stat_table(self._table, layout)
         self.setup_stat_table_controls(layout, always_on_top=always_on_top, min_column_widths=COUNTRY_BREAKDOWN_TABLE_MIN_COLUMN_WIDTHS)
-        self._reset_column_sizes()
-        self._table.sortByColumn(1, Qt.SortOrder.DescendingOrder)
+        self._setup_column_resizing()
+        self._apply_default_or_saved_sort(1, Qt.SortOrder.DescendingOrder)
 
     def _apply_translations(self) -> None:
         """Apply translated text to the window title."""

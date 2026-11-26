@@ -637,88 +637,6 @@ def setup_static_table_column_resizing(
             horizontal_header.resizeSection(column, width)
 
 
-class TableColumnResizeController:
-    """Manages custom column widths, user interactive resizing constraints, and smart layout."""
-
-    def __init__(
-        self,
-        table: QTableView,
-        *,
-        min_column_widths: dict[str, int] | None = None,
-    ) -> None:
-        """Initialize the column resize controller for *table*."""
-        self._table = table
-        self.min_column_widths: dict[str, int] | None = min_column_widths
-        self.custom_widths: dict[str, int] | None = None
-        self.is_programmatic_resizing: bool = False
-
-    def on_section_resized(self, logical_index: int, _old_size: int, new_size: int) -> None:
-        """Track user column resize interactions while respecting minimum column width limits."""
-        if self.is_programmatic_resizing:
-            return
-
-        header = _get_horizontal_header(self._table)
-        if not header:
-            return
-
-        header_model = header.model()
-        column_name = _get_canonical_header_label(header_model, logical_index) if header_model else ''
-        if not column_name:
-            return
-
-        if self.custom_widths is None:
-            self.custom_widths = self.get_column_widths()
-
-        min_width = get_column_min_width(header, logical_index, column_name, self.min_column_widths or {})
-
-        self.is_programmatic_resizing = True
-        try:
-            if new_size < min_width:
-                header.resizeSection(logical_index, min_width)
-                effective_size = min_width
-            else:
-                effective_size = new_size
-            self.custom_widths[column_name] = effective_size
-            adjust_last_visible_column_to_viewport(
-                self._table,
-                resized_column=logical_index,
-                min_column_widths=self.min_column_widths,
-                custom_widths=self.custom_widths,
-            )
-        finally:
-            self.is_programmatic_resizing = False
-
-    def get_column_widths(self) -> dict[str, int]:
-        """Return the current column widths as a dictionary mapping header label to pixel width."""
-        model = self._table.model()
-        header = _get_horizontal_header(self._table)
-        if not model or not header:
-            return {}
-        widths: dict[str, int] = {}
-        for column in range(model.columnCount()):
-            label = _get_canonical_header_label(model, column)
-            if label:
-                widths[label] = header.sectionSize(column)
-        return widths
-
-    def setup_column_resizing(self) -> None:
-        """Apply smart column resizing to the table."""
-        self.is_programmatic_resizing = True
-        try:
-            setup_static_table_column_resizing(
-                self._table,
-                custom_widths=self.custom_widths,
-                min_column_widths=self.min_column_widths,
-            )
-        finally:
-            self.is_programmatic_resizing = False
-
-    def reset_column_sizes(self) -> None:
-        """Reset column widths back to their initial default layout."""
-        self.custom_widths = None
-        self.setup_column_resizing()
-
-
 class TableColumnLayoutController:
     """Tracks custom column widths and visual column order for movable, resizable tables."""
 
@@ -739,6 +657,10 @@ class TableColumnLayoutController:
         self.custom_order: list[str] | None = None
         self._is_programmatic_resizing: bool = False
         self._is_programmatic_reordering: bool = False
+
+    def set_on_after_move(self, callback: Callable[[], None] | None) -> None:
+        """Set or replace the callback invoked after user-driven column reordering."""
+        self._on_after_move = callback
 
     @contextmanager
     def programmatic_resize(self) -> Generator[None]:
@@ -871,6 +793,33 @@ class TableColumnLayoutController:
         self.custom_order = None
         with self.programmatic_reorder():
             reset_header_column_order(self._table)
+
+    def bind_header(self) -> None:
+        """Configure interactive movable header behavior and connect resize/move tracking signals."""
+        horizontal_header = _get_horizontal_header(self._table)
+        if not horizontal_header:
+            return
+        horizontal_header.setStretchLastSection(False)
+        horizontal_header.setSectionsMovable(True)
+        horizontal_header.setMinimumSectionSize(scale_by_ui(DEFAULT_MIN_COLUMN_WIDTH))
+        horizontal_header.sectionResized.connect(self.on_section_resized)
+        horizontal_header.sectionMoved.connect(self.on_section_moved)
+
+    def setup_column_resizing(self) -> None:
+        """Apply smart viewport-aware column sizing to a `QTableView` while honoring custom widths."""
+        if not isinstance(self._table, QTableView):
+            return
+        with self.programmatic_resize():
+            setup_static_table_column_resizing(
+                self._table,
+                custom_widths=self.custom_widths,
+                min_column_widths=self._min_column_widths,
+            )
+
+    def reset_column_sizes(self) -> None:
+        """Clear custom widths and reapply automatic default column sizing."""
+        self.custom_widths = None
+        self.setup_column_resizing()
 
     def size_column_to_fit(self, column_index: int) -> None:
         """Fit *column_index* to its contents and record resulting custom widths."""

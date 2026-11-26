@@ -14,6 +14,8 @@ from session_sniffer.player.registry import PlayersRegistry
 class PortHeatmapWindow(StatTableWindowMixin):
     """A standalone window ranking observed ports by frequency across all players."""
 
+    LAYOUT_KEY = 'port_heatmap'
+
     def __init__(self, *, always_on_top: bool = True) -> None:
         """Initialize the port heatmap window."""
         super().__init__()
@@ -27,8 +29,8 @@ class PortHeatmapWindow(StatTableWindowMixin):
         set_table_headers(self._table, ['Port', 'Count', '% of Total'])
         setup_stat_table(self._table, layout)
         self.setup_stat_table_controls(layout, always_on_top=always_on_top, min_column_widths=PORT_HEATMAP_TABLE_MIN_COLUMN_WIDTHS)
-        self._reset_column_sizes()
-        self._table.sortByColumn(1, Qt.SortOrder.DescendingOrder)
+        self._setup_column_resizing()
+        self._apply_default_or_saved_sort(1, Qt.SortOrder.DescendingOrder)
 
     def _apply_translations(self) -> None:
         """Apply translated text to the window title."""

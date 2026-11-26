@@ -189,6 +189,22 @@ class TableMergeState:
             return not Settings.gui_disconnected_players_enabled
 
     @classmethod
+    def get_override(cls) -> bool | None:
+        """Return the explicit runtime merge override, or `None` when following `Settings`."""
+        with cls._lock:
+            return cls._override
+
+    @classmethod
+    def set_override(cls, *, merged: bool | None) -> None:
+        """Set or clear the runtime merge override and wake the rendering core when changed."""
+        with cls._lock:
+            if cls._override == merged:
+                return
+            cls._override = merged
+            cls._version += 1
+        wake_rendering_core()
+
+    @classmethod
     def toggle(cls) -> None:
         """Toggle table merge state."""
         with cls._lock:

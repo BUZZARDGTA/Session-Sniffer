@@ -8,6 +8,8 @@ from session_sniffer.i18n import tr
 class SessionRateGraphWindow(DualRateGraphBase):
     """A standalone window with separate PPS and BPS graphs for the whole session."""
 
+    LAYOUT_KEY = 'session_rate_graph'
+
     def __init__(self) -> None:
         """Initialize the session-wide split rate graph window."""
         super().__init__()

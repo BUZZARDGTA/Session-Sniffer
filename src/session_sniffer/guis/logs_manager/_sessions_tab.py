@@ -59,6 +59,7 @@ from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DA
 from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.userip_manager_helpers import human_readable_size
 from session_sniffer.guis.utils import SPINNER_FRAMES, open_file_location
+from session_sniffer.guis.window_layout import encode_splitter_state, restore_splitter_state
 from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.rendering_core.renderer import SESSIONS_LOGGING_PATH
 from session_sniffer.settings import Settings
@@ -124,7 +125,7 @@ class SessionsLogTab(QWidget):
         top_bar.addWidget(self._file_info_label)
         layout.addLayout(top_bar)
 
-        splitter = QSplitter(Qt.Orientation.Horizontal)
+        self._splitter = QSplitter(Qt.Orientation.Horizontal)
         self._sessions_dir.mkdir(parents=True, exist_ok=True)
 
         self._tree_container = QWidget()
@@ -157,14 +158,14 @@ class SessionsLogTab(QWidget):
         self._tree.setMinimumWidth(200)
 
         tree_container_layout.addWidget(self._tree)
-        splitter.addWidget(self._tree_container)
+        self._splitter.addWidget(self._tree_container)
 
         self._viewer = create_log_viewer()
         self._viewer.setPlaceholderText(tr(_SINGLE_FILE_VIEWER_PLACEHOLDER))
-        splitter.addWidget(self._viewer)
-        splitter.setStretchFactor(0, 1)
-        splitter.setStretchFactor(1, 3)
-        layout.addWidget(splitter, stretch=1)
+        self._splitter.addWidget(self._viewer)
+        self._splitter.setStretchFactor(0, 1)
+        self._splitter.setStretchFactor(1, 3)
+        layout.addWidget(self._splitter, stretch=1)
 
         self._search_spinner_timer = QTimer(self)
         self._search_spinner_timer.setInterval(80)
@@ -948,6 +949,14 @@ class SessionsLogTab(QWidget):
                 open_file_location(self._selected_path)
         elif self._sessions_dir.exists():
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(self._sessions_dir)))
+
+    def get_splitter_state(self) -> str:
+        """Return the serialized horizontal splitter state as an ASCII hex string."""
+        return encode_splitter_state(self._splitter)
+
+    def restore_splitter_state(self, splitter_hex: str | None) -> bool:
+        """Restore the horizontal splitter state from *splitter_hex*."""
+        return restore_splitter_state(self._splitter, splitter_hex)
 
     def _open_file(self) -> None:
         if not self._multi_selected and self._selected_path and self._selected_path.is_file():

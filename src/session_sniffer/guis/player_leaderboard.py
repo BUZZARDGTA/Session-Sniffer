@@ -4,24 +4,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import override
 
-from PySide6.QtCore import (
-    QItemSelectionModel,
-    QModelIndex,
-    QPoint,
-    Qt,
-    QTimer,
-)
-from PySide6.QtGui import (
-    QAction,
-    QCloseEvent,
-    QFocusEvent,
-    QIcon,
-    QKeyEvent,
-    QKeySequence,
-    QResizeEvent,
-    QShortcut,
-    QShowEvent,
-)
+from PySide6.QtCore import QItemSelectionModel, QModelIndex, QPoint, Qt, QTimer
+from PySide6.QtGui import QAction, QCloseEvent, QFocusEvent, QIcon, QKeyEvent, QKeySequence, QResizeEvent, QShortcut, QShowEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -75,7 +59,7 @@ from session_sniffer.guis.delegates import ElidedTextTooltipDelegate, SearchHigh
 from session_sniffer.guis.file_watch import DebouncedFileWatcher
 from session_sniffer.guis.live_language import register_language_refresh, set_i18n_colon_label, set_table_headers
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
-from session_sniffer.guis.table_column_resizing import setup_static_table_column_resizing, setup_table_header_context_menu
+from session_sniffer.guis.table_column_resizing import TableColumnLayoutController, setup_table_header_context_menu
 from session_sniffer.guis.table_context_menu import add_copy_usernames_and_ips_actions
 from session_sniffer.guis.tables_player_actions import (
     create_ping_menu,
@@ -86,7 +70,6 @@ from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.utils import (
     ToggleAlwaysOnTopMixin,
     apply_search_icon,
-    consume_maximize_on_show,
     copy_table_all_rows,
     copy_table_cells,
     format_player_display,
@@ -97,10 +80,22 @@ from session_sniffer.guis.utils import (
     set_clipboard_text,
     setup_table_view_headers,
 )
+from session_sniffer.guis.window_layout import (
+    apply_maximize_on_show,
+    apply_table_sort_state,
+    capture_table_sort_state,
+    make_table_reset_callbacks,
+    restore_table_layout,
+    restore_window_layout,
+    save_table_layout,
+    save_window_layout_with_always_on_top,
+)
 from session_sniffer.i18n import tr, tr_plural
+from session_sniffer.models import GUIState
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.seen_stats import LeaderboardBaseline, LeaderboardEntry, overlay_live_session
 from session_sniffer.rendering_core.renderer import SESSIONS_LOGGING_PATH
+from session_sniffer.settings import Settings
 
 # How often the displayed leaderboard is re-derived from the live session snapshot while visible.
 _LIVE_REFRESH_INTERVAL_MS = 1000
@@ -207,6 +202,11 @@ class _LeaderboardTableView(QTableView):
         super().__init__(parent)
         self.setVerticalScrollMode(QTableView.ScrollMode.ScrollPerPixel)
         self.setHorizontalScrollMode(QTableView.ScrollMode.ScrollPerPixel)
+        self.column_layout = TableColumnLayoutController(
+            self,
+            min_column_widths=PLAYER_LEADERBOARD_TABLE_MIN_COLUMN_WIDTHS,
+            on_after_move=self.setup_static_column_resizing,
+        )
 
     @override
     def focusInEvent(self, event: QFocusEvent) -> None:
@@ -240,8 +240,8 @@ class _LeaderboardTableView(QTableView):
         self.setup_static_column_resizing()
 
     def setup_static_column_resizing(self) -> None:
-        """Set up initial column resizing for the table."""
-        setup_static_table_column_resizing(self, min_column_widths=PLAYER_LEADERBOARD_TABLE_MIN_COLUMN_WIDTHS)
+        """Set up smart column resizing while honoring custom user widths."""
+        self.column_layout.setup_column_resizing()
 
 
 class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
@@ -252,13 +252,20 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         super().__init__(parent)
 
         self._is_loading = False
-        flags = Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowMinimizeButtonHint | Qt.WindowType.WindowMaximizeButtonHint
-        if always_on_top:
-            flags |= Qt.WindowType.WindowStaysOnTopHint
-        self.setWindowFlags(flags)
+        initial_gui_state = GUIState.load() if Settings.gui_remember_window_layout else None
         self.setMinimumSize(scale_by_ui(980), scale_by_ui(480))
         screen_size = get_screen_size()
-        resize_window_for_screen(self, screen_size)
+        win_state = restore_window_layout(
+            self,
+            'player_leaderboard',
+            fallback_resize=lambda: resize_window_for_screen(self, screen_size),
+            gui_state=initial_gui_state,
+        )
+        effective_always_on_top = win_state.always_on_top if win_state is not None and win_state.always_on_top is not None else always_on_top
+        flags = Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowMinimizeButtonHint | Qt.WindowType.WindowMaximizeButtonHint
+        if effective_always_on_top:
+            flags |= Qt.WindowType.WindowStaysOnTopHint
+        self.setWindowFlags(flags)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
 
         layout = QVBoxLayout(self)
@@ -353,7 +360,7 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         filters_layout.addWidget(self._relative_dates_checkbox)
 
         self._always_on_top_checkbox = QCheckBox()
-        self._always_on_top_checkbox.setChecked(always_on_top)
+        self._always_on_top_checkbox.setChecked(effective_always_on_top)
         self._always_on_top_checkbox.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._always_on_top_checkbox.toggled.connect(self.toggle_always_on_top)
         filters_layout.addWidget(self._always_on_top_checkbox)
@@ -398,11 +405,11 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
                 self._get_active_search_column,
             ),
         )
-        header.setStretchLastSection(False)
         for column in range(len(HEADERS)):
             header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
-
-        setup_table_header_context_menu(self._table, on_reset=self._table.setup_static_column_resizing)
+        self._table.column_layout.bind_header()
+        setup_table_header_context_menu(self._table, callbacks=make_table_reset_callbacks('player_leaderboard', self._table.column_layout))
+        saved_table_state = restore_table_layout('player_leaderboard', self._table.column_layout, gui_state=initial_gui_state)
 
         self._stacked_widget = QStackedWidget(self)
         self._loading_widget = LeaderboardLoadingWidget(self)
@@ -412,9 +419,9 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
 
         layout.addWidget(self._stacked_widget)
 
-        # Sort by the Days/Sessions column descending by default. Sorting through the view (not the proxy
-        # directly) sets the header's sort indicator, so the order survives model resets on data reload.
-        self._table.sortByColumn(COLUMN_SESSIONS, Qt.SortOrder.DescendingOrder)
+        # Sort by saved column/order or default to the Days/Sessions column descending.
+        if not apply_table_sort_state(self._table, saved_table_state):
+            self._table.sortByColumn(COLUMN_SESSIONS, Qt.SortOrder.DescendingOrder)
 
         # Data is loaded on a background thread by `load_and_show` before the window is revealed
         self._baseline: LeaderboardBaseline | None = None
@@ -955,23 +962,29 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
     def showEvent(self, a0: QShowEvent) -> None:
         """Handle the window show event and maximize if required."""
         super().showEvent(a0)
-        if consume_maximize_on_show(self):
-            self.showMaximized()
+        apply_maximize_on_show(self)
         self._request_scan()
 
     @override
     def closeEvent(self, event: QCloseEvent) -> None:
-        """Stop live refresh and wait for any in-flight workers before the window is destroyed."""
+        """Persist window/table layout, stop live refresh, and cancel in-flight workers before destruction."""
+        if Settings.gui_remember_window_layout:
+            gui_state = GUIState.load()
+            save_window_layout_with_always_on_top(self, 'player_leaderboard', gui_state=gui_state)
+            if (table_state := save_table_layout('player_leaderboard', self._table.column_layout, gui_state=gui_state)) is not None:
+                capture_table_sort_state(table_state, self._table)
+                if table_state.column_widths is not None and 'Sessions' in table_state.column_widths:
+                    table_state.column_widths['Days'] = table_state.column_widths.pop('Sessions')
+                if table_state.column_order is not None:
+                    table_state.column_order = ['Days' if name == 'Sessions' else name for name in table_state.column_order]
+                if table_state.sort_column == 'Sessions':
+                    table_state.sort_column = 'Days'
+            gui_state.save()
         self._scan_cooldown.stop()
         self._live_timer.stop()
         self._sessions_watcher.stop()
-        if self._scan_worker is not None and self._scan_worker.isRunning():
-            self._scan_worker.cancel()
-        self._scan_worker = None
-        if self._baseline_worker is not None and self._baseline_worker.isRunning():
-            self._baseline_worker.cancel()
-        self._baseline_worker = None
-        if self._overlay_worker is not None and self._overlay_worker.isRunning():
-            self._overlay_worker.cancel()
-        self._overlay_worker = None
+        for worker in (self._scan_worker, self._baseline_worker, self._overlay_worker):
+            if worker is not None and worker.isRunning():
+                worker.cancel()
+        self._scan_worker = self._baseline_worker = self._overlay_worker = None
         super().closeEvent(event)

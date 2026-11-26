@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Final, cast, override
 
 from PySide6.QtCore import QSignalBlocker, Qt, QTimer, Signal
-from PySide6.QtGui import QAction, QCloseEvent, QColor, QIcon
+from PySide6.QtGui import QAction, QCloseEvent, QColor, QIcon, QShowEvent
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -70,7 +70,8 @@ from session_sniffer.guis.theming import (
     themed_qss,
     themed_text_qcolor,
 )
-from session_sniffer.guis.utils import get_ui_scale, render_svg_icon_from_resource, scale_by_ui
+from session_sniffer.guis.utils import animate_button_feedback, get_ui_scale, render_svg_icon_from_resource, scale_by_ui
+from session_sniffer.guis.window_layout import apply_maximize_on_show, reset_all_saved_layouts, save_window_layout
 from session_sniffer.i18n import (
     SUPPORTED_LANGUAGES,
     detect_system_language,
@@ -154,6 +155,8 @@ class SettingsDialogThemeMixin(UnsavedChangesMixin, QDialog):
         self._theme_prep_worker: _ThemePrepWorker | None = None
         self._theme_loading_overlay: LoadingOverlay | None = None
         self._pending_live_theme: Theme | None = None
+        self._layout_saved = False
+        self._reset_layout_button: QPushButton | None = None
 
     def _set_enum(self, widget: QWidget, value: SettingValue) -> None:
         raise NotImplementedError
@@ -195,9 +198,21 @@ class SettingsDialogThemeMixin(UnsavedChangesMixin, QDialog):
         else:
             apply_runtime_theme(persisted_theme)
 
+    def _save_dialog_layout_once(self) -> None:
+        if not self._layout_saved:
+            self._layout_saved = True
+            save_window_layout(self, 'settings_dialog')
+
+    @override
+    def showEvent(self, event: QShowEvent) -> None:
+        """Apply deferred maximization when the settings dialog is shown."""
+        super().showEvent(event)
+        apply_maximize_on_show(self)
+
     @override
     def done(self, result: int) -> None:
-        """Revert any unsaved live-previewed language and theme when the dialog is rejected."""
+        """Revert any unsaved live-previewed language and theme when rejected, and persist window geometry."""
+        self._save_dialog_layout_once()
         if result == QDialog.DialogCode.Rejected and not gui_closed__event.is_set():
             self._revert_live_language_to_persisted()
             self._revert_live_theme_to_persisted()
@@ -207,11 +222,13 @@ class SettingsDialogThemeMixin(UnsavedChangesMixin, QDialog):
 
     @override
     def closeEvent(self, event: QCloseEvent) -> None:
-        """Revert any unsaved live-previewed language and theme if the user discards changes on close."""
+        """Revert any unsaved live-previewed language and theme on discard and persist window geometry."""
         super().closeEvent(event)
-        if event.isAccepted() and not self._saved and not gui_closed__event.is_set():
-            self._revert_live_language_to_persisted()
-            self._revert_live_theme_to_persisted()
+        if event.isAccepted():
+            self._save_dialog_layout_once()
+            if not self._saved and not gui_closed__event.is_set():
+                self._revert_live_language_to_persisted()
+                self._revert_live_theme_to_persisted()
 
     def _update_restart_notice(self, *_args: object) -> None:
         """Update visibility of the packet capture restart notice banner."""
@@ -284,6 +301,59 @@ class SettingsDialogThemeMixin(UnsavedChangesMixin, QDialog):
         theme_row_layout.addWidget(manager_button)
 
         form.addRow(label, theme_row)
+
+    def _build_window_layout_row(self, form: QFormLayout, label: QLabel, widget: QWidget) -> None:
+        """Append the `Remember Window & Tables Layout` checkbox paired with a `Reset Saved Layout…` button."""
+        layout_row = QWidget()
+        row_layout = QHBoxLayout(layout_row)
+        row_layout.setContentsMargins(0, 0, 0, 0)
+        row_layout.setSpacing(12)
+        row_layout.addWidget(widget)
+        row_layout.addStretch()
+
+        reset_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'rotate-ccw.svg')), f" {tr('Reset Saved Layout…')}")
+        reset_button.setToolTip(tr('Delete all saved window positions, sizes, splitters, and table column layouts (restores default layout).'))
+        reset_button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
+        reset_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        reset_button.setAutoDefault(False)
+        reset_button.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        reset_button.clicked.connect(self._reset_saved_layout)
+        self._reset_layout_button = reset_button
+        row_layout.addWidget(reset_button)
+
+        form.addRow(label, layout_row)
+
+    def _refresh_reset_layout_button_language(self) -> None:
+        """Refresh the `Reset Saved Layout…` button label and tooltip on live language changes."""
+        if self._reset_layout_button is not None:
+            self._reset_layout_button.setText(f" {tr('Reset Saved Layout…')}")
+            self._reset_layout_button.setToolTip(
+                tr('Delete all saved window positions, sizes, splitters, and table column layouts (restores default layout).'),
+            )
+
+    def _reset_saved_layout(self) -> None:
+        """Confirm and clear all persisted window, splitter, and table layout state."""
+        reply = QMessageBox.question(
+            self,
+            TITLE,
+            tr(
+                'Reset all saved window positions, sizes, splitters, column layouts, and view states back to defaults?\n\n'
+                'Already open windows will use the default layout the next time they are opened.',
+            ),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        if not reset_all_saved_layouts():
+            QMessageBox.warning(self, TITLE, tr('Failed to delete the saved layout file.'))
+            return
+        self._layout_saved = True
+        if self._reset_layout_button is not None:
+            animate_button_feedback(
+                self._reset_layout_button,
+                feedback_text=f" {tr('Layout Reset!')}",
+                feedback_tooltip=tr('Saved window and table layouts have been cleared.'),
+            )
 
     def _populate_themes_tab(self, outer_layout: QVBoxLayout) -> None:
         """Append built-in and custom theme preview galleries to the `Themes` settings tab."""

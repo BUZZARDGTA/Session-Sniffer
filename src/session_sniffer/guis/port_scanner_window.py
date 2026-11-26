@@ -32,10 +32,7 @@ from PySide6.QtWidgets import (
 )
 
 from session_sniffer.constants.standalone import TITLE
-from session_sniffer.constants.tables import (
-    DEFAULT_MIN_COLUMN_WIDTH,
-    PORT_SCANNER_TABLE_MIN_COLUMN_WIDTHS,
-)
+from session_sniffer.constants.tables import PORT_SCANNER_TABLE_MIN_COLUMN_WIDTHS
 from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis._crashing_qthread import CrashingQThread
 from session_sniffer.guis.app import activate_window
@@ -48,7 +45,7 @@ from session_sniffer.guis.stylesheets import (
     DIALOG_PRIMARY_BUTTON_STYLESHEET,
     SVG_ICON_CONTEXT_MENU_STYLESHEET,
 )
-from session_sniffer.guis.table_column_resizing import TableColumnResizeController, setup_table_header_context_menu
+from session_sniffer.guis.table_column_resizing import TableColumnLayoutController, setup_table_header_context_menu
 from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qss, themed_text_qcolor
 from session_sniffer.guis.utils import (
     animate_button_feedback,
@@ -56,7 +53,16 @@ from session_sniffer.guis.utils import (
     scale_by_ui,
     set_clipboard_text,
 )
+from session_sniffer.guis.window_layout import (
+    apply_maximize_on_show,
+    make_table_reset_callbacks,
+    restore_table_layout,
+    restore_window_layout,
+    save_table_layout,
+    save_window_layout,
+)
 from session_sniffer.i18n import tr, tr_plural
+from session_sniffer.models import GUIState
 from session_sniffer.networking.ping import PingMode, resolve_ipv4_host
 from session_sniffer.networking.port_scanner import (
     DEFAULT_SCAN_THREADS,
@@ -223,13 +229,15 @@ class PortScannerTabWidget(QWidget):
         self._results_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._results_table.customContextMenuRequested.connect(self._show_table_context_menu)
 
-        self._column_resizer: TableColumnResizeController = TableColumnResizeController(self._results_table, min_column_widths=PORT_SCANNER_TABLE_MIN_COLUMN_WIDTHS)
-        header = self._results_table.horizontalHeader()
-        header.setStretchLastSection(False)
-        header.setMinimumSectionSize(scale_by_ui(DEFAULT_MIN_COLUMN_WIDTH))
-        header.sectionResized.connect(self._column_resizer.on_section_resized)
-        setup_table_header_context_menu(self._results_table, on_reset=self._reset_column_sizes)
-        self._reset_column_sizes()
+        self._column_resizer: TableColumnLayoutController = TableColumnLayoutController(
+            self._results_table,
+            min_column_widths=PORT_SCANNER_TABLE_MIN_COLUMN_WIDTHS,
+            on_after_move=self._setup_column_resizing,
+        )
+        self._column_resizer.bind_header()
+        setup_table_header_context_menu(self._results_table, callbacks=make_table_reset_callbacks('port_scanner', self._column_resizer))
+        restore_table_layout('port_scanner', self._column_resizer)
+        self._setup_column_resizing()
 
         table_font = get_monospace_font(9)
         self._results_table.setFont(table_font)
@@ -739,9 +747,9 @@ class PortScannerTabWidget(QWidget):
         """Apply smart column resizing to the results table."""
         self._column_resizer.setup_column_resizing()
 
-    def _reset_column_sizes(self) -> None:
-        """Reset column widths back to their initial default layout."""
-        self._column_resizer.reset_column_sizes()
+    def save_column_layout(self, gui_state: GUIState) -> None:
+        """Persist this tab's table column widths and order into *gui_state*."""
+        save_table_layout('port_scanner', self._column_resizer, gui_state=gui_state)
 
     def _show_table_context_menu(self, position: QPoint) -> None:
         """Display right-click context menu on table items."""
@@ -809,7 +817,7 @@ class PortScannerWindow(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.destroyed.connect(lambda: setattr(PortScannerWindow, '_instance', None) if PortScannerWindow._instance is self else None)
         self.setWindowIcon(QIcon(str(ICONS_DIR_PATH / 'radar.svg')))
-        self.resize(scale_by_ui(920), scale_by_ui(640))
+        restore_window_layout(self, 'port_scanner', fallback_resize=lambda: self.resize(scale_by_ui(920), scale_by_ui(640)))
 
         window_layout = QVBoxLayout(self)
         window_layout.setContentsMargins(10, 10, 10, 10)
@@ -943,7 +951,25 @@ class PortScannerWindow(QWidget):
             self.add_target_tab(new_target.strip())
 
     @override
+    def showEvent(self, event: QShowEvent) -> None:
+        """Apply deferred maximization when the window is shown."""
+        super().showEvent(event)
+        apply_maximize_on_show(self)
+
+    @override
     def closeEvent(self, event: QCloseEvent) -> None:
-        """Stop all workers before closing window."""
+        """Stop all workers and persist window and table layouts before closing."""
+        gui_state = GUIState.load()
+        if save_window_layout(self, 'port_scanner', gui_state=gui_state) is not None:
+            active_tab = self._tab_widget.currentWidget()
+            if isinstance(active_tab, PortScannerTabWidget):
+                active_tab.save_column_layout(gui_state)
+            else:
+                for idx in range(self._tab_widget.count()):
+                    tab = self._tab_widget.widget(idx)
+                    if isinstance(tab, PortScannerTabWidget):
+                        tab.save_column_layout(gui_state)
+                        break
+            gui_state.save()
         self.stop_all_tabs()
         super().closeEvent(event)

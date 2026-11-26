@@ -34,7 +34,7 @@ from shiboken6 import isValid
 from session_sniffer.capture.interface_setup import refresh_available_interfaces
 from session_sniffer.capture.utils.arp_refresh import refresh_arp_table
 from session_sniffer.constants.standalone import TITLE
-from session_sniffer.constants.tables import DEFAULT_MIN_COLUMN_WIDTH, INTERFACE_SELECTION_TABLE_MIN_COLUMN_WIDTHS
+from session_sniffer.constants.tables import INTERFACE_SELECTION_TABLE_MIN_COLUMN_WIDTHS
 from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis.delegates import ElidedTextTooltipDelegate
 from session_sniffer.guis.hotspot_manager import HotspotManagerWidget
@@ -54,18 +54,24 @@ from session_sniffer.guis.stylesheets import (
     interface_tab_container_stylesheet,
     interface_table_stylesheet,
 )
-from session_sniffer.guis.table_column_resizing import TableColumnResizeController, setup_table_header_context_menu
+from session_sniffer.guis.table_column_resizing import TableColumnLayoutController, setup_table_header_context_menu
 from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qss, themed_text_qcolor
 from session_sniffer.guis.utils import (
     compute_ui_scale,
-    consume_maximize_on_show,
     make_padded_icon,
     render_svg_icon_from_resource,
     render_svg_pixmap_from_resource,
     resize_window_for_screen,
-    scale_by_ui,
+)
+from session_sniffer.guis.window_layout import (
+    apply_maximize_on_show,
+    make_table_reset_callbacks,
+    restore_table_layout,
+    restore_window_layout,
+    save_window_and_table_layout,
 )
 from session_sniffer.i18n import tr
+from session_sniffer.models import GUIState
 from session_sniffer.networking.interface import INTERFACE_TYPE_BRIDGED, INTERFACE_TYPE_NEIGHBOUR, INTERFACE_TYPE_SHARED, Interface, SelectedInterfaceRow
 from session_sniffer.settings import Settings
 
@@ -278,7 +284,9 @@ class InterfaceSelectionDialog(QDialog):
         self.setWindowTitle(f"{tr('Capture Network Interface Selection')} - {TITLE}")
         # Set a minimum size for the window
         self.setMinimumSize(scale(1280), scale(760))
-        resize_window_for_screen(self, screen_size)
+        self._layout_saved = False
+        initial_gui_state = GUIState.load() if Settings.gui_remember_window_layout else None
+        restore_window_layout(self, 'interface_selection', fallback_resize=lambda: resize_window_for_screen(self, screen_size), gui_state=initial_gui_state)
 
         # Custom variables
         self.selected_interface: SelectedInterfaceRow | None = None
@@ -333,10 +341,11 @@ class InterfaceSelectionDialog(QDialog):
         # Table widget for displaying interfaces
         self.table: SafeQTableWidget = SafeQTableWidget(0, 9)
         set_table_headers(self.table, ('Name', 'Description', 'Type', 'Packets Sent', 'Packets Received', 'Gateway IP', 'IP Address', 'MAC Address', 'Vendor Name'))
-        self._column_resizer: TableColumnResizeController = TableColumnResizeController(
+        self._column_resizer: TableColumnLayoutController = TableColumnLayoutController(
             self.table,
             min_column_widths=INTERFACE_SELECTION_TABLE_MIN_COLUMN_WIDTHS,
         )
+        self._column_resizer.set_on_after_move(self._column_resizer.setup_column_resizing)
 
         self.table.setItemDelegate(ElidedTextTooltipDelegate(self.table))
         self.table.setWordWrap(False)
@@ -354,12 +363,11 @@ class InterfaceSelectionDialog(QDialog):
         header_font.setPixelSize(scale(14))
         header_font.setBold(True)
         horizontal_header.setFont(header_font)
-        horizontal_header.setMinimumSectionSize(scale_by_ui(DEFAULT_MIN_COLUMN_WIDTH))
-        horizontal_header.sectionResized.connect(self._column_resizer.on_section_resized)
         for column_index in range(9):
             horizontal_header.setSectionResizeMode(column_index, QHeaderView.ResizeMode.Interactive)
-        horizontal_header.setStretchLastSection(False)
-        setup_table_header_context_menu(self.table, on_reset=self._column_resizer.reset_column_sizes)
+        self._column_resizer.bind_header()
+        setup_table_header_context_menu(self.table, callbacks=make_table_reset_callbacks('interface_selection', self._column_resizer))
+        restore_table_layout('interface_selection', self._column_resizer, gui_state=initial_gui_state)
 
         vertical_header = self.table.verticalHeader()
         vertical_header.setVisible(False)
@@ -955,7 +963,10 @@ class InterfaceSelectionDialog(QDialog):
             self.accept()  # Close the dialog and set its result to QDialog.Accepted
 
     def _cleanup_dialog(self) -> None:
-        """Stop timers, cancel any running ARP refresh, clean up hotspot widget, and clear singleton."""
+        """Stop timers, cancel any running ARP refresh, persist layout, clean up hotspot widget, and clear singleton."""
+        if not self._layout_saved:
+            self._layout_saved = True
+            save_window_and_table_layout(self, 'interface_selection', self._column_resizer)
         self._arp_refresh_cancelled = True
         self._refresh_timer.stop()
         if self._arp_refresh_progress_timer is not None:
@@ -980,7 +991,6 @@ class InterfaceSelectionDialog(QDialog):
     def showEvent(self, a0: QShowEvent) -> None:
         """Handle the window show event and maximize if required."""
         super().showEvent(a0)
-        if consume_maximize_on_show(self):
-            self.showMaximized()
+        apply_maximize_on_show(self)
         if not self._stacked_widget.currentIndex():
             self._column_resizer.setup_column_resizing()

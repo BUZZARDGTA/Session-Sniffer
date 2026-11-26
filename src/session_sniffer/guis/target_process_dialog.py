@@ -5,7 +5,7 @@ import re
 from typing import override
 
 from PySide6.QtCore import QPoint, QSignalBlocker, QSize, Qt
-from PySide6.QtGui import QAction, QIcon, QKeySequence, QResizeEvent, QShortcut, QShowEvent
+from PySide6.QtGui import QAction, QCloseEvent, QIcon, QKeySequence, QResizeEvent, QShortcut, QShowEvent
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -28,15 +28,12 @@ from session_sniffer.capture.process import (
     matches_process_name,
 )
 from session_sniffer.constants.standalone import TITLE
-from session_sniffer.constants.tables import (
-    DEFAULT_MIN_COLUMN_WIDTH,
-    TARGET_PROCESS_TABLE_MIN_COLUMN_WIDTHS,
-)
+from session_sniffer.constants.tables import TARGET_PROCESS_TABLE_MIN_COLUMN_WIDTHS
 from session_sniffer.guis.delegates import SearchHighlightDelegate
 from session_sniffer.guis.live_language import set_i18n_colon_label, set_table_headers
 from session_sniffer.guis.loading_overlay import run_async_with_loading
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
-from session_sniffer.guis.table_column_resizing import TableColumnResizeController, setup_table_header_context_menu
+from session_sniffer.guis.table_column_resizing import TableColumnLayoutController, setup_table_header_context_menu
 from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qss
 from session_sniffer.guis.utils import (
     apply_search_icon,
@@ -44,7 +41,15 @@ from session_sniffer.guis.utils import (
     scale_by_ui,
     set_clipboard_text,
 )
+from session_sniffer.guis.window_layout import (
+    apply_maximize_on_show,
+    make_table_reset_callbacks,
+    restore_table_layout,
+    restore_window_layout,
+    save_window_and_table_layout,
+)
 from session_sniffer.i18n import tr
+from session_sniffer.models import GUIState
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
 
@@ -71,6 +76,9 @@ class TargetProcessDialog(QDialog):
         )
         self.setWindowTitle(f"{TITLE} - {tr('Select Game or Application to Sniff')}")
         self.setMinimumSize(scale_by_ui(800), scale_by_ui(520))
+        self._layout_saved = False
+        initial_gui_state = GUIState.load() if Settings.gui_remember_window_layout else None
+        restore_window_layout(self, 'target_process', gui_state=initial_gui_state)
 
         main_layout = QVBoxLayout(self)
 
@@ -138,15 +146,14 @@ class TargetProcessDialog(QDialog):
         self._table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
         self._table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._table.customContextMenuRequested.connect(self._show_table_context_menu)
-        self._column_resizer: TableColumnResizeController = TableColumnResizeController(
+        self._column_resizer: TableColumnLayoutController = TableColumnLayoutController(
             self._table,
             min_column_widths=TARGET_PROCESS_TABLE_MIN_COLUMN_WIDTHS,
         )
-        setup_table_header_context_menu(self._table, on_reset=self._column_resizer.reset_column_sizes)
-        header = self._table.horizontalHeader()
-        header.setStretchLastSection(False)
-        header.setMinimumSectionSize(scale_by_ui(DEFAULT_MIN_COLUMN_WIDTH))
-        header.sectionResized.connect(self._column_resizer.on_section_resized)
+        self._column_resizer.set_on_after_move(self._column_resizer.setup_column_resizing)
+        self._column_resizer.bind_header()
+        setup_table_header_context_menu(self._table, callbacks=make_table_reset_callbacks('target_process', self._column_resizer))
+        restore_table_layout('target_process', self._column_resizer, gui_state=initial_gui_state)
         QShortcut(QKeySequence('Ctrl+C'), self._table).activated.connect(self._copy_selected_row)
         self._table.itemDoubleClicked.connect(self._on_table_row_double_clicked)
         self._table.itemSelectionChanged.connect(self._on_table_selection_changed)
@@ -616,6 +623,23 @@ class TargetProcessDialog(QDialog):
         self._update_status_label()
         self._filter_process_list(self._search_input.text())
 
+    def _save_layout_once(self) -> None:
+        if not self._layout_saved:
+            self._layout_saved = True
+            save_window_and_table_layout(self, 'target_process', self._column_resizer)
+
+    @override
+    def done(self, result: int) -> None:
+        """Persist window and table layout before finalizing the dialog."""
+        self._save_layout_once()
+        super().done(result)
+
+    @override
+    def closeEvent(self, event: QCloseEvent) -> None:
+        """Persist window and table layout on close."""
+        self._save_layout_once()
+        super().closeEvent(event)
+
     @override
     def resizeEvent(self, a0: QResizeEvent) -> None:
         """Adjust column widths when the dialog is resized."""
@@ -624,8 +648,9 @@ class TargetProcessDialog(QDialog):
 
     @override
     def showEvent(self, a0: QShowEvent) -> None:
-        """Handle dialog show event to ensure column widths adapt to actual layout size."""
+        """Handle dialog show event to maximize if required and adapt column widths."""
         super().showEvent(a0)
+        apply_maximize_on_show(self)
         self._column_resizer.setup_column_resizing()
 
     def _copy_selected_row(self) -> None:

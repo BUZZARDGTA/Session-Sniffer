@@ -51,11 +51,11 @@ from session_sniffer.guis.stylesheets import (
 )
 from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.utils import (
-    consume_maximize_on_show,
     resize_window_for_screen,
     scale_by_ui,
     set_dialog_window_flags,
 )
+from session_sniffer.guis.window_layout import apply_maximize_on_show, restore_window_layout, save_window_layout
 from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.models.combo_rules import ComboRule
 from session_sniffer.models.detections import DetectionsFile
@@ -67,7 +67,7 @@ from session_sniffer.text_utils import DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS
 
 if TYPE_CHECKING:
     from PySide6.QtCore import QPoint
-    from PySide6.QtGui import QKeyEvent, QShowEvent
+    from PySide6.QtGui import QCloseEvent, QKeyEvent, QShowEvent
     from PySide6.QtWidgets import QCheckBox, QSpinBox
 
     from session_sniffer.models.player import Player
@@ -112,7 +112,7 @@ class DetectionsManagerDialog(DetectionsManagerTabsMixin, QDialog):
         self.setWindowTitle(tr('{title} - Detections Manager', title=TITLE))
         set_dialog_window_flags(self)
         self.setMinimumSize(scale_by_ui(720), scale_by_ui(500))
-        resize_window_for_screen(self)
+        restore_window_layout(self, 'detections_manager', fallback_resize=lambda: resize_window_for_screen(self))
 
         # Static widget references (per-rule controls are accessed dynamically via prefix)
         self.continent_list: QListWidget
@@ -909,8 +909,14 @@ class DetectionsManagerDialog(DetectionsManagerTabsMixin, QDialog):
         self.load_current_settings()
         self.refresh_detection_availability()
         super().showEvent(a0)
-        if consume_maximize_on_show(self):
-            self.showMaximized()
+        apply_maximize_on_show(self)
+
+    @override
+    def closeEvent(self, event: QCloseEvent) -> None:
+        """Persist window geometry when closing the detections manager."""
+        super().closeEvent(event)
+        if event.isAccepted():
+            save_window_layout(self, 'detections_manager')
 
 
 def open_combo_rule_editor_for_player(parent: QWidget, player: Player) -> None:

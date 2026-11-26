@@ -1,7 +1,7 @@
 """Logs Manager dialog — main entry point combining all log tabs."""
 
 from functools import partial
-from typing import TYPE_CHECKING, Literal, override
+from typing import TYPE_CHECKING, override
 
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
@@ -31,7 +31,8 @@ from session_sniffer.guis.logs_manager._sessions_tab import SessionsLogTab
 from session_sniffer.guis.logs_manager._text_tab import TextLogTab
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
 from session_sniffer.guis.theming import ICONS_DIR_PATH
-from session_sniffer.guis.utils import consume_maximize_on_show, resize_window_for_screen, scale_by_ui, set_dialog_window_flags
+from session_sniffer.guis.utils import resize_window_for_screen, scale_by_ui, set_dialog_window_flags
+from session_sniffer.guis.window_layout import apply_maximize_on_show, clear_table_layout, restore_window_layout, save_window_layout
 from session_sniffer.i18n import tr
 from session_sniffer.models import GUIState
 from session_sniffer.rendering_core.renderer import SESSIONS_LOGGING_PATH
@@ -51,7 +52,8 @@ class LogsManager(QDialog):
         self.setWindowTitle(tr('Logs Manager - {title}', title=TITLE))
         set_dialog_window_flags(self)
         self.setMinimumSize(scale_by_ui(880), scale_by_ui(520))
-        resize_window_for_screen(self)
+        gui_state = GUIState.load() if Settings.gui_remember_window_layout else None
+        win_state = restore_window_layout(self, 'logs_manager', fallback_resize=lambda: resize_window_for_screen(self), gui_state=gui_state)
 
         root_layout = QVBoxLayout(self)
 
@@ -65,8 +67,8 @@ class LogsManager(QDialog):
                 default_sort_columns=('Date', 'Time'),
                 stretch_column=1,
                 column_min_widths={5: 160},
-                on_reset_persisted_widths=partial(self._clear_csv_tab_layout_state, 'userip', reset_widths=True),
-                on_reset_persisted_order=partial(self._clear_csv_tab_layout_state, 'userip', reset_order=True),
+                on_reset_persisted_widths=partial(clear_table_layout, 'logs_manager_userip', reset_widths=True),
+                on_reset_persisted_order=partial(clear_table_layout, 'logs_manager_userip', reset_order=True),
             ),
         )
         tabs.addTab(self._userip_tab, QIcon(str(ICONS_DIR_PATH / 'database.svg')), tr('UserIP Logging'))
@@ -78,8 +80,8 @@ class LogsManager(QDialog):
                 default_sort_columns=('Date', 'Time'),
                 stretch_column=1,
                 column_min_widths={0: 220, 5: 160},
-                on_reset_persisted_widths=partial(self._clear_csv_tab_layout_state, 'detection', reset_widths=True),
-                on_reset_persisted_order=partial(self._clear_csv_tab_layout_state, 'detection', reset_order=True),
+                on_reset_persisted_widths=partial(clear_table_layout, 'logs_manager_detection', reset_widths=True),
+                on_reset_persisted_order=partial(clear_table_layout, 'logs_manager_detection', reset_order=True),
             ),
         )
         tabs.addTab(self._detection_tab, QIcon(str(ICONS_DIR_PATH / 'bell.svg')), tr('Detection Logging'))
@@ -90,32 +92,30 @@ class LogsManager(QDialog):
                 default_sort_columns=('Date', 'Time'),
                 stretch_column=1,
                 column_min_widths={0: 220, 5: 160},
-                on_reset_persisted_widths=partial(self._clear_csv_tab_layout_state, 'protection', reset_widths=True),
-                on_reset_persisted_order=partial(self._clear_csv_tab_layout_state, 'protection', reset_order=True),
+                on_reset_persisted_widths=partial(clear_table_layout, 'logs_manager_protection', reset_widths=True),
+                on_reset_persisted_order=partial(clear_table_layout, 'logs_manager_protection', reset_order=True),
             ),
         )
         tabs.addTab(self._protection_tab, QIcon(str(ICONS_DIR_PATH / 'shield.svg')), tr('Protection Logging'))
 
-        if Settings.gui_remember_window_layout:
-            gui_state = GUIState.load()
-            self._userip_tab.apply_column_layout(
-                widths=gui_state.logs_manager_userip_table_column_widths,
-                order=gui_state.logs_manager_userip_table_column_order,
-            )
-            self._detection_tab.apply_column_layout(
-                widths=gui_state.logs_manager_detection_table_column_widths,
-                order=gui_state.logs_manager_detection_table_column_order,
-            )
-            self._protection_tab.apply_column_layout(
-                widths=gui_state.logs_manager_protection_table_column_widths,
-                order=gui_state.logs_manager_protection_table_column_order,
-            )
         self._sessions_tab = SessionsLogTab(sessions_dir=SESSIONS_LOGGING_DIR_PATH)
         tabs.addTab(self._sessions_tab, QIcon(str(ICONS_DIR_PATH / 'folder.svg')), tr('Sessions Logging'))
         self._debug_tab = TextLogTab(file_path=DEBUG_LOG_PATH, enable_severity_filter=True)
         tabs.addTab(self._debug_tab, QIcon(str(ICONS_DIR_PATH / 'bug.svg')), tr('Debug Log'))
         self._crash_tab = TextLogTab(file_path=CRASH_LOG_PATH)
         tabs.addTab(self._crash_tab, QIcon(str(ICONS_DIR_PATH / 'triangle-alert.svg')), tr('Crash Log'))
+
+        if gui_state is not None:
+            for csv_tab, table_key in (
+                (self._userip_tab, 'logs_manager_userip'),
+                (self._detection_tab, 'logs_manager_detection'),
+                (self._protection_tab, 'logs_manager_protection'),
+            ):
+                csv_tab.apply_table_layout(gui_state.get_table(table_key))
+            if win_state is not None:
+                self._sessions_tab.restore_splitter_state(win_state.splitter)
+                if win_state.active_tab is not None and 0 <= win_state.active_tab < tabs.count():
+                    tabs.setCurrentIndex(win_state.active_tab)
 
         self._tab_titles = (
             'UserIP Logging',
@@ -307,8 +307,7 @@ class LogsManager(QDialog):
     def showEvent(self, a0: QShowEvent) -> None:
         """Handle the window show event, maximize if required, and resume file watching."""
         super().showEvent(a0)
-        if consume_maximize_on_show(self):
-            self.showMaximized()
+        apply_maximize_on_show(self)
         self._start_all_watchers()
 
     @override
@@ -317,47 +316,23 @@ class LogsManager(QDialog):
         self._stop_all_watchers()
         super().hideEvent(a0)
 
-    @staticmethod
-    def _clear_csv_tab_layout_state(
-        tab_key: Literal['userip', 'detection', 'protection'],
-        *,
-        reset_widths: bool = False,
-        reset_order: bool = False,
-    ) -> None:
-        """Clear persisted column widths and/or order for a CSV log tab when layout memory is enabled."""
-        if not Settings.gui_remember_window_layout:
-            return
-        gui_state = GUIState.load()
-        if tab_key == 'userip':
-            if reset_widths:
-                gui_state.logs_manager_userip_table_column_widths = None
-            if reset_order:
-                gui_state.logs_manager_userip_table_column_order = None
-        elif tab_key == 'detection':
-            if reset_widths:
-                gui_state.logs_manager_detection_table_column_widths = None
-            if reset_order:
-                gui_state.logs_manager_detection_table_column_order = None
-        else:
-            if reset_widths:
-                gui_state.logs_manager_protection_table_column_widths = None
-            if reset_order:
-                gui_state.logs_manager_protection_table_column_order = None
-        gui_state.save()
-
     @override
     def closeEvent(self, event: QCloseEvent) -> None:
-        """Stop all background filesystem watchers and persist CSV table column layouts when closed."""
+        """Stop all background filesystem watchers and persist window, splitter, and CSV table layouts when closed."""
         self._stop_all_watchers()
         super().closeEvent(event)
         if event.isAccepted() and Settings.gui_remember_window_layout:
             gui_state = GUIState.load()
-            gui_state.logs_manager_userip_table_column_widths = self._userip_tab.get_persisted_column_widths()
-            gui_state.logs_manager_userip_table_column_order = self._userip_tab.get_persisted_column_order()
-            gui_state.logs_manager_detection_table_column_widths = self._detection_tab.get_persisted_column_widths()
-            gui_state.logs_manager_detection_table_column_order = self._detection_tab.get_persisted_column_order()
-            gui_state.logs_manager_protection_table_column_widths = self._protection_tab.get_persisted_column_widths()
-            gui_state.logs_manager_protection_table_column_order = self._protection_tab.get_persisted_column_order()
+            win_state = save_window_layout(self, 'logs_manager', gui_state=gui_state)
+            if win_state is not None:
+                win_state.active_tab = self._tabs.currentIndex()
+                win_state.splitter = self._sessions_tab.get_splitter_state()
+            for tab, table_key in (
+                (self._userip_tab, 'logs_manager_userip'),
+                (self._detection_tab, 'logs_manager_detection'),
+                (self._protection_tab, 'logs_manager_protection'),
+            ):
+                tab.populate_table_layout_state(gui_state.ensure_table(table_key))
             gui_state.save()
 
     def select_tab(self, title_key: str) -> None:

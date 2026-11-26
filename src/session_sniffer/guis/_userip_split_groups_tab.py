@@ -42,7 +42,7 @@ from session_sniffer.guis.delegates import SearchHighlightDelegate
 from session_sniffer.guis.live_language import set_tree_headers
 from session_sniffer.guis.select_usernames_dialog import SelectUsernamesDialog, UsernameSelectionConfig, configure_username_cell_editor
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET
-from session_sniffer.guis.table_column_resizing import setup_table_header_context_menu
+from session_sniffer.guis.table_column_resizing import TableColumnLayoutController, setup_table_header_context_menu
 from session_sniffer.guis.theming import ICONS_DIR_PATH, get_themed_icon
 from session_sniffer.guis.userip_manager_helpers import (
     IPRangeBuilderDialog,
@@ -54,6 +54,7 @@ from session_sniffer.guis.userip_manager_helpers import (
     save_userip_database_model,
 )
 from session_sniffer.guis.utils import add_icon_menu_action, create_styled_context_menu, scale_by_ui
+from session_sniffer.guis.window_layout import clear_table_layout, restore_table_layout, save_table_layout
 from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.models.userip_settings_model import (
     USERIP_SOURCE_TOOLTIPS,
@@ -74,6 +75,8 @@ from session_sniffer.text_utils import split_usernames
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
     from collections.abc import Set as AbstractSet
+
+    from session_sniffer.models import GUIState
 
 NO_USERNAME_ROLE = Qt.ItemDataRole.UserRole + 1
 DATABASE_COLUMN, IP_RANGE_COLUMN, USERNAMES_COLUMN, NOTES_COLUMN, SOURCE_COLUMN = 0, 1, 2, 3, 4
@@ -114,6 +117,9 @@ DEFAULT_RESOLVER_COLUMN_WIDTHS: dict[int, int] = {
     DATABASE_COLUMN: 170, IP_RANGE_COLUMN: 155, USERNAMES_COLUMN: 200, NOTES_COLUMN: 160, SOURCE_COLUMN: 85,
     DETECTIONS_COLUMN: 85, ADDED_COLUMN: 145, UPDATED_COLUMN: 145, FIRST_SEEN_COLUMN: 145, LAST_SEEN_COLUMN: 145,
 }
+_DEFAULT_RESOLVER_WIDTHS_BY_NAME: dict[str, int] = {
+    RESOLVER_TABLE_HEADERS[col]: width for col, width in DEFAULT_RESOLVER_COLUMN_WIDTHS.items()
+}
 
 
 class ResolverTreeDelegate(SearchHighlightDelegate):
@@ -148,8 +154,8 @@ def reset_resolver_column_sizes(tree: QTreeWidget) -> None:
         tree.setColumnWidth(col, scale_by_ui(width))
 
 
-def _configure_resolver_tree(tree: QTreeWidget) -> None:
-    """Apply common headers, tooltips, delegate, and scroll settings to a resolver `QTreeWidget`."""
+def _configure_resolver_tree(tree: QTreeWidget, *, table_key: str) -> TableColumnLayoutController:
+    """Apply common headers, tooltips, delegate, scroll settings, and column layout tracking to a resolver `QTreeWidget`."""
     apply_resolver_tree_headers(tree)
     tree.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
     tree.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -160,12 +166,34 @@ def _configure_resolver_tree(tree: QTreeWidget) -> None:
     tree.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
     tree.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
 
-    def _reset_cols() -> None:
-        reset_resolver_column_sizes(tree)
+    column_layout = TableColumnLayoutController(
+        tree,
+        min_column_widths=_DEFAULT_RESOLVER_WIDTHS_BY_NAME,
+        clamp_to_min=False,
+    )
+    header = tree.header()
+    header.setSectionsMovable(True)
+    header.sectionResized.connect(column_layout.on_section_resized)
+    header.sectionMoved.connect(column_layout.on_section_moved)
 
-    _reset_cols()
-    setup_table_header_context_menu(tree, on_reset=_reset_cols)
+    def _apply_defaults() -> None:
+        with column_layout.programmatic_resize():
+            reset_resolver_column_sizes(tree)
+
+    def _reset_cols() -> None:
+        column_layout.custom_widths = None
+        _apply_defaults()
+        clear_table_layout(table_key, reset_widths=True)
+
+    def _reset_order() -> None:
+        column_layout.reset_column_order()
+        clear_table_layout(table_key, reset_order=True)
+
+    _apply_defaults()
+    setup_table_header_context_menu(tree, callbacks=column_layout.menu_callbacks(on_reset=_reset_cols, on_reset_order=_reset_order))
+    restore_table_layout(table_key, column_layout)
     tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+    return column_layout
 
 
 def populate_resolver_side_item(item: QTreeWidgetItem, db_label: str, entry_ip: str, details: SideDetails, looky_icon: QIcon) -> None:
@@ -375,10 +403,12 @@ class ResolverTreeCallbacks:
 def create_configured_resolver_tree(
     layout: QVBoxLayout,
     callbacks: ResolverTreeCallbacks,
-) -> tuple[QTreeWidget, Callable[[], None], Callable[[], None]]:
+    *,
+    table_key: str,
+) -> tuple[QTreeWidget, TableColumnLayoutController, Callable[[], None], Callable[[], None]]:
     """Create, configure, wire signals/shortcuts on, and add a resolver `QTreeWidget` to *layout*."""
     tree = QTreeWidget()
-    _configure_resolver_tree(tree)
+    column_layout = _configure_resolver_tree(tree, table_key=table_key)
     tree.customContextMenuRequested.connect(callbacks.on_context_menu)
     tree.itemSelectionChanged.connect(callbacks.on_selection_changed)
     tree.itemChanged.connect(callbacks.on_item_changed)
@@ -408,7 +438,7 @@ def create_configured_resolver_tree(
     QShortcut(QKeySequence('F2'), tree).activated.connect(_edit_usernames)
     QShortcut(QKeySequence('Delete'), tree).activated.connect(callbacks.on_delete)
     layout.addWidget(tree, stretch=1)
-    return tree, _edit_usernames, _edit_note
+    return tree, column_layout, _edit_usernames, _edit_note
 
 
 class _SplitSide(NamedTuple):
@@ -548,9 +578,10 @@ class SplitGroupsResolverTab(QWidget):
         top_bar.addWidget(self._include_disabled_checkbox, alignment=Qt.AlignmentFlag.AlignTop)
         layout.addLayout(top_bar)
 
-        self._tree, self._edit_selected_usernames, self._edit_selected_note = create_configured_resolver_tree(
+        self._tree, self._column_layout, self._edit_selected_usernames, self._edit_selected_note = create_configured_resolver_tree(
             layout,
             ResolverTreeCallbacks(self._show_context_menu, self._update_buttons, self._on_item_changed, self._edit_selected, self._delete_selected),
+            table_key='userip_split_groups',
         )
 
         buttons_layout = QHBoxLayout()
@@ -576,6 +607,10 @@ class SplitGroupsResolverTab(QWidget):
         )
 
         layout.addLayout(buttons_layout)
+
+    def save_column_layout(self, gui_state: GUIState) -> None:
+        """Persist the split-groups tree's column widths and order into *gui_state*."""
+        save_table_layout('userip_split_groups', self._column_layout, gui_state=gui_state)
 
     def retranslate(self, *, refresh_tree: bool = True) -> None:
         """Refresh static labels, headers, and dynamic tree text after a live language change."""

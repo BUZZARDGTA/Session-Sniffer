@@ -64,6 +64,8 @@ def _calculate_player_session_times(player: Player, now: datetime) -> tuple[floa
 class SessionTimelineWindow(StatTableWindowMixin):
     """Sortable table showing every player's join/leave timestamps and session durations."""
 
+    LAYOUT_KEY = 'session_timeline'
+
     def __init__(self, *, always_on_top: bool = True) -> None:
         """Initialize the session timeline window."""
         super().__init__()
@@ -76,8 +78,8 @@ class SessionTimelineWindow(StatTableWindowMixin):
         setup_stat_table(self._table, layout, sorting=True)
 
         self.setup_stat_table_controls(layout, always_on_top=always_on_top, min_column_widths=SESSION_TIMELINE_TABLE_MIN_COLUMN_WIDTHS)
-        self._reset_column_sizes()
-        self._table.sortByColumn(_COLUMN_FIRST_SEEN, Qt.SortOrder.AscendingOrder)
+        self._setup_column_resizing()
+        self._apply_default_or_saved_sort(_COLUMN_FIRST_SEEN, Qt.SortOrder.AscendingOrder)
 
         self._apply_translations()
         register_language_refresh(self, self._apply_translations)

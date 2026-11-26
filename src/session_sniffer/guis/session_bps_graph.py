@@ -12,6 +12,7 @@ class SessionBpsGraphWindow(SingleRateGraphBase):
     """A standalone window displaying live bandwidth (KB/s) over time for the whole session."""
 
     WINDOW_TITLE = 'Session BPS Graph'
+    LAYOUT_KEY = 'session_bps_graph'
     LEFT_LABEL = 'KB/s'
     CURVE_PEN = '#00bcd4'
     CURVE_BRUSH = (0, 188, 212, 60)

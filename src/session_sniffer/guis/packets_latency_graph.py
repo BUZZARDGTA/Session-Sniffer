@@ -9,6 +9,7 @@ class PacketsLatencyGraphWindow(SingleRateGraphBase):
     """A standalone window displaying live per-packet latency over time."""
 
     WINDOW_TITLE = 'Packets Latency Graph'
+    LAYOUT_KEY = 'packets_latency_graph'
     LEFT_LABEL = 'Latency (ms/s)'
     CURVE_PEN = '#ff9800'
     CURVE_BRUSH = (255, 152, 0, 60)

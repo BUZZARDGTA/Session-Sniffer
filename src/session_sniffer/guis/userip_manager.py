@@ -4,7 +4,7 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar, override
 
-from PySide6.QtCore import QByteArray, QModelIndex, QSignalBlocker, QSize, Qt, QUrl
+from PySide6.QtCore import QModelIndex, QSignalBlocker, QSize, Qt, QUrl
 from PySide6.QtGui import QAction, QCloseEvent, QColor, QDesktopServices, QIcon, QKeySequence, QResizeEvent, QShortcut, QShowEvent, QStandardItemModel
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.constants.local import GUI_STATE_PATH, USERIP_DATABASES_DIR_PATH
+from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis._dialog_mixins import prompt_unsaved_changes_close
 from session_sniffer.guis._userip_tree_batch_ops import format_multi_tree_selection_info, is_default_userip_db
@@ -60,12 +60,19 @@ from session_sniffer.guis.userip_manager_settings_mixin import SettingsPanelMixi
 from session_sniffer.guis.userip_manager_tree_ops import TreeOperationsMixin, UserIPDatabaseTreeDelegate, UserIPDatabaseTreeSortProxy
 from session_sniffer.guis.utils import (
     apply_search_icon,
-    consume_maximize_on_show,
     get_screen_size,
     resize_window_for_screen,
     scale_by_ui,
     set_dialog_window_flags,
-    set_maximize_on_show,
+)
+from session_sniffer.guis.window_layout import (
+    apply_maximize_on_show,
+    capture_window_geometry,
+    encode_splitter_state,
+    register_layout_cache_reset,
+    restore_splitter_state,
+    restore_window_geometry_safely,
+    save_table_layout,
 )
 from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.models import GUIState
@@ -100,12 +107,13 @@ def _get_entry_table_header_tooltips() -> dict[str, str]:
 class _UserIPManagerState:
     """Loaded persistent layout and view state for `UserIPDatabasesManager`."""
 
-    geometry: QByteArray | None
+    geometry: str | None
     maximized: bool
-    splitter: QByteArray | None
+    splitter: str | None
     column_widths: dict[str, int] | None
     column_order: list[str] | None
     group_accounts: bool
+    settings_panel_expanded: bool
     sort_column: int
     sort_order: Qt.SortOrder
 
@@ -113,18 +121,24 @@ class _UserIPManagerState:
 def _load_userip_manager_state() -> _UserIPManagerState:
     """Load saved window geometry, maximized state, splitter state, table column layout, and sort state from local app data."""
     gui_state = GUIState.load()
-    geom_hex, split_hex = gui_state.userip_manager_geometry, gui_state.userip_manager_splitter
-    geometry = QByteArray.fromHex(geom_hex.encode('ascii')) if geom_hex is not None and geom_hex else None
-    splitter = QByteArray.fromHex(split_hex.encode('ascii')) if split_hex is not None and split_hex else None
-    sort_col = gui_state.userip_manager_sort_column if 0 <= gui_state.userip_manager_sort_column < len(ENTRY_TABLE_HEADERS) else INDEX_COLUMN
-    sort_order = Qt.SortOrder.DescendingOrder if gui_state.userip_manager_sort_order == 1 else Qt.SortOrder.AscendingOrder
+    win_state = gui_state.get_window('userip_manager')
+    table_state = gui_state.get_table('userip_manager')
+    extra = gui_state.userip_manager
+    sort_col = INDEX_COLUMN
+    sort_order = Qt.SortOrder.AscendingOrder
+    if table_state is not None:
+        if table_state.sort_column in ENTRY_TABLE_HEADERS:
+            sort_col = ENTRY_TABLE_HEADERS.index(table_state.sort_column)
+        if table_state.sort_order == 1:
+            sort_order = Qt.SortOrder.DescendingOrder
     return _UserIPManagerState(
-        geometry=geometry,
-        maximized=gui_state.userip_manager_maximized,
-        splitter=splitter,
-        column_widths=gui_state.userip_manager_table_column_widths,
-        column_order=gui_state.userip_manager_table_column_order,
-        group_accounts=gui_state.userip_manager_group_accounts,
+        geometry=win_state.geometry if win_state is not None else None,
+        maximized=win_state.maximized if win_state is not None else False,
+        splitter=win_state.splitter if win_state is not None else None,
+        column_widths=table_state.column_widths if table_state is not None else None,
+        column_order=table_state.column_order if table_state is not None else None,
+        group_accounts=extra.group_accounts,
+        settings_panel_expanded=extra.settings_panel_expanded,
         sort_column=sort_col,
         sort_order=sort_order,
     )
@@ -135,9 +149,10 @@ def _save_userip_manager_sort_state(*, group_accounts: bool, sort_column: int, s
     if not Settings.gui_remember_window_layout:
         return
     gui_state = GUIState.load()
-    gui_state.userip_manager_group_accounts = group_accounts
-    gui_state.userip_manager_sort_column = sort_column
-    gui_state.userip_manager_sort_order = 1 if sort_order == Qt.SortOrder.DescendingOrder else 0
+    gui_state.userip_manager.group_accounts = group_accounts
+    table_state = gui_state.ensure_table('userip_manager')
+    table_state.sort_column = ENTRY_TABLE_HEADERS[sort_column] if 0 <= sort_column < len(ENTRY_TABLE_HEADERS) else ENTRY_TABLE_HEADERS[INDEX_COLUMN]
+    table_state.sort_order = 1 if sort_order == Qt.SortOrder.DescendingOrder else 0
     gui_state.save()
 
 
@@ -152,14 +167,29 @@ class UserIPDatabasesManager(
     """Non-modal dialog for managing UserIP database files and their entries."""
 
     _state_loaded_from_disk: ClassVar[bool] = False
-    _cached_geometry: ClassVar[QByteArray | None] = None
+    _cached_geometry: ClassVar[str | None] = None
     _cached_maximized: ClassVar[bool] = False
-    _cached_splitter: ClassVar[QByteArray | None] = None
+    _cached_splitter: ClassVar[str | None] = None
     _cached_column_widths: ClassVar[dict[str, int] | None] = None
     _cached_column_order: ClassVar[list[str] | None] = None
     _cached_group_accounts: ClassVar[bool] = True
+    _cached_settings_panel_expanded: ClassVar[bool] = False
     _cached_sort_column: ClassVar[int] = INDEX_COLUMN
     _cached_sort_order: ClassVar[Qt.SortOrder] = Qt.SortOrder.AscendingOrder
+
+    @classmethod
+    def reset_layout_caches(cls) -> None:
+        """Reset all in-memory layout caches back to factory defaults."""
+        cls._state_loaded_from_disk = False
+        cls._cached_geometry = None
+        cls._cached_maximized = False
+        cls._cached_splitter = None
+        cls._cached_column_widths = None
+        cls._cached_column_order = None
+        cls._cached_group_accounts = True
+        cls._cached_settings_panel_expanded = False
+        cls._cached_sort_column = INDEX_COLUMN
+        cls._cached_sort_order = Qt.SortOrder.AscendingOrder
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """Build the UserIP Databases Manager dialog."""
@@ -170,7 +200,7 @@ class UserIPDatabasesManager(
         self._syncing_sort_state: bool = False
         self._static_menu_actions: list[tuple[QAction, str]] = []
 
-        if Settings.gui_remember_window_layout and not UserIPDatabasesManager._state_loaded_from_disk and GUI_STATE_PATH.is_file():
+        if Settings.gui_remember_window_layout and not UserIPDatabasesManager._state_loaded_from_disk:
             loaded_state = _load_userip_manager_state()
             UserIPDatabasesManager._state_loaded_from_disk = True
             UserIPDatabasesManager._cached_geometry = loaded_state.geometry
@@ -179,21 +209,13 @@ class UserIPDatabasesManager(
             UserIPDatabasesManager._cached_column_widths = loaded_state.column_widths
             UserIPDatabasesManager._cached_column_order = loaded_state.column_order
             UserIPDatabasesManager._cached_group_accounts = loaded_state.group_accounts
+            UserIPDatabasesManager._cached_settings_panel_expanded = loaded_state.settings_panel_expanded
             UserIPDatabasesManager._cached_sort_column = loaded_state.sort_column
             UserIPDatabasesManager._cached_sort_order = loaded_state.sort_order
         elif not Settings.gui_remember_window_layout:
-            UserIPDatabasesManager._state_loaded_from_disk = False
-            UserIPDatabasesManager._cached_geometry, UserIPDatabasesManager._cached_maximized = None, False
-            UserIPDatabasesManager._cached_splitter, UserIPDatabasesManager._cached_column_widths = None, None
-            UserIPDatabasesManager._cached_column_order = None
-            UserIPDatabasesManager._cached_group_accounts, UserIPDatabasesManager._cached_sort_column = True, INDEX_COLUMN
-            UserIPDatabasesManager._cached_sort_order = Qt.SortOrder.AscendingOrder
+            UserIPDatabasesManager.reset_layout_caches()
 
-        if UserIPDatabasesManager._cached_geometry is not None:
-            self.restoreGeometry(UserIPDatabasesManager._cached_geometry)
-            if UserIPDatabasesManager._cached_maximized:
-                set_maximize_on_show(self, maximize=True)
-        else:
+        if not restore_window_geometry_safely(self, UserIPDatabasesManager._cached_geometry, maximized=UserIPDatabasesManager._cached_maximized):
             resize_window_for_screen(self, get_screen_size())
 
         self._current_path: Path | None = None
@@ -402,6 +424,7 @@ class UserIPDatabasesManager(
 
         # ------ Settings panel (collapsible, built by mixin) ------
         self.build_settings_panel(right_layout)
+        self.set_settings_panel_expanded(expanded=UserIPDatabasesManager._cached_settings_panel_expanded)
 
         # Entries table
         self._model = QStandardItemModel(0, len(ENTRY_TABLE_HEADERS))
@@ -505,9 +528,7 @@ class UserIPDatabasesManager(
         self._splitter.setHandleWidth(scale_by_ui(4))
         self._splitter.handle(1).setEnabled(True)
 
-        if UserIPDatabasesManager._cached_splitter is not None:
-            self._splitter.restoreState(UserIPDatabasesManager._cached_splitter)
-        else:
+        if not restore_splitter_state(self._splitter, UserIPDatabasesManager._cached_splitter):
             self._splitter.setSizes([scale_by_ui(350), scale_by_ui(750)])
 
         def _on_splitter_moved(_pos: int, _index: int) -> None:
@@ -928,31 +949,32 @@ class UserIPDatabasesManager(
         self._fs_watcher.stop()
         super().closeEvent(event)
         if event.isAccepted() and Settings.gui_remember_window_layout:
-            geometry, maximized, splitter_state = self.saveGeometry(), self.isMaximized(), self._splitter.saveState()
-            persisted_widths = self._column_layout.get_persisted_widths()
-            persisted_order = self._column_layout.get_persisted_order()
-            UserIPDatabasesManager._state_loaded_from_disk = True
-            UserIPDatabasesManager._cached_geometry, UserIPDatabasesManager._cached_maximized = geometry, maximized
-            UserIPDatabasesManager._cached_splitter = splitter_state
-            UserIPDatabasesManager._cached_column_widths = persisted_widths
-            UserIPDatabasesManager._cached_column_order = persisted_order
-            UserIPDatabasesManager._cached_group_accounts = self._group_accounts_checkbox.isChecked()
             gui_state = GUIState.load()
-            gui_state.userip_manager_geometry, gui_state.userip_manager_maximized = geometry.toHex().toStdString(), maximized
-            gui_state.userip_manager_splitter = splitter_state.toHex().toStdString()
-            gui_state.userip_manager_table_column_widths = persisted_widths
-            gui_state.userip_manager_table_column_order = persisted_order
-            gui_state.userip_manager_group_accounts = UserIPDatabasesManager._cached_group_accounts
-            gui_state.userip_manager_sort_column = UserIPDatabasesManager._cached_sort_column
-            gui_state.userip_manager_sort_order = 1 if UserIPDatabasesManager._cached_sort_order == Qt.SortOrder.DescendingOrder else 0
+            win_state = gui_state.ensure_window('userip_manager')
+            capture_window_geometry(win_state, self)
+            win_state.splitter = encode_splitter_state(self._splitter)
+            table_state = save_table_layout('userip_manager', self._column_layout, gui_state=gui_state)
+            sort_col = UserIPDatabasesManager._cached_sort_column
+            if table_state is not None:
+                table_state.sort_column = ENTRY_TABLE_HEADERS[sort_col] if 0 <= sort_col < len(ENTRY_TABLE_HEADERS) else ENTRY_TABLE_HEADERS[INDEX_COLUMN]
+                table_state.sort_order = 1 if UserIPDatabasesManager._cached_sort_order == Qt.SortOrder.DescendingOrder else 0
+            gui_state.userip_manager.group_accounts = self._group_accounts_checkbox.isChecked()
+            gui_state.userip_manager.settings_panel_expanded = self.is_settings_panel_expanded()
+            UserIPDatabasesManager._state_loaded_from_disk = True
+            UserIPDatabasesManager._cached_geometry = win_state.geometry
+            UserIPDatabasesManager._cached_maximized = win_state.maximized
+            UserIPDatabasesManager._cached_splitter = win_state.splitter
+            UserIPDatabasesManager._cached_column_widths = table_state.column_widths if table_state is not None else None
+            UserIPDatabasesManager._cached_column_order = table_state.column_order if table_state is not None else None
+            UserIPDatabasesManager._cached_group_accounts = gui_state.userip_manager.group_accounts
+            UserIPDatabasesManager._cached_settings_panel_expanded = gui_state.userip_manager.settings_panel_expanded
             gui_state.save()
 
     @override
     def showEvent(self, a0: QShowEvent) -> None:
         """Handle the window show event and maximize if required."""
         super().showEvent(a0)
-        if consume_maximize_on_show(self):
-            self.showMaximized()
+        apply_maximize_on_show(self)
         self._adjust_username_column_width()
 
     @override
@@ -960,3 +982,6 @@ class UserIPDatabasesManager(
         """Adjust column widths when the dialog is resized."""
         super().resizeEvent(a0)
         self._adjust_username_column_width()
+
+
+register_layout_cache_reset(UserIPDatabasesManager.reset_layout_caches)

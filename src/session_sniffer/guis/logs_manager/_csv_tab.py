@@ -10,16 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, override
 
 from PySide6.QtCore import QItemSelectionModel, QModelIndex, QPoint, QSignalBlocker, Qt, Signal
-from PySide6.QtGui import (
-    QAction,
-    QIcon,
-    QKeySequence,
-    QResizeEvent,
-    QShortcut,
-    QShowEvent,
-    QStandardItem,
-    QStandardItemModel,
-)
+from PySide6.QtGui import QAction, QIcon, QKeySequence, QResizeEvent, QShortcut, QShowEvent, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -68,10 +59,13 @@ from session_sniffer.guis.tables_player_actions import (
 )
 from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.utils import animate_button_feedback, scale_by_ui, set_clipboard_text
+from session_sniffer.guis.window_layout import apply_table_hidden_columns, apply_table_sort_state, capture_table_hidden_columns, capture_table_sort_state
 from session_sniffer.i18n import tr, tr_plural
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
+
+    from session_sniffer.models.gui_state import TableLayoutState
 
 logger = logging.getLogger(__name__)
 
@@ -124,6 +118,7 @@ class CsvLogTab(QWidget):
         self._on_reset_persisted_order = config.on_reset_persisted_order
         self._truncated = False
         self._initial_loaded = False
+        self._saved_table_state: TableLayoutState | None = None
         self._raw_csv_headers: list[str] = list(self._expected_headers)
 
         layout = QVBoxLayout(self)
@@ -426,7 +421,8 @@ class CsvLogTab(QWidget):
                 self._column_layout.apply_column_widths(self._column_layout.custom_widths)
             self._adjust_stretch_column_width()
         else:
-            self._apply_default_sort()
+            if not apply_table_sort_state(self._table, self._saved_table_state):
+                self._apply_default_sort()
             self._initial_loaded = True
             if self._column_layout.custom_widths is not None:
                 self._column_layout.apply_column_widths(self._column_layout.custom_widths)
@@ -558,26 +554,25 @@ class CsvLogTab(QWidget):
         raw = self._model.headerData(column, Qt.Orientation.Horizontal, CANONICAL_HEADER_ROLE)
         return raw if isinstance(raw, str) else ''
 
-    def apply_column_layout(
-        self,
-        *,
-        widths: dict[str, int] | None,
-        order: Sequence[str] | None,
-    ) -> None:
-        """Restore saved column order and widths from persistent GUI state."""
-        if order is not None and order:
-            self._column_layout.apply_column_order(order)
-        if widths is not None and widths:
-            self._column_layout.apply_column_widths(widths)
+    def apply_table_layout(self, table_state: TableLayoutState | None) -> None:
+        """Restore saved hidden columns, column order, widths, and sort state from persistent GUI state."""
+        self._saved_table_state = table_state
+        if table_state is None:
+            return
+        apply_table_hidden_columns(self._table, table_state.hidden_columns)
+        if table_state.column_order is not None and table_state.column_order:
+            self._column_layout.apply_column_order(table_state.column_order, preserve_hidden=True)
+        if table_state.column_widths is not None and table_state.column_widths:
+            self._column_layout.apply_column_widths(table_state.column_widths)
+        apply_table_sort_state(self._table, table_state)
         self._adjust_stretch_column_width()
 
-    def get_persisted_column_widths(self) -> dict[str, int] | None:
-        """Return custom column widths to persist, or `None` when using default sizing."""
-        return self._column_layout.get_persisted_widths()
-
-    def get_persisted_column_order(self) -> list[str] | None:
-        """Return custom column order to persist, or `None` when using default order."""
-        return self._column_layout.get_persisted_order()
+    def populate_table_layout_state(self, table_state: TableLayoutState) -> None:
+        """Store this tab's column widths, order, hidden columns, and sort state into *table_state*."""
+        table_state.column_widths = self._column_layout.get_persisted_widths()
+        table_state.column_order = self._column_layout.get_persisted_order()
+        capture_table_hidden_columns(table_state, self._table)
+        capture_table_sort_state(table_state, self._table)
 
     def _adjust_stretch_column_width(self) -> None:
         """Stretch the configured stretch column (or last visible column) to fill the remaining viewport width."""
@@ -808,6 +803,12 @@ class CsvLogTab(QWidget):
         if isinstance(action, QAction):
             column = action.data()
             show_column = action.isChecked()
+            if not show_column:
+                visible_count = sum(1 for col in range(self._model.columnCount()) if not self._table.isColumnHidden(col))
+                if visible_count <= 1:
+                    with QSignalBlocker(action):
+                        action.setChecked(True)
+                    return
             self._table.setColumnHidden(column, not show_column)
             if show_column and self._column_layout.custom_widths is not None and (horizontal_header := self._table.horizontalHeader()):
                 header_label = self._canonical_header(column)

@@ -22,6 +22,7 @@ from session_sniffer.guis.table_column_resizing import (
     setup_static_table_column_resizing,
 )
 from session_sniffer.guis.utils import PersistentMenu, add_icon_menu_action, create_styled_context_menu
+from session_sniffer.guis.window_layout import clear_table_layout
 from session_sniffer.i18n import tr
 from session_sniffer.models import GUIState
 from session_sniffer.settings.defaults import SETTING_DEFAULTS
@@ -312,6 +313,10 @@ class TableHeaderMenuMixin(QTableView):
         """Flag that columns should be recalculated and resized on subsequent data updates."""
         self._recalculation_payloads_remaining = max(self._recalculation_payloads_remaining, 2)
 
+    def _layout_table_key(self) -> str:
+        """Return the persistent `GUIState.tables` key for this session table."""
+        return 'connected_session' if self.is_connected_table else 'disconnected_session'
+
     def clear_custom_column_widths(self, column_names: set[str] | list[str] | tuple[str, ...]) -> None:
         """Remove custom widths for specific columns so they can be recalculated from content."""
         if self._column_layout.custom_widths is not None:
@@ -321,19 +326,16 @@ class TableHeaderMenuMixin(QTableView):
                 self._column_layout.custom_widths = None
         if Settings.gui_remember_window_layout:
             gui_state = GUIState.load()
-            widths = gui_state.connected_table_column_widths if self.is_connected_table else gui_state.disconnected_table_column_widths
-            if widths is not None:
+            table_state = gui_state.get_table(self._layout_table_key())
+            if table_state is not None and table_state.column_widths is not None:
                 changed = False
                 for column_name in column_names:
-                    if column_name in widths:
-                        del widths[column_name]
+                    if column_name in table_state.column_widths:
+                        del table_state.column_widths[column_name]
                         changed = True
                 if changed:
-                    if not widths:
-                        if self.is_connected_table:
-                            gui_state.connected_table_column_widths = None
-                        else:
-                            gui_state.disconnected_table_column_widths = None
+                    if not table_state.column_widths:
+                        table_state.column_widths = None
                     gui_state.save()
 
     def setup_static_column_resizing(self) -> None:
@@ -369,22 +371,10 @@ class TableHeaderMenuMixin(QTableView):
         self._column_layout.custom_widths = None
         self._has_auto_sized_with_data = False
         self.setup_static_column_resizing()
-        if Settings.gui_remember_window_layout:
-            gui_state = GUIState.load()
-            if self.is_connected_table:
-                gui_state.connected_table_column_widths = None
-            else:
-                gui_state.disconnected_table_column_widths = None
-            gui_state.save()
+        clear_table_layout(self._layout_table_key(), reset_widths=True)
 
     def _reset_column_order(self) -> None:
         """Restore the default column visual order and clear persisted order when layout memory is enabled."""
         self._column_layout.reset_column_order()
         self.setup_static_column_resizing()
-        if Settings.gui_remember_window_layout:
-            gui_state = GUIState.load()
-            if self.is_connected_table:
-                gui_state.connected_table_column_order = None
-            else:
-                gui_state.disconnected_table_column_order = None
-            gui_state.save()
+        clear_table_layout(self._layout_table_key(), reset_order=True)

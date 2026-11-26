@@ -52,8 +52,8 @@ from session_sniffer.guis.userip_manager_helpers import (
     iter_userip_databases,
 )
 from session_sniffer.guis.utils import scale_by_ui
+from session_sniffer.guis.window_layout import clear_table_layout
 from session_sniffer.i18n import tr
-from session_sniffer.models import GUIState
 from session_sniffer.models.userip_settings_model import UserIPSettingsModel
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
@@ -113,6 +113,7 @@ class SettingsPanelMixin(QDialog):
     if TYPE_CHECKING:
         _cached_column_widths: ClassVar[dict[str, int] | None]
         _cached_column_order: ClassVar[list[str] | None]
+        _cached_settings_panel_expanded: ClassVar[bool]
 
         def _mark_settings_dirty(self) -> None: ...
 
@@ -337,11 +338,25 @@ class SettingsPanelMixin(QDialog):
         """Show/hide all settings below Enabled based on the checkbox state."""
         self._settings_body.setVisible(self._setting_enabled.isChecked())
 
+    def is_settings_panel_expanded(self) -> bool:
+        """Return whether the collapsible Database Settings drawer is currently expanded."""
+        return not self._settings_content.isHidden()
+
+    def set_settings_panel_expanded(self, *, expanded: bool) -> None:
+        """Set the collapsible Database Settings drawer visibility and chevron indicator."""
+        self._settings_content.setVisible(expanded)
+        self._settings_toggle.setIcon(get_themed_icon('chevron-down.svg' if expanded else 'chevron-right.svg'))
+
+    @classmethod
+    def _set_cached_settings_panel_expanded(cls, *, expanded: bool) -> None:
+        """Update the session-cached Database Settings drawer state on the concrete manager class."""
+        cls._cached_settings_panel_expanded = expanded
+
     def _on_settings_toggle_clicked(self) -> None:
         """Toggle the settings content visibility and update the arrow indicator."""
-        visible = not self._settings_content.isVisible()
-        self._settings_content.setVisible(visible)
-        self._settings_toggle.setIcon(get_themed_icon('chevron-down.svg' if visible else 'chevron-right.svg'))
+        expanded = not self.is_settings_panel_expanded()
+        self.set_settings_panel_expanded(expanded=expanded)
+        self._set_cached_settings_panel_expanded(expanded=expanded)
 
     # ------------------------------------------------------------------
     # Status, file info, stats & column sizing
@@ -459,19 +474,11 @@ class SettingsPanelMixin(QDialog):
         self._column_layout.custom_widths = None
         self._clear_cached_column_widths()
         self._apply_default_column_widths()
-
-        if Settings.gui_remember_window_layout:
-            gui_state = GUIState.load()
-            gui_state.userip_manager_table_column_widths = None
-            gui_state.save()
+        clear_table_layout('userip_manager', reset_widths=True)
 
     def _reset_column_order(self) -> None:
         """Reset column visual order back to the initial default layout."""
         self._column_layout.reset_column_order()
         self._clear_cached_column_order()
         self._adjust_username_column_width()
-
-        if Settings.gui_remember_window_layout:
-            gui_state = GUIState.load()
-            gui_state.userip_manager_table_column_order = None
-            gui_state.save()
+        clear_table_layout('userip_manager', reset_order=True)

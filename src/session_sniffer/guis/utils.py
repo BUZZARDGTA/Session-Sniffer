@@ -358,6 +358,8 @@ class NumericTableWidgetItem(QTableWidgetItem):
 class ToggleAlwaysOnTopMixin(QWidget):
     """Mixin providing an always-on-top toggle and window-layout helpers for QWidget subclasses."""
 
+    _aot_checkbox: QCheckBox | None = None
+
     def setup_window_layout(
         self,
         *,
@@ -384,6 +386,7 @@ class ToggleAlwaysOnTopMixin(QWidget):
     ) -> None:
         """Create and add the standard 'Always on Top' checkbox to *layout*."""
         checkbox = QCheckBox()
+        self._aot_checkbox = checkbox
         checkbox.setChecked(always_on_top)
         checkbox.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         checkbox.toggled.connect(self.toggle_always_on_top)
@@ -411,6 +414,8 @@ class ToggleAlwaysOnTopMixin(QWidget):
 class RateGraphWindowMixin(ToggleAlwaysOnTopMixin):
     """Mixin for graph windows providing a unified bottom control bar."""
 
+    _history_combo: QComboBox | None = None
+
     def add_rate_graph_controls(
         self, layout: QBoxLayout, history_options: dict[str, int], *, default_history: int = 3600, margins: tuple[int, int, int, int] = (8, 6, 8, 8),
     ) -> None:
@@ -429,6 +434,7 @@ class RateGraphWindowMixin(ToggleAlwaysOnTopMixin):
         set_i18n_colon_label(max_history_label, 'Max History')
         controls_layout.addWidget(max_history_label)
         history_combo = QComboBox()
+        self._history_combo = history_combo
         history_combo.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         for text, seconds in history_options.items():
             history_combo.addItem(tr(text), seconds)

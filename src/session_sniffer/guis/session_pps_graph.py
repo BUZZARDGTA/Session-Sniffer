@@ -9,6 +9,7 @@ class SessionPpsGraphWindow(SingleRateGraphBase):
     """A standalone window displaying live PPS over time for the whole session."""
 
     WINDOW_TITLE = 'Session PPS Graph'
+    LAYOUT_KEY = 'session_pps_graph'
     LEFT_LABEL = 'PPS'
     CURVE_PEN = 'lime'
     CURVE_BRUSH = (0, 255, 0, 60)

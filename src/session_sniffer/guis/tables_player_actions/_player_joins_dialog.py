@@ -109,6 +109,8 @@ register_theme_change_callback(_refresh_player_joins_colors)
 class PlayerJoinsWindow(StatTableWindowMixin):
     """Sortable table window showing detailed session times, timestamps, ports, and stats for each join of a player."""
 
+    LAYOUT_KEY = 'player_joins'
+
     def __init__(self, parent: QWidget | None, player: Player) -> None:
         """Initialize the Player Joins window."""
         super().__init__(parent.window() if parent is not None else None)
@@ -137,6 +139,8 @@ class PlayerJoinsWindow(StatTableWindowMixin):
 
         setup_stat_table(self._table, layout, sorting=True)
 
+        apply_adaptive_window_size(self, min_size=(800, 420), size_1080p=(1120, 560), size_720p=(920, 480))
+
         bottom_layout = QHBoxLayout()
         self.setup_stat_table_controls(bottom_layout, always_on_top=True, min_column_widths=PLAYER_JOINS_TABLE_MIN_COLUMN_WIDTHS)
         bottom_layout.addStretch(1)
@@ -152,9 +156,8 @@ class PlayerJoinsWindow(StatTableWindowMixin):
         bottom_layout.addWidget(close_button)
         layout.addLayout(bottom_layout)
 
-        apply_adaptive_window_size(self, min_size=(800, 420), size_1080p=(1120, 560), size_720p=(920, 480))
-        self._reset_column_sizes()
-        self._table.sortByColumn(_COLUMN_INDEX, Qt.SortOrder.AscendingOrder)
+        self._setup_column_resizing()
+        self._apply_default_or_saved_sort(_COLUMN_INDEX, Qt.SortOrder.AscendingOrder)
 
         self._timer = QTimer(self)
         self._timer.setInterval(1000)

@@ -20,7 +20,8 @@ from session_sniffer.guis.stylesheets import (
     GRAPH_PPS_POPOUT_BUTTON_STYLESHEET,
 )
 from session_sniffer.guis.theming import ICONS_DIR_PATH
-from session_sniffer.guis.utils import RateGraphWindowMixin, format_duration, scale_by_ui
+from session_sniffer.guis.utils import format_duration, scale_by_ui
+from session_sniffer.guis.window_layout import PersistentRateGraphWindowMixin
 from session_sniffer.i18n import tr
 from session_sniffer.models.player_traffic import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
@@ -37,10 +38,11 @@ _BYTES_TO_KBS = 1024
 _MIN_PPM_SAMPLES = 2
 
 
-class CaptureStatisticsWindow(RateGraphWindowMixin):
+class CaptureStatisticsWindow(PersistentRateGraphWindowMixin):
     """A standalone window showing capture statistics, latency, and live graphs."""
 
     WINDOW_TITLE = 'Capture Statistics'
+    LAYOUT_KEY = 'capture_statistics'
 
     open_packets_latency_graph_requested = Signal()
     open_session_pps_graph_requested = Signal()
@@ -286,6 +288,7 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
         self._peak_ppm: int = 0
         self._graphs_all_zero: bool = False
 
+        self._restore_rate_graph_layout()
         self._load_history()
         self._apply_translations()
         register_language_refresh(self, self._apply_translations)

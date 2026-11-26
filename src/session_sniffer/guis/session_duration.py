@@ -19,6 +19,8 @@ from session_sniffer.player.registry import PlayersRegistry
 class SessionDurationWindow(StatTableWindowMixin):
     """A standalone window listing disconnected players sorted by session duration."""
 
+    LAYOUT_KEY = 'session_duration'
+
     def __init__(self, *, always_on_top: bool = True) -> None:
         """Initialize the session duration window."""
         super().__init__()
@@ -30,8 +32,8 @@ class SessionDurationWindow(StatTableWindowMixin):
         set_table_headers(self._table, ['Duration', 'IP', 'Usernames'])
         setup_stat_table(self._table, layout)
         self.setup_stat_table_controls(layout, always_on_top=always_on_top, min_column_widths=SESSION_DURATION_TABLE_MIN_COLUMN_WIDTHS)
-        self._reset_column_sizes()
-        self._table.sortByColumn(0, Qt.SortOrder.DescendingOrder)
+        self._setup_column_resizing()
+        self._apply_default_or_saved_sort(0, Qt.SortOrder.DescendingOrder)
 
         self._apply_translations()
         register_language_refresh(self, self._apply_translations)

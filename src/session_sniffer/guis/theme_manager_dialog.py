@@ -87,6 +87,7 @@ from session_sniffer.guis.utils import (
     set_clipboard_text,
     set_dialog_window_flags,
 )
+from session_sniffer.guis.window_layout import apply_maximize_on_show, restore_window_layout, save_window_layout
 from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.settings.settings import Settings
 
@@ -94,7 +95,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from pathlib import Path
 
-    from PySide6.QtGui import QCloseEvent, QKeyEvent
+    from PySide6.QtGui import QCloseEvent, QKeyEvent, QShowEvent
 
 _HEX_COLOR_RE = re.compile(r'^#?[0-9a-fA-F]{6}$')
 
@@ -137,7 +138,8 @@ class ThemeManagerDialog(QDialog):
         set_dialog_window_flags(self)
         self.setWindowModality(Qt.WindowModality.WindowModal)
         self.setMinimumSize(scale_by_ui(980), scale_by_ui(660))
-        resize_window_for_screen(self)
+        self._layout_saved = False
+        restore_window_layout(self, 'theme_manager', fallback_resize=lambda: resize_window_for_screen(self))
 
         self._swatch_buttons: dict[str, QPushButton] = {}
         self._hex_edits: dict[str, QLineEdit] = {}
@@ -972,12 +974,24 @@ class ThemeManagerDialog(QDialog):
         self._commit_all_pending_edits()
         self.accept()
 
+    def _save_layout_once(self) -> None:
+        if not self._layout_saved:
+            self._layout_saved = True
+            save_window_layout(self, 'theme_manager')
+
+    @override
+    def showEvent(self, event: QShowEvent) -> None:
+        super().showEvent(event)
+        apply_maximize_on_show(self)
+
     @override
     def done(self, result: int) -> None:
         self._commit_all_pending_edits()
+        self._save_layout_once()
         super().done(result)
 
     @override
     def closeEvent(self, event: QCloseEvent) -> None:
         self._commit_all_pending_edits()
+        self._save_layout_once()
         super().closeEvent(event)

@@ -15,7 +15,9 @@ from session_sniffer.guis.live_language import register_language_refresh
 from session_sniffer.guis.player_identifier import PlayerIdentifierWidget
 from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.utils import ToggleAlwaysOnTopMixin, scale_by_ui
+from session_sniffer.guis.window_layout import apply_maximize_on_show, restore_window_layout, save_window_layout_with_always_on_top
 from session_sniffer.i18n import tr
+from session_sniffer.models import GUIState
 from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
@@ -35,14 +37,19 @@ class PlayerResolverWindow(ToggleAlwaysOnTopMixin):
     ) -> None:
         """Initialize the Player Resolver window."""
         super().__init__(parent)
+        self._has_been_shown = False
 
         self.setMinimumSize(scale_by_ui(600), scale_by_ui(390))
+        win_state = restore_window_layout(self, 'player_resolver')
+        always_on_top = win_state.always_on_top if win_state is not None and win_state.always_on_top is not None else False
         flags = (
             Qt.WindowType.Window
             | Qt.WindowType.WindowCloseButtonHint
             | Qt.WindowType.WindowMinimizeButtonHint
             | Qt.WindowType.WindowMaximizeButtonHint
         )
+        if always_on_top:
+            flags |= Qt.WindowType.WindowStaysOnTopHint
         self.setWindowFlags(flags)
 
         layout = QVBoxLayout(self)
@@ -59,11 +66,14 @@ class PlayerResolverWindow(ToggleAlwaysOnTopMixin):
         self.player_identifier = PlayerIdentifierWidget(select_ips_callback, deselect_ips_callback, self)
         self._tabs.addTab(self.player_identifier, QIcon(str(ICONS_DIR_PATH / 'user-round-search.svg')), '')
 
+        if win_state is not None and win_state.active_tab is not None and 0 <= win_state.active_tab < self._tabs.count():
+            self._tabs.setCurrentIndex(win_state.active_tab)
+
         self._apply_translations()
         register_language_refresh(self, self._apply_translations)
 
         # Always on top checkbox (shared across tabs)
-        self.add_always_on_top_checkbox(layout, always_on_top=False, alignment=Qt.AlignmentFlag.AlignHCenter)
+        self.add_always_on_top_checkbox(layout, always_on_top=always_on_top, alignment=Qt.AlignmentFlag.AlignHCenter)
 
     def _apply_translations(self) -> None:
         """Apply translated text to the window title and tab labels."""
@@ -79,14 +89,21 @@ class PlayerResolverWindow(ToggleAlwaysOnTopMixin):
 
     @override
     def showEvent(self, event: QShowEvent) -> None:
-        """Handle window show event to start monitoring when background running is disabled."""
+        """Handle window show event to maximize if required and start monitoring when background running is disabled."""
+        self._has_been_shown = True
         super().showEvent(event)
+        apply_maximize_on_show(self)
         if not Settings.high_rate_monitor_run_in_background:
             self.high_rate_monitor.start_monitoring()
 
     @override
     def closeEvent(self, event: QCloseEvent) -> None:
-        """Handle window close event to stop monitoring when background running is disabled."""
+        """Persist window layout when shown and stop monitoring when background running is disabled."""
+        if self._has_been_shown and Settings.gui_remember_window_layout:
+            gui_state = GUIState.load()
+            if (win_state := save_window_layout_with_always_on_top(self, 'player_resolver', gui_state=gui_state)) is not None:
+                win_state.active_tab = self._tabs.currentIndex()
+            gui_state.save()
         if not Settings.high_rate_monitor_run_in_background and not self.high_rate_monitor.has_open_graphs():
             self.high_rate_monitor.stop_monitoring()
         super().closeEvent(event)

@@ -1,14 +1,13 @@
 """Provides a manager for standard QTableWidget context menus."""
 
 import functools
-from typing import TYPE_CHECKING, override
+from typing import TYPE_CHECKING, ClassVar, override
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QKeySequence, QResizeEvent, QShortcut, QShowEvent
+from PySide6.QtGui import QCloseEvent, QKeySequence, QResizeEvent, QShortcut, QShowEvent
 
-from session_sniffer.constants.tables import DEFAULT_MIN_COLUMN_WIDTH
 from session_sniffer.guis.live_language import CANONICAL_HEADER_ROLE
-from session_sniffer.guis.table_column_resizing import TableColumnResizeController, setup_table_header_context_menu
+from session_sniffer.guis.table_column_resizing import ColumnSizingMenuCallbacks, TableColumnLayoutController, setup_table_header_context_menu
 from session_sniffer.guis.tables_player_actions._actions import (
     create_ping_menu,
     scan_ports_ip,
@@ -19,19 +18,33 @@ from session_sniffer.guis.tables_player_actions._ip_lookup_dialog import (
 from session_sniffer.guis.utils import (
     ToggleAlwaysOnTopMixin,
     add_icon_menu_action,
+    apply_always_on_top,
     copy_table_selection,
     create_styled_context_menu,
     popup_menu_at_table,
-    scale_by_ui,
     set_clipboard_text,
 )
+from session_sniffer.guis.window_layout import (
+    apply_maximize_on_show,
+    apply_table_sort_state,
+    capture_table_sort_state,
+    clear_table_layout,
+    restore_table_layout,
+    restore_window_layout,
+    save_table_layout,
+    save_window_layout_with_always_on_top,
+)
 from session_sniffer.i18n import tr, tr_plural
+from session_sniffer.models import GUIState
+from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from PySide6.QtCore import QPoint
     from PySide6.QtWidgets import QBoxLayout, QMenu, QTableWidget, QWidget
+
+    from session_sniffer.models.gui_state import TableLayoutState
 
 
 def add_copy_usernames_and_ips_actions(
@@ -98,17 +111,16 @@ class TableContextMenuManager:
         table: QTableWidget,
         parent: QWidget,
         *,
-        on_reset_column_sizes: Callable[[], None] | None = None,
+        header_callbacks: ColumnSizingMenuCallbacks | None = None,
     ) -> None:
         """Initialize the context menu manager for the given table."""
         self._table = table
         self._parent = parent
         self._is_open = False
-        self._on_reset_column_sizes = on_reset_column_sizes
 
         self._table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._table.customContextMenuRequested.connect(self.show_context_menu)
-        setup_table_header_context_menu(self._table, on_reset=self._on_reset_column_sizes)
+        setup_table_header_context_menu(self._table, callbacks=header_callbacks)
         QShortcut(QKeySequence('Ctrl+C'), self._table).activated.connect(lambda: copy_table_selection(self._table))
         QShortcut(QKeySequence('Ctrl+A'), self._table).activated.connect(self._table.selectAll)
 
@@ -212,11 +224,14 @@ class TableContextMenuManager:
 
 
 class StatTableWindowMixin(ToggleAlwaysOnTopMixin):
-    """Mixin for statistic table windows providing resizing, context menu, and always-on-top setup."""
+    """Mixin for statistic table windows providing resizing, column order, layout persistence, context menu, and always-on-top setup."""
+
+    LAYOUT_KEY: ClassVar[str | None] = None
 
     _table: QTableWidget
-    _column_resizer: TableColumnResizeController
+    _column_resizer: TableColumnLayoutController
     _context_menu_manager: TableContextMenuManager
+    _saved_table_state: TableLayoutState | None = None
 
     def setup_stat_table_controls(
         self,
@@ -225,17 +240,33 @@ class StatTableWindowMixin(ToggleAlwaysOnTopMixin):
         always_on_top: bool,
         min_column_widths: dict[str, int] | None = None,
     ) -> None:
-        """Initialize the context menu manager, column resizing hooks, and add the always-on-top checkbox."""
-        self._column_resizer = TableColumnResizeController(
+        """Initialize column layout, context menu, layout restoration, and the always-on-top checkbox."""
+        self._column_resizer = TableColumnLayoutController(
             self._table,
             min_column_widths=min_column_widths,
+            on_after_move=self._setup_column_resizing,
         )
-        header = self._table.horizontalHeader()
-        header.setStretchLastSection(False)
-        header.setMinimumSectionSize(scale_by_ui(DEFAULT_MIN_COLUMN_WIDTH))
-        header.sectionResized.connect(self._column_resizer.on_section_resized)
-        self._context_menu_manager = TableContextMenuManager(self._table, self, on_reset_column_sizes=self._column_resizer.reset_column_sizes)
-        self.add_always_on_top_checkbox(layout, always_on_top=always_on_top)
+        self._column_resizer.bind_header()
+        self._context_menu_manager = TableContextMenuManager(
+            self._table,
+            self,
+            header_callbacks=self._column_resizer.menu_callbacks(on_reset=self._reset_column_sizes, on_reset_order=self._reset_column_order),
+        )
+        effective_always_on_top = always_on_top
+        self._saved_table_state = None
+        if self.LAYOUT_KEY is not None and Settings.gui_remember_window_layout:
+            gui_state = GUIState.load()
+            win_state = restore_window_layout(self, self.LAYOUT_KEY, gui_state=gui_state)
+            if win_state is not None and win_state.always_on_top is not None:
+                effective_always_on_top = win_state.always_on_top
+                apply_always_on_top(self, checked=effective_always_on_top)
+            self._saved_table_state = restore_table_layout(self.LAYOUT_KEY, self._column_resizer, gui_state=gui_state)
+        self.add_always_on_top_checkbox(layout, always_on_top=effective_always_on_top)
+
+    def _apply_default_or_saved_sort(self, default_column: int, default_order: Qt.SortOrder) -> None:
+        """Apply persisted sort state if available, otherwise fall back to *default_column* and *default_order*."""
+        if not apply_table_sort_state(self._table, self._saved_table_state):
+            self._table.sortByColumn(default_column, default_order)
 
     def _setup_column_resizing(self) -> None:
         """Apply smart column resizing to the statistics table."""
@@ -249,11 +280,21 @@ class StatTableWindowMixin(ToggleAlwaysOnTopMixin):
     def _reset_column_sizes(self) -> None:
         """Reset column widths back to their initial default layout."""
         self._column_resizer.reset_column_sizes()
+        if self.LAYOUT_KEY is not None:
+            clear_table_layout(self.LAYOUT_KEY, reset_widths=True)
+
+    def _reset_column_order(self) -> None:
+        """Reset column visual order back to the initial default layout."""
+        self._column_resizer.reset_column_order()
+        self._setup_column_resizing()
+        if self.LAYOUT_KEY is not None:
+            clear_table_layout(self.LAYOUT_KEY, reset_order=True)
 
     @override
     def showEvent(self, event: QShowEvent) -> None:
-        """Adjust column widths when the window is shown."""
+        """Apply deferred maximization and adjust column widths when the window is shown."""
         super().showEvent(event)
+        apply_maximize_on_show(self)
         self._setup_column_resizing()
 
     @override
@@ -261,3 +302,14 @@ class StatTableWindowMixin(ToggleAlwaysOnTopMixin):
         """Adjust column widths when the window is resized."""
         super().resizeEvent(event)
         self._setup_column_resizing()
+
+    @override
+    def closeEvent(self, event: QCloseEvent) -> None:
+        """Persist window geometry, Always on Top, and table column/sort state on close."""
+        if self.LAYOUT_KEY is not None and Settings.gui_remember_window_layout:
+            gui_state = GUIState.load()
+            save_window_layout_with_always_on_top(self, self.LAYOUT_KEY, gui_state=gui_state)
+            if (table_state := save_table_layout(self.LAYOUT_KEY, self._column_resizer, gui_state=gui_state)) is not None:
+                capture_table_sort_state(table_state, self._table)
+            gui_state.save()
+        super().closeEvent(event)

@@ -44,15 +44,9 @@ from session_sniffer.guis.tables_player_actions._userip_dialog import close_all_
 from session_sniffer.guis.tables_player_actions.looky_system._looky_crawler_request_dialog import close_all_crawler_dialogs
 from session_sniffer.guis.tables_player_actions.looky_system._looky_lookup_dialog import close_all_lookup_dialogs
 from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qss
-from session_sniffer.guis.userip_conflict_resolver import open_userip_conflict_resolver
-from session_sniffer.guis.utils import (
-    apply_always_on_top,
-    consume_maximize_on_show,
-    render_svg_pixmap_from_resource,
-    resize_window_for_screen,
-    scale_by_ui,
-    show_or_focus_window,
-)
+from session_sniffer.guis.userip_conflict_resolver import close_userip_conflict_resolver, open_userip_conflict_resolver
+from session_sniffer.guis.utils import apply_always_on_top, render_svg_pixmap_from_resource, resize_window_for_screen, scale_by_ui, show_or_focus_window
+from session_sniffer.guis.window_layout import apply_maximize_on_show, register_layout_cache_reset, restore_window_layout, save_window_layout, unregister_layout_cache_reset
 from session_sniffer.guis.worker_thread import GUIWorkerThread
 from session_sniffer.i18n import tr
 from session_sniffer.models import GUIState
@@ -276,7 +270,12 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, ShortcutsMixin, 
 
         self.setWindowTitle(TITLE)
         self.setMinimumSize(scale_by_ui(1024), scale_by_ui(600))
-        resize_window_for_screen(self, screen_size)
+        self._skip_layout_save_on_close = False
+        register_layout_cache_reset(self._on_saved_layouts_reset)
+        initial_gui_state = GUIState.load() if Settings.gui_remember_window_layout else None
+        restore_window_layout(self, 'main_window', fallback_resize=lambda: resize_window_for_screen(self, screen_size), gui_state=initial_gui_state)
+        if initial_gui_state is not None and initial_gui_state.main_window.tables_merged is not None:
+            TableMergeState.set_override(merged=initial_gui_state.main_window.tables_merged)
         self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowMinMaxButtonsHint | Qt.WindowType.WindowCloseButtonHint)
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -367,28 +366,22 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, ShortcutsMixin, 
         self._disconnected.section_toggled.connect(self._update_splitter_visibility)
         self._disconnected.session_filter_changed.connect(self._on_session_filter_changed)
 
-        if Settings.gui_remember_window_layout:
-            gui_state = GUIState.load()
-            if (
-                gui_state.main_window_splitter_sizes is not None
-                and gui_state.main_window_splitter_sizes
-                and len(gui_state.main_window_splitter_sizes) == self._tables_splitter.count()
-                and all(size > 0 for size in gui_state.main_window_splitter_sizes)
-            ):
-                self._saved_splitter_sizes = list(gui_state.main_window_splitter_sizes)
+        if initial_gui_state is not None:
+            win_state = initial_gui_state.get_window('main_window')
+            splitter_sizes = win_state.splitter_sizes if win_state is not None else None
+            if splitter_sizes is not None and len(splitter_sizes) == self._tables_splitter.count() and all(size > 0 for size in splitter_sizes):
+                self._saved_splitter_sizes = list(splitter_sizes)
                 self._tables_splitter.setSizes(self._saved_splitter_sizes)
-
-            if gui_state.connected_table_column_order is not None and gui_state.connected_table_column_order:
-                self._connected.table_view.apply_column_order(gui_state.connected_table_column_order)
-
-            if gui_state.connected_table_column_widths is not None and gui_state.connected_table_column_widths:
-                self._connected.table_view.apply_column_widths(gui_state.connected_table_column_widths)
-
-            if gui_state.disconnected_table_column_order is not None and gui_state.disconnected_table_column_order:
-                self._disconnected.table_view.apply_column_order(gui_state.disconnected_table_column_order)
-
-            if gui_state.disconnected_table_column_widths is not None and gui_state.disconnected_table_column_widths:
-                self._disconnected.table_view.apply_column_widths(gui_state.disconnected_table_column_widths)
+            for section, table_key in ((self._connected, 'connected_session'), (self._disconnected, 'disconnected_session')):
+                if (table_state := initial_gui_state.get_table(table_key)) is not None:
+                    if table_state.column_order is not None and table_state.column_order:
+                        section.table_view.apply_column_order(table_state.column_order)
+                    if table_state.column_widths is not None and table_state.column_widths:
+                        section.table_view.apply_column_widths(table_state.column_widths)
+            if not initial_gui_state.main_window.connected_expanded:
+                self._connected.minimize()
+            if not initial_gui_state.main_window.disconnected_expanded:
+                self._disconnected.minimize()
 
         self._update_splitter_visibility()
         register_post_theme_refresh(self, self._refresh_after_theme_change)
@@ -519,29 +512,38 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, ShortcutsMixin, 
             running_qthreads,
         )
 
+    def _on_saved_layouts_reset(self) -> None:
+        """Skip persisting stale main window layout on exit after the user explicitly resets all saved layouts."""
+        if isValid(self):
+            self._skip_layout_save_on_close = True
+
     @override
     def closeEvent(self, a0: QCloseEvent | None) -> None:
         """Handle the main window close event and terminate background work."""
+        unregister_layout_cache_reset(self._on_saved_layouts_reset)
         self._thread_health_timer.stop()
         self._unregister_global_hotkeys()
         self._stats_timer.stop()
         self._config_watcher.stop()
-        if Settings.gui_remember_window_layout:
+        if Settings.gui_remember_window_layout and not self._skip_layout_save_on_close:
             gui_state = GUIState.load()
+            win_state = save_window_layout(self, 'main_window', gui_state=gui_state)
             selected_session = SessionFilterState.get_selected_session()
             is_past_session = 0 < selected_session < SessionTracker.get_current_session_id()
-            if not is_past_session and not TableMergeState.is_merged() and self._connected.is_expanded and self._disconnected.is_expanded:
-                current_sizes = self._tables_splitter.sizes()
-                if len(current_sizes) == self._tables_splitter.count() and all(size > 0 for size in current_sizes):
-                    gui_state.main_window_splitter_sizes = current_sizes
-            elif self._saved_splitter_sizes:
-                gui_state.main_window_splitter_sizes = self._saved_splitter_sizes
-
-            gui_state.connected_table_column_widths = self._connected.table_view.get_persisted_column_widths()
-            gui_state.connected_table_column_order = self._connected.table_view.get_persisted_column_order()
-            gui_state.disconnected_table_column_widths = self._disconnected.table_view.get_persisted_column_widths()
-            gui_state.disconnected_table_column_order = self._disconnected.table_view.get_persisted_column_order()
-
+            if win_state is not None:
+                if not is_past_session and not TableMergeState.is_merged() and self._connected.is_expanded and self._disconnected.is_expanded:
+                    current_sizes = self._tables_splitter.sizes()
+                    if len(current_sizes) == self._tables_splitter.count() and all(size > 0 for size in current_sizes):
+                        win_state.splitter_sizes = current_sizes
+                elif self._saved_splitter_sizes:
+                    win_state.splitter_sizes = self._saved_splitter_sizes
+            gui_state.main_window.connected_expanded = self._connected.is_expanded
+            gui_state.main_window.disconnected_expanded = self._disconnected.is_expanded
+            gui_state.main_window.tables_merged = TableMergeState.get_override()
+            for section, table_key in ((self._connected, 'connected_session'), (self._disconnected, 'disconnected_session')):
+                table_state = gui_state.ensure_table(table_key)
+                table_state.column_widths = section.table_view.get_persisted_column_widths()
+                table_state.column_order = section.table_view.get_persisted_column_order()
             gui_state.save()
 
         logger.debug('MainWindow closeEvent received')
@@ -551,17 +553,18 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, ShortcutsMixin, 
         logger.debug('MainWindow closeEvent: closing child windows')
         self._player_resolver_window.close()
         for child_window in (
-            self._settings_dialog_window,
-            self._userip_manager_window,
-            self._logs_manager_window,
-            self._detections_manager_window,
-            self._leaderboard_window,
+            self._settings_dialog_window, self._userip_manager_window, self._logs_manager_window,
+            self._detections_manager_window, self._leaderboard_window, self._capture_statistics_window,
+            self._country_breakdown_window, self._port_heatmap_window, self._reconnect_frequency_window,
+            self._session_duration_window, self._session_timeline_window, self._session_rate_graph_window,
+            self._session_pps_graph_window, self._session_bps_graph_window, self._packets_latency_graph_window,
         ):
-            if child_window is not None:
+            if child_window is not None and isValid(child_window):
                 child_window.close()
 
         PingWindow.close_window()
         PortScannerWindow.close_window()
+        close_userip_conflict_resolver()
 
         close_all_crawler_dialogs()
         close_all_lookup_dialogs()
@@ -583,8 +586,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, ShortcutsMixin, 
     def showEvent(self, a0: QShowEvent) -> None:
         """Handle the window show event, maximize if required, and restore table splitter layout."""
         super().showEvent(a0)
-        if consume_maximize_on_show(self):
-            self.showMaximized()
+        apply_maximize_on_show(self)
         self._update_splitter_visibility()
 
     def _open_port_scanner(self) -> None:

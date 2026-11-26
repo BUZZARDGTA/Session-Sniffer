@@ -81,6 +81,7 @@ from session_sniffer.guis.utils import (
     scale_by_ui,
     set_dialog_window_flags,
 )
+from session_sniffer.guis.window_layout import restore_window_layout
 from session_sniffer.i18n import normalize_language_code, tr
 from session_sniffer.networking.looky_system import LookyState
 from session_sniffer.networking.utils import format_mac_address, is_ipv4_address
@@ -118,7 +119,7 @@ class SettingsDialog(
         self.setWindowTitle(f"{tr('Settings')} - {TITLE}")
         set_dialog_window_flags(self)
         self.setMinimumSize(scale_by_ui(950), scale_by_ui(750))
-        resize_window_for_screen(self)
+        restore_window_layout(self, 'settings_dialog', fallback_resize=lambda: resize_window_for_screen(self))
 
         self._capture = capture
         self._on_change_interface = on_change_interface
@@ -410,6 +411,10 @@ class SettingsDialog(
             self._build_theme_setting_row(form, label, widget)
             return
 
+        if key == 'gui_remember_window_layout':
+            self._build_window_layout_row(form, label, widget)
+            return
+
         if key == 'high_rate_monitor_spike_sound_preset':
             form.addRow(label, self._build_spike_sound_preset_row(widget))
             return
@@ -538,6 +543,7 @@ class SettingsDialog(
         self._refresh_interface_info_labels()
         self._update_sort_column_options()
         self._refresh_looky_language()
+        self._refresh_reset_layout_button_language()
         self._webserver_section.refresh_language()
         equalize_button_sizes(self._button_row)
 

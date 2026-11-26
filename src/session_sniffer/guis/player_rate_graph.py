@@ -26,6 +26,7 @@ from session_sniffer.guis.rate_graph_widget import (
 )
 from session_sniffer.guis.theming import themed_qss
 from session_sniffer.guis.utils import RateGraphWindowMixin, format_player_display, scale_by_ui
+from session_sniffer.guis.window_layout import PersistentRateGraphWindowMixin
 from session_sniffer.i18n import tr
 from session_sniffer.models.player_traffic import PlayerBandwidth
 
@@ -107,7 +108,7 @@ def _attach_controls_dock(
     layout.addWidget(dock, 0)
 
 
-class SingleRateGraphBase(RateGraphWindowMixin):
+class SingleRateGraphBase(PersistentRateGraphWindowMixin):
     """Base class for single-series sliding-window rate graph windows."""
 
     WINDOW_TITLE: str
@@ -145,6 +146,7 @@ class SingleRateGraphBase(RateGraphWindowMixin):
 
         _attach_controls_dock(self, layout)
         self._setup_single_history_buffers()
+        self._restore_rate_graph_layout()
 
     def _apply_translations(self) -> None:
         """Apply translated text to the window title."""
@@ -202,7 +204,7 @@ class SingleRateGraphBase(RateGraphWindowMixin):
         self._widget.set_average(0)
 
 
-class DualRateGraphBase(RateGraphWindowMixin):
+class DualRateGraphBase(PersistentRateGraphWindowMixin):
     """Base class for dual PPS+BPS graph windows."""
 
     PPS_Y_FLOOR: float = 10.0
@@ -257,6 +259,7 @@ class DualRateGraphBase(RateGraphWindowMixin):
         self._setup_dual_graph_widgets(layout)
         _attach_controls_dock(self, layout, pre_footer_widget=self._create_pre_footer_controls())
         self._setup_history_buffers()
+        self._restore_rate_graph_layout()
 
     @override
     def _on_max_history_changed(self, new_max_history: int) -> None:
