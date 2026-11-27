@@ -88,7 +88,7 @@ class SplashScreen(QWidget):
         self._spinner_timer.setInterval(80)
         self._spinner_timer.timeout.connect(self._animate_spinner)
 
-        self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='SplashScreen')
+        self._executor: ThreadPoolExecutor | None = ThreadPoolExecutor(max_workers=1, thread_name_prefix='SplashScreen')
 
         center_window_on_screen(self)
 
@@ -157,12 +157,19 @@ class SplashScreen(QWidget):
         self._progress_detail = self._pending_progress_details.pop(message, None)
         self._spinner_index = 0
         self._log_area.append(self._build_line_html(SPINNER_FRAMES[0], _SPINNER_COLOR, message, self._progress_detail))
-        self._spinner_timer.start()
+        if self.isVisible():
+            self._spinner_timer.start()
 
         scrollbar = self._log_area.verticalScrollBar()
         if scrollbar:
             scrollbar.setValue(scrollbar.maximum())
         QApplication.processEvents()
+
+    def _shutdown_executor(self) -> None:
+        """Shut down and release the splash worker pool if still active."""
+        if self._executor is not None:
+            self._executor.shutdown(wait=False)
+            self._executor = None
 
     def run_with_spinner(self, fn: Callable[_P, _T], /, *args: _P.args, **kwargs: _P.kwargs) -> _T:
         """Run a callable in a background thread while keeping the spinner animated.
@@ -170,14 +177,22 @@ class SplashScreen(QWidget):
         The Qt event loop is pumped continuously so the spinner QTimer fires.
         Exceptions from the callable are re-raised in the calling thread.
         """
-        future = self._executor.submit(fn, *args, **kwargs)
+        executor = self._executor
+        temporary_executor: ThreadPoolExecutor | None = None
+        if executor is None:
+            temporary_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='SplashScreen')
+            executor = temporary_executor
         try:
+            future = executor.submit(fn, *args, **kwargs)
             while not future.done():
                 QApplication.processEvents()
                 time.sleep(0.016)
             return future.result()
         finally:
-            self._spinner_timer.stop()
+            if temporary_executor is not None:
+                temporary_executor.shutdown(wait=False)
+            if isValid(self):
+                self._spinner_timer.stop()
 
     def finish_loading(self) -> None:
         """Mark the last step done and show a ready message."""
@@ -204,7 +219,7 @@ class SplashScreen(QWidget):
     def close_splash(self) -> None:
         """Close the splash screen."""
         self.stop_spinner()
-        self._executor.shutdown(wait=False)
+        self._shutdown_executor()
         if SplashScreen._active_instance is self:
             SplashScreen._active_instance = None
         self.close()
@@ -213,7 +228,7 @@ class SplashScreen(QWidget):
     def closeEvent(self, a0: QCloseEvent) -> None:
         """Stop animation and executor on close."""
         self.stop_spinner()
-        self._executor.shutdown(wait=False)
+        self._shutdown_executor()
         if SplashScreen._active_instance is self:
             SplashScreen._active_instance = None
         super().closeEvent(a0)
