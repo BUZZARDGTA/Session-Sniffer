@@ -349,7 +349,7 @@
   "preview.footer_cta": "下载桌面版应用",
   "preview.footer_note": "当前显示的是虚拟示例玩家。准备好监控您自己的真实 P2P 会话了吗？",
   "preview.lead": "直接在浏览器中使用虚拟示例玩家体验 Session Sniffer 的真实桌面界面 — 如需捕获您自己的 P2P 流量，请在下方下载桌面版应用。",
-  "preview.note": "使用示例数据的浏览器模拟 — 试试搜索、切换主题，或右键点击任意一行。",
+  "preview.note": "使用示例数据的浏览器模拟 — 试试搜索、列排序，或右键点击任意一行。",
   "preview.preset_universal": "通用 P2P",
   "preview.stage_exit_fullscreen": "退出",
   "preview.stage_fit": "适应屏幕",

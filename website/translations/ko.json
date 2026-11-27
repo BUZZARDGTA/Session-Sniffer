@@ -349,7 +349,7 @@
   "preview.footer_cta": "데스크톱 앱 다운로드",
   "preview.footer_note": "가상 샘플 플레이어를 표시 중입니다. 실제 P2P 세션을 모니터링할 준비가 되셨나요?",
   "preview.lead": "가상 샘플 플레이어를 이용해 브라우저에서 Session Sniffer의 실제 데스크톱 UI를 체험해 보세요 — 실제 P2P 트래픽을 캡처하려면 아래에서 데스크톱 앱을 다운로드하세요.",
-  "preview.note": "샘플 데이터를 사용한 브라우저 시뮬레이션 — 검색, 테마 전환 또는 아무 행이나 우클릭해 보세요.",
+  "preview.note": "샘플 데이터를 사용한 브라우저 시뮬레이션 — 검색, 열 정렬 또는 아무 행이나 우클릭해 보세요.",
   "preview.preset_universal": "범용 P2P",
   "preview.stage_exit_fullscreen": "닫기",
   "preview.stage_fit": "화면 맞춤",

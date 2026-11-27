@@ -349,7 +349,7 @@
   "preview.footer_cta": "Download Desktop App",
   "preview.footer_note": "Showing fake sample players. Ready to monitor your own real P2P sessions?",
   "preview.lead": "Test Session Sniffer's real desktop UI right in your browser with fake sample players — download the desktop app below to capture your own P2P traffic.",
-  "preview.note": "Browser simulation with sample data — try searching, switching themes, or right-clicking any row.",
+  "preview.note": "Browser simulation with sample data — try searching, sorting columns, or right-clicking any row.",
   "preview.preset_universal": "Universal P2P",
   "preview.stage_exit_fullscreen": "Exit",
   "preview.stage_fit": "Fit View",

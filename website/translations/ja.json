@@ -349,7 +349,7 @@
   "preview.footer_cta": "デスクトップアプリをダウンロード",
   "preview.footer_note": "架空のサンプルプレイヤーを表示しています。実際の P2P セッションを監視しますか？",
   "preview.lead": "架空のサンプルプレイヤーを使って Session Sniffer の実際のデスクトップ UI をブラウザ上で体験できます — 実際の P2P トラフィックを監視するには下のデスクトップアプリをダウンロードしてください。",
-  "preview.note": "サンプルデータによるブラウザシミュレーション — 検索、テーマ切り替え、任意の行の右クリックをお試しください。",
+  "preview.note": "サンプルデータによるブラウザシミュレーション — 検索、列の並べ替え、任意の行の右クリックをお試しください。",
   "preview.preset_universal": "汎用 P2P",
   "preview.stage_exit_fullscreen": "終了",
   "preview.stage_fit": "全体表示",
