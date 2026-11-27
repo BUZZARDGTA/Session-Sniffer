@@ -66,13 +66,13 @@ Grab the latest standalone executable for **Windows**, **Linux**, or **macOS**:
 
 Session Sniffer works with **any** Peer-to-Peer (P2P) game or application, including **GTA Online**, **Red Dead Online**, **Call of Duty**, **ELDEN RING**, **Minecraft**, **AnyDesk**, **OmeTV**, and more.
 
-See the [**Supported Games and Softwares**](https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Supported-Games-and-Softwares) wiki page for the full list of officially tested titles and notes.
+See the [**Supported Games and Softwares**](https://sessionsniffer.com/#games) catalog on the official website for the full searchable list of officially tested titles and notes.
 
 ---
 
 ## 🔐 Username Resolving
 
-- **PlayStation 3 (PS3)**: Shows PSN usernames automatically on [supported games](https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Supported-Games-and-Softwares) *(patched since PS4 and Xbox One)*.
+- **PlayStation 3 (PS3)**: Shows PSN usernames automatically on [supported games](https://sessionsniffer.com/#games) *(patched since PS4 and Xbox One)*.
 - **GTA Online (PC) Mod Menus**: Shows usernames automatically via official plugins: [Cherax](https://github.com/BUZZARDGTA/Session_Sniffer-plugin-Cherax-Lua) • [Lexis](https://github.com/BUZZARDGTA/Session_Sniffer-plugin-Lexis-Lua) • [Stand](https://github.com/BUZZARDGTA/Session_Sniffer-plugin-Stand-Lua)
 - **GTA Online (PC) Looky System**: Shows usernames automatically inside Session Sniffer via [**Looky System**](https://looky-gta.cc/) — no mod menu needed ([setup guide](https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#looky-system-configuration)).
 - **Saved Player Lists**: Save custom usernames for known players across any game ([setup guide](https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-json-databases-configuration)).

@@ -22,10 +22,10 @@
     <meta name="twitter:image" content="https://sessionsniffer.com/assets/history/2026-gui-v1-5-pyside6.png">
 
     <link rel="icon" type="image/svg+xml" href="assets/app_icon.svg">
-    <link rel="stylesheet" href="assets/themes.generated.css?v=706cb980">
+    <link rel="stylesheet" href="assets/themes.generated.css?v=c67c50df">
     <script src="theme-init.js?v=43008c51"></script>
     <link rel="stylesheet" href="styles.css?v=eb66e24d">
-    <link rel="stylesheet" href="games.css?v=4fb685b5">
+    <link rel="stylesheet" href="games.css?v=96bccfea">
 </head>
 
 <body>
@@ -486,11 +486,11 @@
                                 >
                             </div>
 
-                            <!-- View Mode Switcher: Wiki Table / Jackets -->
+                            <!-- View Mode Switcher: Table / Jackets -->
                             <div class="segmented games-view-tabs" id="games-view-tabs" role="group" aria-label="Display mode">
                                 <button type="button" class="segmented-btn is-active" data-games-view="table" aria-pressed="true">
                                     <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-file-text"></use></svg>
-                                    <span data-i18n="games.view_table">Wiki Table</span>
+                                    <span data-i18n="games.view_table">Table</span>
                                 </button>
                                 <button type="button" class="segmented-btn" data-games-view="jackets" aria-pressed="false">
                                     <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-gamepad-2"></use></svg>
@@ -506,7 +506,7 @@
                         <div class="games-filter-row games-filter-row--platforms" id="games-platform-filters" role="group" aria-label="Filter by tested platform"></div>
                     </div>
 
-                    <!-- Live Status & Wiki Link Strip -->
+                    <!-- Live Status Strip -->
                     <div class="games-results-bar">
                         <div class="games-results-left">
                             <span class="games-results-count" id="games-results-count">Showing 56 of 56 tested titles</span>
@@ -515,22 +515,9 @@
                                 <span data-i18n="games.reset_filters">Reset filters</span>
                             </button>
                         </div>
-                        <div class="games-results-right">
-                            <span class="games-wiki-caption" data-i18n="games.wiki_note">Officially tested list from the GitHub Wiki</span>
-                            <a
-                                href="https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Supported-Games-and-Softwares"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                class="text-link games-wiki-link"
-                            >
-                                <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-book-text"></use></svg>
-                                <span data-i18n="games.wiki_link">Open Wiki Page</span>
-                                <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-external-link"></use></svg>
-                            </a>
-                        </div>
                     </div>
 
-                    <!-- Wiki Compatibility Table View -->
+                    <!-- Compatibility Table View -->
                     <div class="games-table-view" id="games-table-view">
                         <div class="games-table-scroll">
                             <table class="games-table" id="games-compat-table">
@@ -1431,22 +1418,9 @@
                     <div class="game-modal-card game-modal-card--notes" id="game-modal-notes-card" hidden>
                         <div class="game-modal-card-label">
                             <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-info"></use></svg>
-                            <span data-i18n="games.modal_notes_heading">Wiki Notes</span>
+                            <span data-i18n="games.modal_notes_heading">Notes</span>
                         </div>
                         <div class="game-modal-notes-body" id="game-modal-notes-body"></div>
-                    </div>
-
-                    <div class="game-modal-footer">
-                        <a
-                            href="https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Supported-Games-and-Softwares"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            class="btn btn-control btn-sm"
-                        >
-                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-book-text"></use></svg>
-                            <span data-i18n="games.wiki_link">Open Wiki Page</span>
-                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-external-link"></use></svg>
-                        </a>
                     </div>
                 </div>
             </div>
@@ -1465,7 +1439,7 @@
         <p class="ss-tooltip-body" id="ss-tooltip-body"></p>
     </div>
 
-    <script src="assets/app-data.generated.js?v=706cb980" defer></script>
+    <script src="assets/app-data.generated.js?v=c67c50df" defer></script>
     <script src="core.js?v=672bd113" defer></script>
     <script src="games.js?v=4a373830" defer></script>
 </body>

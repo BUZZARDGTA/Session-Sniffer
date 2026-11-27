@@ -550,7 +550,7 @@
     color: inherit;
 }
 
-/* Live Results & Wiki Strip */
+/* Live Results Strip */
 .games-results-bar {
     display: flex;
     align-items: center;
@@ -561,8 +561,7 @@
     font-size: 12.5px;
 }
 
-.games-results-left,
-.games-results-right {
+.games-results-left {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
@@ -597,15 +596,6 @@
 
 .games-reset-btn[hidden] {
     display: none;
-}
-
-.games-wiki-caption {
-    color: var(--ss-text-muted);
-    font-size: 12px;
-}
-
-.games-wiki-link {
-    font-size: 12.5px;
 }
 
 /* P2P Semantic Badges */
@@ -1600,13 +1590,6 @@
 
 .game-modal-notes-body p {
     margin: 0;
-}
-
-.game-modal-footer {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    padding-top: 4px;
 }
 
 /* ==========================================================================

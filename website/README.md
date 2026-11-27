@@ -4,7 +4,7 @@ Static multi-page website for **Session Sniffer**, synced directly from the desk
 
 ## Pages & Structure
 
-- `index.html` (`/`) — Focused landing page: Desktop-App Split Hero with screenshot lightbox, core features, Supported Games & Software Explorer (`games.css` / `games.js`) with cover marquee, filterable Wiki table/gallery, detail modal & Username Resolving guide, OS-aware downloads, Explore More hub, and FAQ.
+- `index.html` (`/`) — Focused landing page: Desktop-App Split Hero with screenshot lightbox, core features, Supported Games & Software Explorer (`games.css` / `games.js`) with cover marquee, filterable compatibility table/gallery, detail modal & Username Resolving guide, OS-aware downloads, Explore More hub, and FAQ.
 - `demo.html` (`/demo`) — Dedicated Interactive UI Demo (`preview.css` / `preview.js`): sandboxed 1:1 PySide6 desktop window preview with sample players, game presets, search, sorting, and right-click menus.
 - `history.html` (`/history`) — Project History & Release Archive (`history.css` / `history.js`): 5-era screenshot showcase with lightbox, version-by-version release ledger, and 163-tag Git archive.
 - `404.html` — Custom `noindex` HTTP 404 page (disables Cloudflare Pages' SPA fallback so invalid or removed paths return a real `404 Not Found` instead of a `200 OK` copy of `index.html`).
