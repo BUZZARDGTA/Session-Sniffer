@@ -3,7 +3,10 @@
   X-Frame-Options: DENY
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
-  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://shared.fastly.steamstatic.com https://images.igdb.com https://cdn.simpleicons.org https://is1-ssl.mzstatic.com https://ome.tv https://chatspin.com https://www.google.com https://*.gstatic.com; connect-src 'self' https://api.github.com https://discord.com; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://api.github.com https://discord.com; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'
+
+/assets/covers/*
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
 
 /assets/flags/*
   Cache-Control: public, max-age=604800, stale-while-revalidate=86400

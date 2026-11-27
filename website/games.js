@@ -22,8 +22,7 @@
        5B. Supported Games & Software Showcase (Online Jackets + Wiki Table)
        ---------------------------------------------------------------------- */
 
-    var STEAM_CDN = 'https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/';
-    var IGDB_CDN = 'https://images.igdb.com/igdb/image/upload/t_cover_big_2x/';
+    var COVERS_DIR = 'assets/covers/';
 
     var SUPPORTED_CATALOG = [
         /* ---- 56 Officially Tested Video Games (from GitHub Wiki) ---- */
@@ -35,7 +34,7 @@
             p2p: 'host',
             resolver: 'no',
             noteKey: 'games.note_host_only',
-            cover: STEAM_CDN + '49520/library_600x900.jpg',
+            cover: COVERS_DIR + 'borderlands-2.webp',
         },
         {
             id: 'borderlands-3',
@@ -45,7 +44,7 @@
             p2p: 'host',
             resolver: 'no',
             noteKey: 'games.note_host_only',
-            cover: STEAM_CDN + '397540/library_600x900.jpg',
+            cover: COVERS_DIR + 'borderlands-3.webp',
         },
         {
             id: 'borderlands-4',
@@ -54,7 +53,7 @@
             platforms: ['PC'],
             p2p: 'verified',
             resolver: 'no',
-            cover: STEAM_CDN + '1285190/e68c1eeacfc21e61e5a03ae81a20694856665af4/library_600x900.jpg',
+            cover: COVERS_DIR + 'borderlands-4.webp',
             showcaseRank: 11,
         },
         {
@@ -65,7 +64,7 @@
             p2p: 'host',
             resolver: 'no',
             noteKey: 'games.note_host_only',
-            cover: STEAM_CDN + '261640/library_600x900.jpg',
+            cover: COVERS_DIR + 'borderlands-tps.webp',
         },
         {
             id: 'cod-aw',
@@ -74,7 +73,7 @@
             platforms: ['PC', 'PS3'],
             p2p: 'verified',
             resolver: 'no',
-            cover: STEAM_CDN + '209650/library_600x900.jpg',
+            cover: COVERS_DIR + 'cod-aw.webp',
         },
         {
             id: 'cod-bo',
@@ -84,7 +83,7 @@
             p2p: 'partial',
             resolver: 'no',
             noteKey: 'games.note_cod_bo',
-            cover: STEAM_CDN + '42700/library_600x900.jpg',
+            cover: COVERS_DIR + 'cod-bo.webp',
             showcaseRank: 18,
         },
         {
@@ -95,7 +94,7 @@
             p2p: 'partial',
             resolver: 'no',
             noteKey: 'games.note_cod_bocw',
-            cover: STEAM_CDN + '1985810/library_600x900.jpg',
+            cover: COVERS_DIR + 'cod-bocw.webp',
             showcaseRank: 17,
         },
         {
@@ -106,7 +105,7 @@
             p2p: 'partial',
             resolver: 'no',
             noteKey: 'games.note_cod_bo2',
-            cover: STEAM_CDN + '202970/library_600x900.jpg',
+            cover: COVERS_DIR + 'cod-bo2.webp',
             showcaseRank: 6,
         },
         {
@@ -116,7 +115,7 @@
             platforms: ['PC', 'PS5', 'PS3'],
             p2p: 'verified',
             resolver: 'no',
-            cover: STEAM_CDN + '311210/library_600x900.jpg',
+            cover: COVERS_DIR + 'cod-bo3.webp',
             showcaseRank: 5,
         },
         {
@@ -126,7 +125,7 @@
             platforms: ['PC', 'PS3'],
             p2p: 'verified',
             resolver: 'no',
-            cover: STEAM_CDN + '209160/library_600x900.jpg',
+            cover: COVERS_DIR + 'cod-ghosts.webp',
         },
         {
             id: 'cod-iw',
@@ -135,7 +134,7 @@
             platforms: ['PC'],
             p2p: 'verified',
             resolver: 'no',
-            cover: STEAM_CDN + '292730/library_600x900.jpg',
+            cover: COVERS_DIR + 'cod-iw.webp',
         },
         {
             id: 'cod-mw2-2009',
@@ -144,7 +143,7 @@
             platforms: ['PC', 'PS3'],
             p2p: 'verified',
             resolver: 'no',
-            cover: STEAM_CDN + '10180/library_600x900.jpg',
+            cover: COVERS_DIR + 'cod-mw2-2009.webp',
             showcaseRank: 7,
         },
         {
@@ -154,7 +153,7 @@
             platforms: ['PC', 'PS3'],
             p2p: 'verified',
             resolver: 'no',
-            cover: STEAM_CDN + '115300/library_600x900.jpg',
+            cover: COVERS_DIR + 'cod-mw3-2011.webp',
         },
         {
             id: 'cod-vanguard',
@@ -164,7 +163,7 @@
             p2p: 'partial',
             resolver: 'no',
             noteKey: 'games.note_cod_vanguard',
-            cover: STEAM_CDN + '1985820/library_600x900.jpg',
+            cover: COVERS_DIR + 'cod-vanguard.webp',
         },
         {
             id: 'cod-wwii',
@@ -173,7 +172,7 @@
             platforms: ['PC'],
             p2p: 'verified',
             resolver: 'no',
-            cover: STEAM_CDN + '476600/library_600x900.jpg',
+            cover: COVERS_DIR + 'cod-wwii.webp',
         },
         {
             id: 'deep-rock-galactic',
@@ -183,7 +182,7 @@
             p2p: 'host',
             resolver: 'no',
             noteKey: 'games.note_drg',
-            cover: STEAM_CDN + '548430/library_600x900.jpg',
+            cover: COVERS_DIR + 'deep-rock-galactic.webp',
             showcaseRank: 12,
         },
         {
@@ -193,7 +192,7 @@
             platforms: ['PS3'],
             p2p: 'verified',
             resolver: 'no',
-            cover: IGDB_CDN + 'co1rco.jpg',
+            cover: COVERS_DIR + 'destiny.webp',
             showcaseRank: 23,
         },
         {
@@ -204,7 +203,7 @@
             p2p: 'full',
             resolver: 'no',
             noteKey: 'games.note_fully_p2p',
-            cover: STEAM_CDN + '678950/library_600x900.jpg',
+            cover: COVERS_DIR + 'dragon-ball-fighterz.webp',
             showcaseRank: 19,
         },
         {
@@ -214,7 +213,7 @@
             platforms: ['PC'],
             p2p: 'verified',
             resolver: 'no',
-            cover: STEAM_CDN + '239140/b962a5213054357b157b0fe45bf9db41b5739886/library_600x900.jpg',
+            cover: COVERS_DIR + 'dying-light.webp',
         },
         {
             id: 'dying-light-2',
@@ -223,7 +222,7 @@
             platforms: ['PC'],
             p2p: 'verified',
             resolver: 'no',
-            cover: STEAM_CDN + '534380/5b75126ece6e937bda12bf5f802647c30d7a2801/library_600x900.jpg',
+            cover: COVERS_DIR + 'dying-light-2.webp',
             showcaseRank: 13,
         },
         {
@@ -233,7 +232,7 @@
             platforms: ['PS4'],
             p2p: 'verified',
             resolver: 'no',
-            cover: STEAM_CDN + '1245620/library_600x900.jpg',
+            cover: COVERS_DIR + 'elden-ring.webp',
             showcaseRank: 3,
         },
         {
@@ -244,7 +243,7 @@
             p2p: 'full',
             resolver: 'no',
             noteKey: 'games.note_nightreign',
-            cover: STEAM_CDN + '2622380/d1ee7bc631966b1a99e232a9f84af736bb298395/library_600x900.jpg',
+            cover: COVERS_DIR + 'elden-ring-nightreign.webp',
             showcaseRank: 4,
         },
         {
@@ -254,7 +253,7 @@
             platforms: ['PC'],
             p2p: 'verified',
             resolver: 'no',
-            cover: STEAM_CDN + '704270/library_600x900.jpg',
+            cover: COVERS_DIR + 'generation-zero.webp',
         },
         {
             id: 'green-hell',
@@ -264,7 +263,7 @@
             p2p: 'full',
             resolver: 'no',
             noteKey: 'games.note_fully_p2p',
-            cover: STEAM_CDN + '815370/library_600x900.jpg',
+            cover: COVERS_DIR + 'green-hell.webp',
         },
         {
             id: 'gta-iv',
@@ -273,7 +272,7 @@
             platforms: ['PS3'],
             p2p: 'verified',
             resolver: 'ps3',
-            cover: STEAM_CDN + '12210/library_600x900.jpg',
+            cover: COVERS_DIR + 'gta-iv.webp',
             showcaseRank: 24,
         },
         {
@@ -285,7 +284,7 @@
             resolver: 'plugins',
             toolkit: 'GTA V',
             noteKey: 'games.note_gtao',
-            cover: IGDB_CDN + 'co4rq1.jpg',
+            cover: COVERS_DIR + 'gta-online.webp',
             showcaseRank: 1,
         },
         {
@@ -296,7 +295,7 @@
             p2p: 'partial',
             resolver: 'no',
             noteKey: 'games.note_mc_bedrock',
-            cover: IGDB_CDN + 'co8fu7.jpg',
+            cover: COVERS_DIR + 'minecraft-bedrock.webp',
             showcaseRank: 8,
         },
         {
@@ -307,7 +306,7 @@
             p2p: 'full',
             resolver: 'ps3',
             noteKey: 'games.note_fully_p2p',
-            cover: IGDB_CDN + 'co8mll.jpg',
+            cover: COVERS_DIR + 'minecraft-ps3.webp',
             showcaseRank: 25,
         },
         {
@@ -318,7 +317,7 @@
             p2p: 'host',
             resolver: 'no',
             noteKey: 'games.note_monopoly_madness',
-            cover: STEAM_CDN + '2383760/library_600x900.jpg',
+            cover: COVERS_DIR + 'monopoly-madness.webp',
         },
         {
             id: 'monster-hunter-world',
@@ -328,7 +327,7 @@
             p2p: 'full',
             resolver: 'no',
             noteKey: 'games.note_fully_p2p',
-            cover: STEAM_CDN + '582010/library_600x900.jpg',
+            cover: COVERS_DIR + 'monster-hunter-world.webp',
             showcaseRank: 9,
         },
         {
@@ -338,7 +337,7 @@
             platforms: ['PC', 'PS4'],
             p2p: 'verified',
             resolver: 'no',
-            cover: STEAM_CDN + '976310/library_600x900.jpg',
+            cover: COVERS_DIR + 'mortal-kombat-11.webp',
             showcaseRank: 16,
         },
         {
@@ -348,7 +347,7 @@
             platforms: ['PC', 'PS4'],
             p2p: 'verified',
             resolver: 'no',
-            cover: STEAM_CDN + '307780/library_600x900.jpg',
+            cover: COVERS_DIR + 'mortal-kombat-x.webp',
         },
         {
             id: 'naruto-storm-4',
@@ -357,7 +356,7 @@
             platforms: ['PS4'],
             p2p: 'verified',
             resolver: 'no',
-            cover: STEAM_CDN + '349040/library_600x900.jpg',
+            cover: COVERS_DIR + 'naruto-storm-4.webp',
         },
         {
             id: 'naruto-storm-revolution',
@@ -367,7 +366,7 @@
             p2p: 'full',
             resolver: 'no',
             noteKey: 'games.note_fully_p2p',
-            cover: IGDB_CDN + 'co1u96.jpg',
+            cover: COVERS_DIR + 'naruto-storm-revolution.webp',
         },
         {
             id: 'nfs-most-wanted',
@@ -376,7 +375,7 @@
             platforms: ['PC'],
             p2p: 'verified',
             resolver: 'no',
-            cover: STEAM_CDN + '1262560/library_600x900.jpg',
+            cover: COVERS_DIR + 'nfs-most-wanted.webp',
         },
         {
             id: 'new-monopoly',
@@ -386,7 +385,7 @@
             p2p: 'host',
             resolver: 'no',
             noteKey: 'games.note_host_only',
-            cover: STEAM_CDN + '2929170/5eec9eb927fa77fa9585e9d1951764c923bc9e77/library_capsule.jpg',
+            cover: COVERS_DIR + 'new-monopoly.webp',
         },
         {
             id: 'payday-2',
@@ -396,7 +395,7 @@
             p2p: 'full',
             resolver: 'ps3',
             noteKey: 'games.note_payday2',
-            cover: STEAM_CDN + '218620/e7aba53917eb9c188f83f1df103bc96f657a4b53/library_capsule.jpg',
+            cover: COVERS_DIR + 'payday-2.webp',
             showcaseRank: 20,
         },
         {
@@ -409,7 +408,7 @@
             noteKey: 'games.note_ps_party',
             brandA: '#0070d1',
             brandB: '#002c77',
-            logo: 'https://cdn.simpleicons.org/playstation/ffffff',
+            logo: COVERS_DIR + 'playstation-party-chat.svg',
             shortLabel: 'PARTY CHAT',
         },
         {
@@ -420,7 +419,7 @@
             p2p: 'host',
             resolver: 'no',
             noteKey: 'games.note_host_only',
-            cover: STEAM_CDN + '1144200/1ebfc7f05967d7dd39a7659b31b04a6b40a77663/library_capsule.jpg',
+            cover: COVERS_DIR + 'ready-or-not.webp',
             showcaseRank: 10,
         },
         {
@@ -431,7 +430,7 @@
             p2p: 'verified',
             resolver: 'no',
             toolkit: 'RDR2',
-            cover: STEAM_CDN + '1404210/library_600x900.jpg',
+            cover: COVERS_DIR + 'red-dead-online.webp',
             showcaseRank: 2,
         },
         {
@@ -441,7 +440,7 @@
             platforms: ['PS3'],
             p2p: 'verified',
             resolver: 'ps3',
-            cover: STEAM_CDN + '2668510/f5cf694ddab93ed2462a9e2f5e01064e121c5663/library_600x900.jpg',
+            cover: COVERS_DIR + 'red-dead-redemption.webp',
             showcaseRank: 26,
         },
         {
@@ -452,7 +451,7 @@
             p2p: 'host',
             resolver: 'no',
             noteKey: 'games.note_host_only',
-            cover: STEAM_CDN + '632360/library_600x900.jpg',
+            cover: COVERS_DIR + 'risk-of-rain-2.webp',
             showcaseRank: 15,
         },
         {
@@ -462,7 +461,7 @@
             platforms: ['PS3'],
             p2p: 'verified',
             resolver: 'no',
-            cover: IGDB_CDN + 'co1o4l.jpg',
+            cover: COVERS_DIR + 'skate-3.webp',
             showcaseRank: 22,
         },
         {
@@ -473,7 +472,7 @@
             p2p: 'host',
             resolver: 'ps3',
             noteKey: 'games.note_sniper_elite3',
-            cover: STEAM_CDN + '238090/library_600x900.jpg',
+            cover: COVERS_DIR + 'sniper-elite-3.webp',
         },
         {
             id: 'sons-of-the-forest',
@@ -483,7 +482,7 @@
             p2p: 'host',
             resolver: 'no',
             noteKey: 'games.note_host_only',
-            cover: STEAM_CDN + '1326470/library_600x900.jpg',
+            cover: COVERS_DIR + 'sons-of-the-forest.webp',
             showcaseRank: 14,
         },
         {
@@ -494,7 +493,7 @@
             p2p: 'full',
             resolver: 'no',
             noteKey: 'games.note_fully_p2p',
-            cover: STEAM_CDN + '586200/library_600x900.jpg',
+            cover: COVERS_DIR + 'sf-30th.webp',
         },
         {
             id: 'tekken-7',
@@ -504,7 +503,7 @@
             p2p: 'full',
             resolver: 'no',
             noteKey: 'games.note_fully_p2p',
-            cover: STEAM_CDN + '389730/library_600x900.jpg',
+            cover: COVERS_DIR + 'tekken-7.webp',
             showcaseRank: 21,
         },
         {
@@ -514,7 +513,7 @@
             platforms: ['PC'],
             p2p: 'verified',
             resolver: 'no',
-            cover: STEAM_CDN + '2221490/8517c0415397d69e5c0e818eb1f2eb0ae83806b2/library_600x900.jpg',
+            cover: COVERS_DIR + 'the-division-2.webp',
             showcaseRank: 27,
         },
         {
@@ -524,7 +523,7 @@
             platforms: ['PC'],
             p2p: 'verified',
             resolver: 'no',
-            cover: STEAM_CDN + '518790/library_600x900.jpg',
+            cover: COVERS_DIR + 'thehunter-cotw.webp',
         },
         {
             id: 'thehunter-classic',
@@ -534,7 +533,7 @@
             p2p: 'host',
             resolver: 'no',
             noteKey: 'games.note_host_only',
-            cover: STEAM_CDN + '253710/library_600x900.jpg',
+            cover: COVERS_DIR + 'thehunter-classic.webp',
         },
         {
             id: 'ghost-recon-breakpoint',
@@ -544,7 +543,7 @@
             p2p: 'partial',
             resolver: 'no',
             noteKey: 'games.note_gr_breakpoint',
-            cover: STEAM_CDN + '2231380/library_600x900.jpg',
+            cover: COVERS_DIR + 'ghost-recon-breakpoint.webp',
         },
         {
             id: 'ghost-recon-wildlands',
@@ -553,7 +552,7 @@
             platforms: ['PC'],
             p2p: 'verified',
             resolver: 'no',
-            cover: STEAM_CDN + '460930/library_600x900.jpg',
+            cover: COVERS_DIR + 'ghost-recon-wildlands.webp',
         },
         {
             id: 'ultra-sf-iv',
@@ -563,7 +562,7 @@
             p2p: 'full',
             resolver: 'no',
             noteKey: 'games.note_fully_p2p',
-            cover: STEAM_CDN + '45760/library_600x900.jpg',
+            cover: COVERS_DIR + 'ultra-sf-iv.webp',
         },
         {
             id: 'uno',
@@ -572,7 +571,7 @@
             platforms: ['PC'],
             p2p: 'verified',
             resolver: 'no',
-            cover: STEAM_CDN + '470220/8315ac8b7e91e0501b473cff7cf88b1b67906489/library_capsule.jpg',
+            cover: COVERS_DIR + 'uno.webp',
         },
         {
             id: 'warframe',
@@ -581,7 +580,7 @@
             platforms: ['PC'],
             p2p: 'verified',
             resolver: 'no',
-            cover: STEAM_CDN + '230410/0572533cfd26a64e831f83ef3f940e1b8012b1e8/library_capsule.jpg',
+            cover: COVERS_DIR + 'warframe.webp',
             showcaseRank: 28,
         },
         {
@@ -591,7 +590,7 @@
             platforms: ['PC'],
             p2p: 'verified',
             resolver: 'no',
-            cover: STEAM_CDN + '447040/library_600x900.jpg',
+            cover: COVERS_DIR + 'watch-dogs-2.webp',
         },
 
         /* ---- 12 Officially Tested Softwares (from GitHub Wiki) ---- */
@@ -605,7 +604,7 @@
             resolver: 'no',
             brandA: '#7c3aed',
             brandB: '#2e1065',
-            logo: 'https://cdn.simpleicons.org/bittorrent/ffffff',
+            logo: COVERS_DIR + 'sw-torrents.svg',
             shortLabel: 'P2P TORRENT',
         },
         {
@@ -617,7 +616,7 @@
             resolver: 'no',
             brandA: '#ef443b',
             brandB: '#7f1d1d',
-            logo: 'https://cdn.simpleicons.org/anydesk/ffffff',
+            logo: COVERS_DIR + 'sw-anydesk.svg',
             shortLabel: 'AnyDesk',
         },
         {
@@ -629,7 +628,7 @@
             resolver: 'no',
             brandA: '#00d98b',
             brandB: '#065f46',
-            logo: 'https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/bd/cf/ec/bdcfec1e-fb0b-da9d-cfdb-faf83f6edb74/AppIcon-0-0-1x_U007epad-0-1-0-85-220.png/512x512bb.jpg',
+            logo: COVERS_DIR + 'sw-azar.webp',
             logoFullbleed: true,
             shortLabel: 'Azar',
         },
@@ -642,7 +641,7 @@
             resolver: 'no',
             brandA: '#f59e0b',
             brandB: '#92400e',
-            logo: 'https://chatspin.com/apple-touch-icon.png',
+            logo: COVERS_DIR + 'sw-chatspin.webp',
             logoFullbleed: true,
             shortLabel: 'Chatspin',
         },
@@ -656,7 +655,7 @@
             noteKey: 'games.note_social_call',
             brandA: '#e1306c',
             brandB: '#5851db',
-            logo: 'https://cdn.simpleicons.org/instagram/ffffff',
+            logo: COVERS_DIR + 'sw-instagram.svg',
             shortLabel: 'Instagram',
         },
         {
@@ -668,7 +667,7 @@
             resolver: 'no',
             brandA: '#00b2ff',
             brandB: '#6d28d9',
-            logo: 'https://cdn.simpleicons.org/messenger/ffffff',
+            logo: COVERS_DIR + 'sw-messenger.svg',
             shortLabel: 'Messenger',
         },
         {
@@ -680,7 +679,7 @@
             resolver: 'no',
             brandA: '#ea580c',
             brandB: '#166534',
-            logo: 'https://ome.tv/apple-touch-icon.png',
+            logo: COVERS_DIR + 'sw-ometv.webp',
             logoFullbleed: true,
             shortLabel: 'OmeTV',
         },
@@ -693,7 +692,7 @@
             resolver: 'no',
             brandA: '#e11d48',
             brandB: '#1d4ed8',
-            logo: 'https://www.google.com/s2/favicons?domain=parsec.app&sz=128',
+            logo: COVERS_DIR + 'sw-parsec.webp',
             logoLightBg: true,
             shortLabel: 'Parsec',
         },
@@ -706,7 +705,7 @@
             resolver: 'no',
             brandA: '#2563eb',
             brandB: '#1e1b4b',
-            logo: 'https://cdn.simpleicons.org/rustdesk/ffffff',
+            logo: COVERS_DIR + 'sw-rustdesk.svg',
             shortLabel: 'RustDesk',
         },
         {
@@ -719,7 +718,7 @@
             noteKey: 'games.note_social_call',
             brandA: '#eab308',
             brandB: '#854d0e',
-            logo: 'https://cdn.simpleicons.org/snapchat/111111',
+            logo: COVERS_DIR + 'sw-snapchat.svg',
             logoLightBg: true,
             shortLabel: 'Snapchat',
         },
@@ -732,7 +731,7 @@
             resolver: 'no',
             brandA: '#0284c7',
             brandB: '#0c4a6e',
-            logo: 'https://cdn.simpleicons.org/teamviewer/ffffff',
+            logo: COVERS_DIR + 'sw-teamviewer.svg',
             shortLabel: 'TeamViewer',
         },
         {
@@ -745,7 +744,7 @@
             noteKey: 'games.note_whatsapp',
             brandA: '#22c55e',
             brandB: '#14532d',
-            logo: 'https://cdn.simpleicons.org/whatsapp/ffffff',
+            logo: COVERS_DIR + 'sw-whatsapp.svg',
             shortLabel: 'WhatsApp',
         },
     ];
@@ -948,12 +947,11 @@
 
         if (item.logo) {
             var logoImg = document.createElement('img');
-            logoImg.src = item.logo;
             logoImg.alt = getCatalogItemName(item);
             logoImg.loading = 'lazy';
             logoImg.decoding = 'async';
             logoImg.draggable = false;
-            logoImg.referrerPolicy = 'no-referrer';
+            logoImg.src = item.logo;
             logoImg.addEventListener('error', function onLogoFallback() {
                 emblem.innerHTML = '';
                 emblem.appendChild(createIconSvg(item.category === 'software' ? 'monitor-smartphone' : 'gamepad-2', 'icon-sm'));
@@ -978,12 +976,11 @@
             return;
         }
         var img = document.createElement('img');
-        img.src = item.cover;
         img.alt = getCatalogItemName(item);
         img.loading = 'lazy';
         img.decoding = 'async';
         img.draggable = false;
-        img.referrerPolicy = 'no-referrer';
+        img.src = item.cover;
         img.addEventListener('error', function onCoverErr() {
             if (img.parentNode === container) {
                 container.replaceChild(buildBrandedPosterArt(item), img);

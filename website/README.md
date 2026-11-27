@@ -23,6 +23,7 @@ Run the sync script whenever you update themes, icons, version, or translations 
 - `assets/app-data.generated.js` — Theme metadata, all 33 languages from `src/session_sniffer/i18n.py`, app version (`pyproject.toml`), full Git commit & release-tag history metadata (2021–2026), and the shared inline SVG sprite compiled from desktop icons in `resources/icons/` plus website-only icons in `website/icons/`.
 - `assets/i18n/<lang>.js` — 32 lazy-loaded per-language bundles merging shared desktop UI & theme translations from `resources/translations/<lang>.json` with website copy from `website/translations/<lang>.json` (full RTL support for `ar`, `fa`, `he`).
 - `assets/app_icon.svg` — Verbatim radar icon copied from `resources/icons/app_icon.svg`.
+- `assets/covers/*` — Self-hosted optimized WebP game jackets and SVG/WebP software icons for the Supported Games & Software Explorer (zero third-party image requests).
 - `assets/flags/*.png` — Demo country flags copied from `resources/images/country_flags/`.
 - `assets/history/*.png` — Self-hosted historical UI screenshots spanning 2021 (`PS3 Blacklist Sniffer`) through `v1.5.0` (`PySide6`).
 
