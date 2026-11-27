@@ -22,10 +22,10 @@
     <meta name="twitter:image" content="https://sessionsniffer.com/assets/history/2026-gui-v1-5-pyside6.png">
 
     <link rel="icon" type="image/svg+xml" href="assets/app_icon.svg">
-    <link rel="stylesheet" href="assets/themes.generated.css?v=fd47deab">
+    <link rel="stylesheet" href="assets/themes.generated.css?v=ac5ea615">
     <script src="theme-init.js?v=43008c51"></script>
-    <link rel="stylesheet" href="styles.css?v=7f91b43d">
-    <link rel="stylesheet" href="preview.css?v=e697e21e">
+    <link rel="stylesheet" href="styles.css?v=20f18076">
+    <link rel="stylesheet" href="preview.css?v=42904f31">
 </head>
 
 <body>
@@ -45,8 +45,8 @@
             </a>
 
             <nav class="main-nav" aria-label="Primary navigation">
-                <a href="#preview" data-i18n="nav.preview">Live Preview</a>
                 <a href="#features" data-i18n="nav.features">Features</a>
+                <a href="#preview" data-i18n="nav.preview">UI Demo</a>
                 <a href="#download" data-i18n="nav.download">Download</a>
                 <a href="/games" data-i18n="nav.games">Games</a>
                 <a href="/history" data-i18n="nav.history">History</a>
@@ -157,15 +157,6 @@
 
         <nav class="mobile-nav-drawer" id="mobile-nav-drawer" aria-label="Mobile navigation" hidden>
             <div class="mobile-nav-grid">
-                <a href="#preview" class="mobile-nav-tile">
-                    <span class="mobile-nav-tile-top">
-                        <span class="mobile-nav-icon mobile-nav-icon--success" aria-hidden="true">
-                            <svg class="icon icon-sm"><use href="#icon-radar"></use></svg>
-                        </span>
-                        <svg class="icon icon-xs mobile-nav-arrow" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
-                    </span>
-                    <span class="mobile-nav-label" data-i18n="nav.preview">Live Preview</span>
-                </a>
                 <a href="#features" class="mobile-nav-tile">
                     <span class="mobile-nav-tile-top">
                         <span class="mobile-nav-icon mobile-nav-icon--accent" aria-hidden="true">
@@ -174,6 +165,15 @@
                         <svg class="icon icon-xs mobile-nav-arrow" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
                     </span>
                     <span class="mobile-nav-label" data-i18n="nav.features">Features</span>
+                </a>
+                <a href="#preview" class="mobile-nav-tile">
+                    <span class="mobile-nav-tile-top">
+                        <span class="mobile-nav-icon mobile-nav-icon--warning" aria-hidden="true">
+                            <svg class="icon icon-sm"><use href="#icon-circle-play"></use></svg>
+                        </span>
+                        <svg class="icon icon-xs mobile-nav-arrow" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
+                    </span>
+                    <span class="mobile-nav-label" data-i18n="nav.preview">UI Demo</span>
                 </a>
                 <a href="#download" class="mobile-nav-tile">
                     <span class="mobile-nav-tile-top">
@@ -195,7 +195,7 @@
                 </a>
                 <a href="/history" class="mobile-nav-tile">
                     <span class="mobile-nav-tile-top">
-                        <span class="mobile-nav-icon mobile-nav-icon--warning" aria-hidden="true">
+                        <span class="mobile-nav-icon mobile-nav-icon--accent" aria-hidden="true">
                             <svg class="icon icon-sm"><use href="#icon-rotate-ccw-clock"></use></svg>
                         </span>
                         <svg class="icon icon-xs mobile-nav-arrow" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
@@ -238,91 +238,208 @@
             </div>
 
             <div class="container hero-content">
-                <div class="eyebrow-pill">
-                    <span class="pulse-dot" aria-hidden="true"></span>
-                    <span data-i18n="hero.eyebrow_foss">Free &amp; Open Source</span>
-                    <span class="eyebrow-sep" aria-hidden="true">·</span>
-                    <span>GPLv3</span>
-                    <span class="eyebrow-sep" aria-hidden="true">·</span>
-                    <span id="hero-eyebrow-langs">33 Languages</span>
+                <div class="hero-copy">
+                    <div class="eyebrow-pill">
+                        <span class="pulse-dot" aria-hidden="true"></span>
+                        <span data-i18n="hero.eyebrow_desktop">Desktop App</span>
+                        <span class="eyebrow-sep" aria-hidden="true">·</span>
+                        <span data-i18n="hero.eyebrow_foss">Free &amp; Open Source</span>
+                        <span class="eyebrow-sep" aria-hidden="true">·</span>
+                        <span>GPLv3</span>
+                        <span class="eyebrow-sep" aria-hidden="true">·</span>
+                        <span id="hero-eyebrow-langs">33 Languages</span>
+                    </div>
+
+                    <h1 class="hero-title">
+                        <span data-i18n="hero.title_before">Monitor P2P Sessions in </span><span class="hero-title-accent" data-i18n="hero.title_accent">Real Time.</span>
+                    </h1>
+
+                    <p class="hero-subtitle" data-i18n="hero.subtitle">
+                        A free, open-source desktop application for Windows, Linux, and macOS built for Peer-to-Peer games and applications on PC, PlayStation, Xbox, and mobile — 100% external with zero mods and zero ban risk.
+                    </p>
+
+                    <div class="hero-cta-row">
+                        <a
+                            href="https://github.com/BUZZARDGTA/Session-Sniffer/releases/latest/download/Session_Sniffer.exe"
+                            class="btn btn-primary btn-lg"
+                            id="hero-primary-download"
+                        >
+                            <svg class="icon icon-sm" aria-hidden="true"><use href="#icon-cloud-download"></use></svg>
+                            <span id="hero-primary-download-label" data-i18n="hero.cta_download_windows">Download for Windows (x64)</span>
+                        </a>
+
+                        <a
+                            href="https://discord.gg/hMZ7MsPX7G"
+                            class="btn btn-discord btn-lg"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            <svg class="icon icon-sm" aria-hidden="true"><use href="#icon-discord"></use></svg>
+                            <span data-i18n="hero.cta_discord">Join Discord</span>
+                        </a>
+                    </div>
+
+                    <p class="hero-mobile-note" id="hero-mobile-note" hidden>
+                        <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-monitor-smartphone"></use></svg>
+                        <span data-i18n="hero.mobile_desktop_note">Desktop app for Windows, Linux &amp; macOS — open this page on your PC to download.</span>
+                    </p>
+
+                    <div class="hero-stats" aria-label="Project highlights">
+                        <div class="hero-stat-item">
+                            <span class="stat-label" data-i18n="hero.stat_release">Latest Release</span>
+                            <span class="stat-value mono" data-release-version>v1.5.0</span>
+                        </div>
+                        <div class="hero-stat-item">
+                            <span class="stat-label" data-i18n="hero.stat_downloads">Total Downloads</span>
+                            <span class="stat-value mono" id="stat-total-downloads" data-i18n="hero.stat_downloads_fallback">GitHub Releases</span>
+                        </div>
+                        <div class="hero-stat-item">
+                            <span class="stat-label" data-i18n="hero.stat_platforms">Platforms</span>
+                            <span class="stat-value">Windows · Linux · macOS</span>
+                        </div>
+                        <div class="hero-stat-item">
+                            <span class="stat-label" data-i18n="hero.stat_community">Discord Community</span>
+                            <span class="stat-value mono" id="stat-discord-members" data-i18n="hero.stat_community_fallback">Active Support</span>
+                        </div>
+                    </div>
                 </div>
 
-                <h1 class="hero-title">
-                    <span data-i18n="hero.title_before">Monitor P2P Sessions in </span><span class="hero-title-accent" data-i18n="hero.title_accent">Real Time.</span>
-                </h1>
-
-                <p class="hero-subtitle" data-i18n="hero.subtitle">
-                    A free, open-source packet sniffer and network analysis suite built for Peer-to-Peer games and applications on PC, PlayStation, Xbox, and mobile — 100% external with zero mods and zero ban risk.
-                </p>
-
-                <div class="hero-cta-row">
-                    <a
-                        href="https://github.com/BUZZARDGTA/Session-Sniffer/releases/latest/download/Session_Sniffer.exe"
-                        class="btn btn-primary btn-lg"
-                        id="hero-primary-download"
-                    >
-                        <svg class="icon icon-sm" aria-hidden="true"><use href="#icon-cloud-download"></use></svg>
-                        <span id="hero-primary-download-label" data-i18n="hero.cta_download_windows">Download for Windows (x64)</span>
-                    </a>
-
-                    <a href="#preview" class="btn btn-radar btn-lg" id="hero-preview-cta">
-                        <svg class="icon icon-sm" aria-hidden="true"><use href="#icon-radar"></use></svg>
-                        <span data-i18n="hero.cta_preview">Try Interactive Preview</span>
-                    </a>
-
-                    <a
-                        href="https://discord.gg/hMZ7MsPX7G"
-                        class="btn btn-discord btn-lg"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                    >
-                        <svg class="icon icon-sm" aria-hidden="true"><use href="#icon-discord"></use></svg>
-                        <span data-i18n="hero.cta_discord">Join Discord</span>
-                    </a>
-                </div>
-
-                <div class="hero-stats" aria-label="Project highlights">
-                    <div class="stat-tile">
-                        <span class="stat-label" data-i18n="hero.stat_release">Latest Release</span>
-                        <span class="stat-value mono" data-release-version>v1.5.0</span>
-                    </div>
-                    <div class="stat-tile">
-                        <span class="stat-label" data-i18n="hero.stat_downloads">Total Downloads</span>
-                        <span class="stat-value mono" id="stat-total-downloads" data-i18n="hero.stat_downloads_fallback">GitHub Releases</span>
-                    </div>
-                    <div class="stat-tile">
-                        <span class="stat-label" data-i18n="hero.stat_platforms">Platforms</span>
-                        <span class="stat-value">Windows · Linux · macOS</span>
-                    </div>
-                    <div class="stat-tile">
-                        <span class="stat-label" data-i18n="hero.stat_community">Discord Community</span>
-                        <span class="stat-value mono" id="stat-discord-members" data-i18n="hero.stat_community_fallback">Active Support</span>
+                <div class="hero-showcase">
+                    <div class="hero-showcase-card">
+                        <div class="hero-showcase-bar">
+                            <span class="hero-showcase-bar-left">
+                                <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-app_icon"></use></svg>
+                                <span data-i18n="hero.showcase_title">Session Sniffer Desktop App</span>
+                            </span>
+                            <span class="badge badge-warning hero-showcase-badge" data-i18n="hero.showcase_badge">Screenshot</span>
+                        </div>
+                        <div class="hero-showcase-viewport">
+                            <button
+                                type="button"
+                                class="hero-showcase-img-btn"
+                                id="hero-showcase-zoom-btn"
+                                data-i18n-title="history.era_screenshot_hint"
+                                aria-label="Click image to inspect full size"
+                                title="Click image to inspect full size"
+                            >
+                                <img
+                                    class="hero-showcase-img"
+                                    src="assets/history/2026-gui-v1-5-pyside6.png"
+                                    alt="Session Sniffer Desktop App Screenshot"
+                                    width="1920"
+                                    height="1080"
+                                >
+                                <span class="hero-showcase-zoom-hint" aria-hidden="true">
+                                    <svg class="icon icon-xs"><use href="#icon-maximize-2"></use></svg>
+                                    <span data-i18n="history.era_view_screenshot">Expand Screenshot</span>
+                                </span>
+                            </button>
+                            <div class="hero-showcase-overlay">
+                                <span class="hero-showcase-prompt" data-i18n="hero.showcase_prompt">Want to click around the UI before downloading?</span>
+                                <a href="#preview" class="btn btn-sm hero-showcase-demo-btn" id="hero-preview-cta">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-circle-play"></use></svg>
+                                    <span data-i18n="hero.cta_preview">Try Interactive UI Demo</span>
+                                </a>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </section>
 
-        <!-- ==================== LIVE INTERACTIVE DESKTOP PREVIEW ==================== -->
+        <!-- ==================== FEATURES GRID ==================== -->
+        <section class="section section-alt" id="features">
+            <div class="container">
+                <div class="section-header">
+                    <span class="section-eyebrow" data-i18n="features.eyebrow">Key Features</span>
+                    <h2 class="section-title" data-i18n="features.title">Everything You Need to Monitor P2P Traffic</h2>
+                    <p class="section-lead" data-i18n="features.lead">
+                        100% external packet capture with auto-updating IP geolocation, server filtering, player tracking, live graphs, custom themes, and dedicated GTA V &amp; RDR2 tools.
+                    </p>
+                </div>
+
+                <div class="feature-grid">
+                    <article class="feature-card">
+                        <div class="feature-icon feature-icon--accent">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-shield"></use></svg>
+                        </div>
+                        <h3 data-i18n="features.f1_title">100% External &amp; Ban-Safe</h3>
+                        <p data-i18n="features.f1_desc">Reads network traffic strictly from the outside — never touches or modifies game files or memory. Zero mods required and zero risk of game bans.</p>
+                    </article>
+
+                    <article class="feature-card">
+                        <div class="feature-icon feature-icon--accent">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-gamepad-2"></use></svg>
+                        </div>
+                        <h3 data-i18n="features.f2_title">PC, Console &amp; Mobile</h3>
+                        <p data-i18n="features.f2_desc">Focus on a specific PC game, or monitor PlayStation, Xbox, and mobile devices via Ethernet sharing, built-in Wi-Fi Hotspot, or your local network.</p>
+                    </article>
+
+                    <article class="feature-card">
+                        <div class="feature-icon feature-icon--accent">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-radio-tower"></use></svg>
+                        </div>
+                        <h3 data-i18n="features.f3_title">Smart Server &amp; Provider Filtering</h3>
+                        <p data-i18n="features.f3_desc">Automatically hides Rockstar, cloud, relay, and game servers so only real players show up — plus custom IP blocklists and internet provider filters.</p>
+                    </article>
+
+                    <article class="feature-card">
+                        <div class="feature-icon feature-icon--accent">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-user-round-check"></use></svg>
+                        </div>
+                        <h3 data-i18n="features.f4_title">Player Lists, Alerts &amp; Combo Rules</h3>
+                        <p data-i18n="features.f4_desc">Save friends or hostiles with custom names, colors, and notes. Get instant on-screen popups, spoken voice alerts, and automated detection rules.</p>
+                    </article>
+
+                    <article class="feature-card">
+                        <div class="feature-icon feature-icon--accent">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-crown"></use></svg>
+                        </div>
+                        <h3 data-i18n="features.f5_title">GTA V &amp; RDR2 Power Tools</h3>
+                        <p data-i18n="features.f5_desc">Real-time Session Host &amp; relay detection, Host History, one-click Solo Public Session, in-game Player Resolver, and online Looky System username lookups.</p>
+                    </article>
+
+                    <article class="feature-card">
+                        <div class="feature-icon feature-icon--accent">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-chart-line"></use></svg>
+                        </div>
+                        <h3 data-i18n="features.f6_title">Live Graphs &amp; High-Rate Monitor</h3>
+                        <p data-i18n="features.f6_desc">Watch live traffic and speed graphs, session timelines, and port activity, and get instant warnings whenever a player sends unusual traffic spikes.</p>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== INTERACTIVE UI DEMO SANDBOX ==================== -->
         <section class="section section-preview" id="preview">
             <div class="container">
-                <div class="preview-toolbar">
-                    <div class="preview-toolbar-info">
-                        <span class="badge badge-success">
-                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-activity"></use></svg>
-                            <span data-i18n="preview.badge">Interactive UI Demo</span>
-                        </span>
-                        <span class="preview-toolbar-note" data-i18n="preview.note">
-                            Powered by Session Sniffer's real themes, icons &amp; country flags — try searching, switching themes, or right-clicking any row.
-                        </span>
-                    </div>
-                    <div class="preview-toolbar-controls">
-                        <div class="segmented" role="group" aria-label="Game mode preset">
-                            <button type="button" class="segmented-btn is-active" data-preset="gta5">GTA Online</button>
-                            <button type="button" class="segmented-btn" data-preset="rdr2">Red Dead Online</button>
-                            <button type="button" class="segmented-btn" data-preset="p2p" data-i18n="preview.preset_universal">Universal P2P</button>
+                <div class="section-header">
+                    <span class="section-eyebrow" data-i18n="preview.eyebrow">Interactive UI Demo</span>
+                    <h2 class="section-title" data-i18n="preview.title">Explore the Desktop Interface</h2>
+                    <p class="section-lead" data-i18n="preview.lead">
+                        Test Session Sniffer's real desktop UI right in your browser with fake sample players — download the desktop app below to capture your own P2P traffic.
+                    </p>
+                </div>
+
+                <div class="preview-sandbox-frame">
+                    <div class="preview-toolbar">
+                        <div class="preview-toolbar-info">
+                            <span class="badge badge-warning">
+                                <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-triangle-alert"></use></svg>
+                                <span data-i18n="preview.badge">Simulated UI Preview · Fake Sample Data</span>
+                            </span>
+                            <span class="preview-toolbar-note" data-i18n="preview.note">
+                                Browser simulation with sample data — try searching, switching themes, or right-clicking any row.
+                            </span>
+                        </div>
+                        <div class="preview-toolbar-controls">
+                            <div class="segmented" role="group" aria-label="Game mode preset">
+                                <button type="button" class="segmented-btn is-active" data-preset="gta5">GTA Online</button>
+                                <button type="button" class="segmented-btn" data-preset="rdr2">Red Dead Online</button>
+                                <button type="button" class="segmented-btn" data-preset="p2p" data-i18n="preview.preset_universal">Universal P2P</button>
+                            </div>
                         </div>
                     </div>
-                </div>
 
                 <!-- Responsive Desktop Stage (transparent pass-through on desktop > 900px) -->
                 <div class="ss-stage-shell" id="ss-stage-shell">
@@ -1154,68 +1271,16 @@
                         </div>
                     </div>
                 </div>
-            </div>
-        </section>
-
-        <!-- ==================== FEATURES GRID ==================== -->
-        <section class="section" id="features">
-            <div class="container">
-                <div class="section-header">
-                    <span class="section-eyebrow" data-i18n="features.eyebrow">Key Features</span>
-                    <h2 class="section-title" data-i18n="features.title">Everything You Need to Monitor P2P Traffic</h2>
-                    <p class="section-lead" data-i18n="features.lead">
-                        100% external packet capture with auto-updating IP geolocation, server filtering, player tracking, live graphs, custom themes, and dedicated GTA V &amp; RDR2 tools.
-                    </p>
-                </div>
-
-                <div class="feature-grid">
-                    <article class="feature-card">
-                        <div class="feature-icon feature-icon--success">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-shield"></use></svg>
-                        </div>
-                        <h3 data-i18n="features.f1_title">100% External &amp; Ban-Safe</h3>
-                        <p data-i18n="features.f1_desc">Reads network traffic strictly from the outside — never touches or modifies game files or memory. Zero mods required and zero risk of game bans.</p>
-                    </article>
-
-                    <article class="feature-card">
-                        <div class="feature-icon feature-icon--accent">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-gamepad-2"></use></svg>
-                        </div>
-                        <h3 data-i18n="features.f2_title">PC, Console &amp; Mobile</h3>
-                        <p data-i18n="features.f2_desc">Focus on a specific PC game, or monitor PlayStation, Xbox, and mobile devices via Ethernet sharing, built-in Wi-Fi Hotspot, or your local network.</p>
-                    </article>
-
-                    <article class="feature-card">
-                        <div class="feature-icon feature-icon--accent">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-radio-tower"></use></svg>
-                        </div>
-                        <h3 data-i18n="features.f3_title">Smart Server &amp; Provider Filtering</h3>
-                        <p data-i18n="features.f3_desc">Automatically hides Rockstar, cloud, relay, and game servers so only real players show up — plus custom IP blocklists and internet provider filters.</p>
-                    </article>
-
-                    <article class="feature-card">
-                        <div class="feature-icon feature-icon--success">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-user-round-check"></use></svg>
-                        </div>
-                        <h3 data-i18n="features.f4_title">Player Lists, Alerts &amp; Combo Rules</h3>
-                        <p data-i18n="features.f4_desc">Save friends or hostiles with custom names, colors, and notes. Get instant on-screen popups, spoken voice alerts, and automated detection rules.</p>
-                    </article>
-
-                    <article class="feature-card">
-                        <div class="feature-icon feature-icon--warning">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-crown"></use></svg>
-                        </div>
-                        <h3 data-i18n="features.f5_title">GTA V &amp; RDR2 Power Tools</h3>
-                        <p data-i18n="features.f5_desc">Real-time Session Host &amp; relay detection, Host History, one-click Solo Public Session, in-game Player Resolver, and online Looky System username lookups.</p>
-                    </article>
-
-                    <article class="feature-card">
-                        <div class="feature-icon feature-icon--danger">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-chart-line"></use></svg>
-                        </div>
-                        <h3 data-i18n="features.f6_title">Live Graphs &amp; High-Rate Monitor</h3>
-                        <p data-i18n="features.f6_desc">Watch live traffic and speed graphs, session timelines, and port activity, and get instant warnings whenever a player sends unusual traffic spikes.</p>
-                    </article>
+                    <div class="preview-sandbox-footer">
+                        <span class="preview-sandbox-footer-note">
+                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-info"></use></svg>
+                            <span data-i18n="preview.footer_note">Showing fake sample players. Ready to monitor your own real P2P sessions?</span>
+                        </span>
+                        <a href="#download" class="btn btn-primary btn-sm">
+                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-cloud-download"></use></svg>
+                            <span data-i18n="preview.footer_cta">Download Desktop App</span>
+                        </a>
+                    </div>
                 </div>
             </div>
         </section>
@@ -1405,42 +1470,46 @@
 
         <!-- ==================== EXPLORE MORE HUB ==================== -->
         <section class="section" id="explore">
-            <div class="container">
+            <div class="container container-narrow">
                 <div class="section-header">
                     <span class="section-eyebrow" data-i18n="explore.eyebrow">Explore More</span>
                     <h2 class="section-title" data-i18n="explore.title">Dive Deeper Into Session Sniffer</h2>
                 </div>
 
-                <div class="explore-grid">
-                    <a href="/games" class="explore-card">
-                        <div class="explore-card-top">
-                            <div class="feature-icon feature-icon--accent">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-gamepad-2"></use></svg>
-                            </div>
-                            <span class="badge badge-accent" data-i18n="games.stat_universal_value">Any P2P</span>
+                <div class="explore-list">
+                    <article class="explore-row">
+                        <div class="explore-row-icon" aria-hidden="true">
+                            <svg class="icon"><use href="#icon-gamepad-2"></use></svg>
                         </div>
-                        <h3 data-i18n="games.title">Supported Games &amp; Software</h3>
-                        <p data-i18n="explore.games_desc">Explore officially tested P2P games and apps with connection behavior, platforms, and username lookup support.</p>
-                        <span class="explore-card-cta">
+                        <div class="explore-row-body">
+                            <div class="explore-row-head">
+                                <h3 data-i18n="games.title">Supported Games &amp; Software</h3>
+                                <span class="badge badge-accent" data-i18n="games.stat_universal_value">Any P2P</span>
+                            </div>
+                            <p data-i18n="explore.games_desc">Explore officially tested P2P games and apps with connection behavior, platforms, and username lookup support.</p>
+                        </div>
+                        <a href="/games" class="btn btn-control explore-row-btn">
                             <span data-i18n="explore.games_cta">Browse Catalog</span>
                             <svg class="icon icon-xs history-dir-icon" aria-hidden="true"><use href="#icon-arrow-right"></use></svg>
-                        </span>
-                    </a>
+                        </a>
+                    </article>
 
-                    <a href="/history" class="explore-card">
-                        <div class="explore-card-top">
-                            <div class="feature-icon feature-icon--warning">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-rotate-ccw-clock"></use></svg>
-                            </div>
-                            <span class="badge badge-muted mono" dir="ltr">2021 – 2026</span>
+                    <article class="explore-row">
+                        <div class="explore-row-icon" aria-hidden="true">
+                            <svg class="icon"><use href="#icon-rotate-ccw-clock"></use></svg>
                         </div>
-                        <h3 data-i18n="footer.link_history">Project History</h3>
-                        <p data-i18n="explore.history_desc">Trace 5 years of evolution from the original 2021 PS3 script to today's cross-platform desktop app and every release along the way.</p>
-                        <span class="explore-card-cta">
+                        <div class="explore-row-body">
+                            <div class="explore-row-head">
+                                <h3 data-i18n="footer.link_history">Project History</h3>
+                                <span class="badge badge-muted mono" dir="ltr">2021 – 2026</span>
+                            </div>
+                            <p data-i18n="explore.history_desc">Trace 5 years of evolution from the original 2021 PS3 script to today's cross-platform desktop app and every release along the way.</p>
+                        </div>
+                        <a href="/history" class="btn btn-control explore-row-btn">
                             <span data-i18n="explore.history_cta">View History</span>
                             <svg class="icon icon-xs history-dir-icon" aria-hidden="true"><use href="#icon-arrow-right"></use></svg>
-                        </span>
-                    </a>
+                        </a>
+                    </article>
                 </div>
             </div>
         </section>
@@ -1878,6 +1947,43 @@
         </div>
     </footer>
 
+    <!-- Full-size Hero Desktop App Screenshot Lightbox -->
+    <div class="hero-lightbox" id="hero-lightbox" role="dialog" aria-modal="true" aria-labelledby="hero-lightbox-title" hidden>
+        <div class="hero-lightbox-backdrop" id="hero-lightbox-backdrop"></div>
+        <div class="hero-lightbox-dialog">
+            <div class="hero-lightbox-bar">
+                <div class="hero-lightbox-info">
+                    <svg class="icon icon-sm" aria-hidden="true"><use href="#icon-app_icon"></use></svg>
+                    <span id="hero-lightbox-title" data-i18n="hero.showcase_title">Session Sniffer Desktop App</span>
+                    <span class="badge badge-warning hero-showcase-badge" data-i18n="hero.showcase_badge">Screenshot</span>
+                </div>
+                <div class="hero-lightbox-controls">
+                    <a href="#preview" class="btn btn-sm hero-showcase-demo-btn" id="hero-lightbox-demo">
+                        <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-circle-play"></use></svg>
+                        <span data-i18n="hero.cta_preview">Try Interactive UI Demo</span>
+                    </a>
+                    <a href="#download" class="btn btn-primary btn-sm" id="hero-lightbox-download">
+                        <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-cloud-download"></use></svg>
+                        <span data-i18n="nav.download">Download</span>
+                    </a>
+                    <button
+                        type="button"
+                        class="icon-btn"
+                        id="hero-lightbox-close"
+                        data-i18n-title="history.lightbox_close"
+                        aria-label="Close preview"
+                        title="Close preview"
+                    >
+                        <svg class="icon icon-sm" aria-hidden="true"><use href="#icon-x"></use></svg>
+                    </button>
+                </div>
+            </div>
+            <div class="hero-lightbox-body">
+                <img src="assets/history/2026-gui-v1-5-pyside6.png" alt="Session Sniffer Desktop App Screenshot" width="1920" height="1080">
+            </div>
+        </div>
+    </div>
+
     <!-- Floating Qt-styled Right-Click Context Menu for table rows -->
     <div class="ss-context-menu" id="ss-context-menu" role="menu" hidden></div>
 
@@ -1893,9 +1999,9 @@
         <p class="ss-tooltip-body" id="ss-tooltip-body"></p>
     </div>
 
-    <script src="assets/app-data.generated.js?v=fd47deab" defer></script>
-    <script src="core.js?v=a3006772" defer></script>
-    <script src="preview.js?v=1d63e1cf" defer></script>
+    <script src="assets/app-data.generated.js?v=ac5ea615" defer></script>
+    <script src="core.js?v=17ebd90e" defer></script>
+    <script src="preview.js?v=8089a55a" defer></script>
 </body>
 
 </html>

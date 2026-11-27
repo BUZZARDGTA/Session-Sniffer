@@ -134,7 +134,7 @@
                 {
                     labelKey: 'history.era_try_live',
                     url: '/#preview',
-                    icon: 'radar',
+                    icon: 'circle-play',
                     primary: true,
                     internal: true,
                 },

@@ -72,6 +72,7 @@ _HTML_STATIC_ASSET_RE: Final = re.compile(
 _WEBSITE_HTML_FILES: Final[tuple[str, ...]] = ('index.html', 'games.html', 'history.html', '404.html')
 _LIGHT_LUMINANCE_THRESHOLD: Final = 140.0
 _PREDECESSOR_COMMITS_COUNT: Final = 99  # PS3-Blacklist-Sniffer (94) + PC-Blacklist-Sniffer (5)
+_PRESERVE_COLOR_SITE_ICONS: Final[frozenset[str]] = frozenset({'linux', 'windows'})
 
 # Canonical columns rendered in the website's interactive Connected & Disconnected preview tables.
 PREVIEW_TABLE_COLUMNS: Final[tuple[str, ...]] = (
@@ -495,7 +496,11 @@ def _build_icon_sprite() -> tuple[str, int]:
         symbols.append(_svg_to_symbol(icon_path, f'icon-{icon_name}'))
 
     symbols.extend(
-        _svg_to_symbol(site_icon_path, f'icon-{site_icon_path.stem}')
+        _svg_to_symbol(
+            site_icon_path,
+            f'icon-{site_icon_path.stem}',
+            preserve_colors=site_icon_path.stem in _PRESERVE_COLOR_SITE_ICONS,
+        )
         for site_icon_path in _list_site_icon_paths()
     )
 

@@ -638,6 +638,7 @@
         var scheme = isLightColor(colors.background) ? 'light' : 'dark';
         root.setAttribute('data-scheme', scheme);
         root.style.setProperty('--ss-on-accent', bestOnColor(colors.accent));
+        root.style.setProperty('--ss-on-warning', bestOnColor(colors.warning));
         var metaTheme = document.querySelector('meta[name="theme-color"]');
         if (metaTheme) {
             metaTheme.setAttribute('content', colors.background);
@@ -1245,6 +1246,18 @@
        OS Auto-Detection & Live GitHub / Discord Stats Hydration
        ---------------------------------------------------------------------- */
 
+    function isMobileVisitor() {
+        var ua = (navigator.userAgent || '').toLowerCase();
+        var platform = (navigator.platform || '').toLowerCase();
+        if (/android|iphone|ipad|ipod|mobile|tablet/.test(ua)) {
+            return true;
+        }
+        if (platform === 'macintel' && typeof navigator.maxTouchPoints === 'number' && navigator.maxTouchPoints > 1) {
+            return true;
+        }
+        return false;
+    }
+
     function detectVisitorOs() {
         var ua = (navigator.userAgent || '').toLowerCase();
         var platform = (navigator.platform || '').toLowerCase();
@@ -1258,22 +1271,34 @@
     }
 
     function applyOsRecommendation() {
-        var osKey = detectVisitorOs();
+        var mobile = isMobileVisitor();
+        var osKey = mobile ? 'windows' : detectVisitorOs();
         var asset = RELEASE_ASSETS[osKey] || RELEASE_ASSETS.windows;
 
         var heroBtn = document.getElementById('hero-primary-download');
         var heroLabel = document.getElementById('hero-primary-download-label');
         if (heroBtn && heroLabel) {
-            heroBtn.href = asset.url;
-            heroLabel.textContent = tSite(asset.labelKey);
+            if (mobile) {
+                heroBtn.href = '#download';
+                heroLabel.textContent = tSite('hero.cta_download_desktop');
+            } else {
+                heroBtn.href = asset.url;
+                heroLabel.textContent = tSite(asset.labelKey);
+            }
+        }
+
+        var mobileNote = document.getElementById('hero-mobile-note');
+        if (mobileNote) {
+            mobileNote.hidden = !mobile;
         }
 
         document.querySelectorAll('.download-card').forEach(function markCard(card) {
             var isMatch = card.getAttribute('data-os') === osKey;
-            card.classList.toggle('is-recommended', isMatch);
+            var highlightCard = !mobile && isMatch;
+            card.classList.toggle('is-recommended', highlightCard);
             var badge = card.querySelector('.os-recommended-badge');
             if (badge) {
-                badge.hidden = !isMatch;
+                badge.hidden = !highlightCard;
             }
             var cta = card.querySelector('.btn');
             if (cta) {
