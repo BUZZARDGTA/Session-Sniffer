@@ -15,6 +15,7 @@ from PySide6.QtGui import QColor
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.models.userip_settings_model import (
     DEFAULT_USERIP_FILES_SETTINGS,
+    MAX_DETECTIONS_COUNT,
     UserIPDatabaseFile,
     UserIPEntryModel,
     UserIPSettingsModel,
@@ -661,7 +662,7 @@ def _apply_detection_to_entry(entry: UserIPEntryModel, timestamp: str) -> UserIP
     already_counted = entry.detections_count > 0 and entry.last_seen_at is not None and pick_latest_iso(entry.last_seen_at, timestamp) == entry.last_seen_at
     if already_counted and entry.first_seen_at is not None:
         return entry
-    incremented_count = entry.detections_count if already_counted else entry.detections_count + 1
+    incremented_count = entry.detections_count if already_counted else min(MAX_DETECTIONS_COUNT, entry.detections_count + 1)
     enriched_entry, _ = enrich_userip_entry_from_logs(entry)
     first_seen_at = pick_earliest_iso(enriched_entry.first_seen_at, timestamp)
     last_seen_at = pick_latest_iso(enriched_entry.last_seen_at, timestamp)
@@ -669,7 +670,7 @@ def _apply_detection_to_entry(entry: UserIPEntryModel, timestamp: str) -> UserIP
     added_at = pick_earliest_iso(enriched_entry.added_at, earliest_seen) if earliest_seen is not None else enriched_entry.added_at
     return enriched_entry.model_copy(
         update={
-            'detections_count': max(incremented_count, enriched_entry.detections_count),
+            'detections_count': min(MAX_DETECTIONS_COUNT, max(incremented_count, enriched_entry.detections_count)),
             'first_seen_at': first_seen_at,
             'last_seen_at': last_seen_at,
             'added_at': added_at,

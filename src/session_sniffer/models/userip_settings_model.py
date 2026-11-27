@@ -3,6 +3,7 @@
 import functools
 import json
 import math
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, ClassVar, Literal, Self, cast
@@ -55,6 +56,32 @@ USERIP_ENTRY_KEYS: tuple[str, ...] = (
     'last_seen_at',
 )
 
+MAX_DETECTIONS_COUNT: int = (1 << 63) - 1
+_MAX_DETECTIONS_COUNT_DIGITS: int = len(str(MAX_DETECTIONS_COUNT))
+_LONE_SURROGATE_RE: re.Pattern[str] = re.compile(r'[\ud800-\udfff]')
+
+
+def _strip_lone_surrogates(value: str) -> str:
+    """Remove lone UTF-16 surrogate code points that cannot be encoded as UTF-8."""
+    return _LONE_SURROGATE_RE.sub('', value)
+
+
+def _parse_detections_count(raw_detections: object) -> tuple[int, bool]:
+    """Normalize a raw `detections_count` value into `[0, MAX_DETECTIONS_COUNT]` and report whether it was canonical."""
+    if isinstance(raw_detections, bool):
+        return 0, False
+    if isinstance(raw_detections, int):
+        clamped = min(MAX_DETECTIONS_COUNT, max(0, raw_detections))
+        return clamped, clamped == raw_detections
+    count = 0
+    if isinstance(raw_detections, float) and math.isfinite(raw_detections):
+        count = MAX_DETECTIONS_COUNT if raw_detections >= MAX_DETECTIONS_COUNT else max(0, int(raw_detections))
+    elif isinstance(raw_detections, str) and (stripped := raw_detections.strip()).isascii() and stripped.isdigit():
+        trimmed = stripped.lstrip('0')
+        if trimmed:
+            count = MAX_DETECTIONS_COUNT if len(trimmed) > _MAX_DETECTIONS_COUNT_DIGITS else min(MAX_DETECTIONS_COUNT, int(trimmed))
+    return count, False
+
 
 def get_current_iso_timestamp() -> str:
     """Return the current local timestamp formatted as an ISO-8601 string with timezone offset."""
@@ -76,10 +103,12 @@ def normalize_iso_timestamp(value: object) -> tuple[str | None, bool]:
         return None, False
     try:
         parsed = datetime.fromisoformat(stripped)
-    except ValueError:
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=LOCAL_TZ)
+        # Ensure UTC/local conversions stay within datetime bounds for display and comparison.
+        parsed.astimezone(LOCAL_TZ)
+    except (ValueError, OverflowError, OSError):
         return None, False
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=LOCAL_TZ)
     normalized = parsed.isoformat(timespec='seconds')
     return normalized, normalized == value
 
@@ -91,10 +120,10 @@ def format_iso_timestamp_display(iso_str: str | None) -> str:
         return ''
     try:
         parsed = datetime.fromisoformat(iso_str)
-    except ValueError:
+        if parsed.tzinfo is not None:
+            parsed = parsed.astimezone(LOCAL_TZ)
+    except (ValueError, OverflowError, OSError):
         return iso_str
-    if parsed.tzinfo is not None:
-        parsed = parsed.astimezone(LOCAL_TZ)
     return parsed.strftime('%Y-%m-%d %H:%M:%S')
 
 
@@ -102,11 +131,11 @@ def _parse_iso_for_compare(iso_str: str) -> datetime | None:
     """Parse an ISO-8601 string into a timezone-aware datetime for chronological comparison."""
     try:
         parsed = datetime.fromisoformat(iso_str)
-    except ValueError:
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=LOCAL_TZ)
+        return parsed.astimezone(LOCAL_TZ)
+    except (ValueError, OverflowError, OSError):
         return None
-    if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=LOCAL_TZ)
-    return parsed
 
 
 def pick_earliest_iso(first: str | None, second: str | None) -> str | None:
@@ -324,11 +353,16 @@ class UserIPEntryModel(BaseModel):
     is_looky: bool = False
     notes: str = ''
     source: EntrySource = 'Manual'
-    detections_count: int = Field(default=0, ge=0)
+    detections_count: int = Field(default=0, ge=0, le=MAX_DETECTIONS_COUNT)
     added_at: str = Field(default_factory=get_current_iso_timestamp)
     updated_at: str | None = None
     first_seen_at: str | None = None
     last_seen_at: str | None = None
+
+    @field_validator('username', 'ip', 'notes', mode='after')
+    @classmethod
+    def _sanitize_utf8_text(cls, value: str) -> str:
+        return _strip_lone_surrogates(value)
 
     @classmethod
     def from_raw_entry_dict(
@@ -344,18 +378,7 @@ class UserIPEntryModel(BaseModel):
         raw_source: object = entry_dict.get('source', 'Looky' if is_looky else 'Manual')
         source, source_clean = normalize_userip_source(raw_source, is_looky=is_looky)
 
-        raw_detections: object = entry_dict.get('detections_count', 0)
-        detections_clean = isinstance(raw_detections, int) and not isinstance(raw_detections, bool) and raw_detections >= 0
-        if isinstance(raw_detections, bool):
-            detections_count = 0
-        elif isinstance(raw_detections, int):
-            detections_count = max(0, raw_detections)
-        elif isinstance(raw_detections, float):
-            detections_count = max(0, int(raw_detections)) if math.isfinite(raw_detections) else 0
-        elif isinstance(raw_detections, str) and (stripped_detections := raw_detections.strip()).isascii() and stripped_detections.isdigit():
-            detections_count = int(stripped_detections)
-        else:
-            detections_count = 0
+        detections_count, detections_clean = _parse_detections_count(entry_dict.get('detections_count', 0))
 
         added_at_norm, added_clean = normalize_iso_timestamp(entry_dict.get('added_at'))
         added_at = added_at_norm if added_at_norm is not None else get_current_iso_timestamp()
@@ -388,8 +411,8 @@ class UserIPEntryModel(BaseModel):
         if not isinstance(raw_username, str) or not isinstance(raw_ip, str):
             return None
 
-        username = raw_username.strip()
-        ip = raw_ip.strip()
+        username = _strip_lone_surrogates(raw_username).strip()
+        ip = _strip_lone_surrogates(raw_ip).strip()
         if not username or not ip:
             return None
 
@@ -411,7 +434,7 @@ class UserIPEntryModel(BaseModel):
         notes = ''
         notes_clean = False
         if isinstance(raw_notes, str):
-            notes = raw_notes.strip()
+            notes = _strip_lone_surrogates(raw_notes).strip()
             notes_clean = notes == raw_notes
 
         entry, meta_clean = cls.from_raw_entry_dict(
@@ -436,10 +459,11 @@ class UserIPEntryModel(BaseModel):
             and other_end is not None
             and (self_end < other_start or other_end < self_start)
         )
-        merged_detections = (
+        merged_detections = min(
+            MAX_DETECTIONS_COUNT,
             self.detections_count + other.detections_count
             if disjoint_windows
-            else max(self.detections_count, other.detections_count)
+            else max(self.detections_count, other.detections_count),
         )
         merged_is_looky = self.is_looky or other.is_looky
         merged_source: EntrySource = 'Looky' if merged_is_looky else self.source

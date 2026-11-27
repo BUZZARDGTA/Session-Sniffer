@@ -15,7 +15,7 @@ from threading import Lock, Thread
 from typing import TYPE_CHECKING, ClassVar, NamedTuple, cast
 
 from session_sniffer.constants.local import SESSIONS_LOGGING_DIR_PATH, USERIP_LOGGING_PATH
-from session_sniffer.models.userip_settings_model import UserIPEntryModel, pick_earliest_iso, pick_latest_iso
+from session_sniffer.models.userip_settings_model import MAX_DETECTIONS_COUNT, UserIPEntryModel, pick_earliest_iso, pick_latest_iso
 from session_sniffer.networking.ip_range import parse_ip_range
 from session_sniffer.player.registry import PlayersRegistry
 
@@ -60,11 +60,11 @@ class _LogIPStats(NamedTuple):
 
 def _ipv4_to_u32(ip_str: str) -> int | None:
     """Convert a dotted-quad IPv4 string to a 32-bit unsigned int, or `None` if invalid."""
-    if '/' in ip_str or '-' in ip_str or '*' in ip_str or ',' in ip_str:
+    if '/' in ip_str or '-' in ip_str or '*' in ip_str or ',' in ip_str or '\x00' in ip_str:
         return None
     try:
         packed = socket.inet_aton(ip_str)
-    except OSError:
+    except (OSError, ValueError):
         return None
     if ip_str.count('.') != _IPV4_DOTTED_QUAD_SEPARATOR_COUNT:
         return None
@@ -78,9 +78,10 @@ def _parse_log_datetime_str(raw_dt: str) -> tuple[str, float] | None:
         return None
     try:
         dt = datetime.fromisoformat(cleaned).astimezone()
-    except ValueError:
+        ts = dt.timestamp()
+    except (ValueError, OverflowError, OSError):
         return None
-    return dt.isoformat(timespec='seconds'), dt.timestamp()
+    return dt.isoformat(timespec='seconds'), ts
 
 
 def _raw_record_to_window(record: _RawSessionRecord) -> _SessionWindow | None:
@@ -595,7 +596,7 @@ def enrich_userip_entry_from_logs(entry: UserIPEntryModel) -> tuple[UserIPEntryM
     log_stats = _UserIPLogHistoryCache.get_stats_for_entry_ip(cleaned_ip)
     first_seen_at = pick_earliest_iso(entry.first_seen_at, log_stats.first_seen_at) if log_stats is not None else entry.first_seen_at
     last_seen_at = pick_latest_iso(entry.last_seen_at, log_stats.last_seen_at) if log_stats is not None else entry.last_seen_at
-    detections_count = max(entry.detections_count, log_stats.detections_count) if log_stats is not None else entry.detections_count
+    detections_count = min(MAX_DETECTIONS_COUNT, max(entry.detections_count, log_stats.detections_count)) if log_stats is not None else entry.detections_count
     earliest_seen = pick_earliest_iso(first_seen_at, last_seen_at)
     added_at = (pick_earliest_iso(entry.added_at, earliest_seen) or entry.added_at) if earliest_seen is not None else entry.added_at
     if (first_seen_at, last_seen_at, detections_count, added_at) == (entry.first_seen_at, entry.last_seen_at, entry.detections_count, entry.added_at):
