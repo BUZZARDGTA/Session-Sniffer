@@ -129,7 +129,6 @@
   "games.modal_resolver_plugins_desc": "Automatikusan megjeleníti a játékosneveket hivatalos PC-s mod menu bővítményekkel (Cherax, Lexis, Stand) vagy a Looky System segítségével.",
   "games.modal_resolver_ps3_desc": "Automatikus PSN-felhasználónév-kinyerés közvetlenül a rögzített PS3-munkamenetcsomagokból.",
   "games.modal_toolkit_note": "Tartalmazza a Session Sniffer dedikált {game} funkciócsomagját: Munkamenet-hoszt korona, relékövetés, Solo Public munkamenet és Játékosfeloldó.",
-  "games.note": "A GTA V és RDR2 játékokhoz készült dedikált funkciócsomagok feloldják a munkamenet-hoszt ikonokat, a relékövetést, a Solo Public munkamenetet és a játékon belüli Játékosfeloldó munkafolyamatokat.",
   "games.note_cod_bo": "PC-n csak a nem rangsorolt, VAC nélküli szerverek működnek P2P-alapon.\nPC-n a Zombies játékmód mindig P2P.",
   "games.note_cod_bo2": "PC-n a Zombies játékmód mindig P2P.",
   "games.note_cod_bocw": "PC-n csak a privát meccsek és a COD-csoportok P2P-alapúak, és csak akkor, ha ugyanazon a platformon vannak, mint Ön.\nPC-n a Zombies játékmód ritkán mutathat P2P-játékosokat.",

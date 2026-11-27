@@ -129,7 +129,6 @@
   "games.modal_resolver_plugins_desc": "Näyttää pelaajien nimimerkit automaattisesti virallisten PC-mod-valikkolisäosien (Cherax, Lexis, Stand) tai Looky Systemin kautta.",
   "games.modal_resolver_ps3_desc": "Automaattinen PSN-käyttäjänimien poiminta suoraan kaapatuista PS3-istuntopaketeista.",
   "games.modal_toolkit_note": "Sisältää Session Snifferin pelikohtaisen {game} -ominaisuuskokonaisuuden: Istunnon isännän kruunu, välityspalvelinseuranta, Yksityinen julkinen istunto ja Pelaajaselvittäjä.",
-  "games.note": "GTA V:lle ja RDR2:lle omistetut ominaisuuskokonaisuudet avaavat Istunnon isäntä -kuvakkeet, välityspalvelinseurannan, Yksityinen julkinen istunto -toiminnon ja pelinsisäisen Pelaajaselvittäjän työnkulut.",
   "games.note_cod_bo": "PC:llä vain rankingin ulkopuoliset palvelimet ilman VAC-suojausta ovat P2P-pohjaisia.\nPC:llä Zombies-pelitila on aina P2P.",
   "games.note_cod_bo2": "PC:llä Zombies-pelitila on aina P2P.",
   "games.note_cod_bocw": "PC:llä vain yksityiset ottelut ja COD-ryhmät ovat P2P-pohjaisia, ja vain jos muut pelaajat ovat samalla alustalla kanssasi.\nPC:llä Zombies-pelitila voi harvoin näyttää P2P-pelaajia.",

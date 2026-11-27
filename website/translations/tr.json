@@ -129,7 +129,6 @@
   "games.modal_resolver_plugins_desc": "Resmi PC mod menü eklentileri (Cherax, Lexis, Stand) veya Looky System aracılığıyla oyuncu adlarını otomatik gösterir.",
   "games.modal_resolver_ps3_desc": "Yakalanan PS3 oturum paketlerinden doğrudan otomatik PSN kullanıcı adı çıkarımı.",
   "games.modal_toolkit_note": "Session Sniffer'ın {game} için özel özellik setini içerir: Oturum Sahibi tacı, röle izleme, Tek Kişilik Genel Oturum ve Oyuncu Çözümleyici.",
-  "games.note": "GTA V ve RDR2 için özel özellik setleri; Oturum Sahibi simgeleri, röle izleme, Tek Kişilik Genel Oturum ve oyun içi Oyuncu Çözümleyici iş akışlarının kilidini açar.",
   "games.note_cod_bo": "PC'de yalnızca derecesiz ve VAC'sız sunucular P2P'dir.\nPC'de Zombiler oyun modu her zaman P2P'dir.",
   "games.note_cod_bo2": "PC'de Zombiler oyun modu her zaman P2P'dir.",
   "games.note_cod_bocw": "PC'de yalnızca özel maçlar ve COD grupları P2P'dir, ancak yalnızca sizinle aynı platformdalarsa.\nPC'de Zombiler oyun modu nadiren P2P oyuncuları gösterebilir.",

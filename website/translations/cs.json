@@ -129,7 +129,6 @@
   "games.modal_resolver_plugins_desc": "Automaticky zobrazuje jména hráčů pomocí oficiálních PC pluginů pro mod menu (Cherax, Lexis, Stand) nebo Looky System.",
   "games.modal_resolver_ps3_desc": "Automatická extrakce uživatelských jmen PSN přímo ze zachycených paketů relace na PS3.",
   "games.modal_toolkit_note": "Obsahuje specializovanou sadu funkcí Session Sniffer pro {game}: korunu hostitele relace, sledování relay serverů, Samostatnou veřejnou relaci a Rozpoznávání hráčů.",
-  "games.note": "Specializované sady funkcí pro GTA V a RDR2 zpřístupňují ikony hostitele relace, sledování relay serverů, Samostatnou veřejnou relaci a pracovní postupy Rozpoznávání hráčů ve hře.",
   "games.note_cod_bo": "Na PC jsou P2P pouze nehodnocené servery bez VAC.\nNa PC je herní režim Zombies vždy P2P.",
   "games.note_cod_bo2": "Na PC je herní režim Zombies vždy P2P.",
   "games.note_cod_bocw": "Na PC jsou P2P pouze soukromé zápasy a skupiny COD, ale jen pokud jsou hráči na stejné platformě jako vy.\nNa PC může herní režim Zombies výjimečně zobrazit P2P hráče.",

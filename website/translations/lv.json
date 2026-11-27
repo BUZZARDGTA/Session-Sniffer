@@ -129,7 +129,6 @@
   "games.modal_resolver_plugins_desc": "Automātiski attēlo spēlētāju vārdus, izmantojot oficiālos PC mod izvēlnes spraudņus (Cherax, Lexis, Stand) vai Looky System.",
   "games.modal_resolver_ps3_desc": "Automātiska PSN lietotājvārdu izvilkšana tieši no pārtvertajām PS3 sesijas paketēm.",
   "games.modal_toolkit_note": "Ietver Session Sniffer specializēto {game} funkciju komplektu: sesijas saimnieka kronis, releju izsekošana, Solo publiskā sesija un Spēlētāju risinātājs.",
-  "games.note": "Īpašie GTA V un RDR2 funkciju komplekti atbloķē sesijas saimnieka ikonas, releju izsekošanu, Solo publisko sesiju un spēles Spēlētāju risinātāja darbplūsmas.",
   "games.note_cod_bo": "Uz PC P2P darbojas tikai nerangotajos serveros bez VAC.\nUz PC spēles režīms Zombies vienmēr ir P2P.",
   "games.note_cod_bo2": "Uz PC spēles režīms Zombies vienmēr ir P2P.",
   "games.note_cod_bocw": "Uz PC tikai privātie mači un COD grupas ir P2P, bet tikai tad, ja dalībnieki ir tajā pašā platformā kā jūs.\nUz PC spēles režīmā Zombies reti var parādīties P2P spēlētāji.",

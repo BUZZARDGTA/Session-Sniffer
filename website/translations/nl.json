@@ -129,7 +129,6 @@
   "games.modal_resolver_plugins_desc": "Toont spelersnamen automatisch via officiële PC mod-menu plug-ins (Cherax, Lexis, Stand) of Looky System.",
   "games.modal_resolver_ps3_desc": "Automatische extractie van PSN-gebruikersnamen rechtstreeks uit vastgelegde PS3-sessiepakketten.",
   "games.modal_toolkit_note": "Bevat de specifieke {game}-functieset van Session Sniffer: Sessiehost-kroon, relaytracking, openbare solosessie en Speleroplosser.",
-  "games.note": "Specifieke functiesets voor GTA V en RDR2 ontgrendelen sessiehost-iconen, relaytracking, openbare solosessie en in-game Speleroplosser-workflows.",
   "games.note_cod_bo": "Op PC zijn alleen niet-gerangschikte servers en servers zonder VAC P2P.\nOp PC is de Zombies-spelmodus altijd P2P.",
   "games.note_cod_bo2": "Op PC is de Zombies-spelmodus altijd P2P.",
   "games.note_cod_bocw": "Op PC zijn alleen privéwedstrijden en COD-groepen P2P, en alleen als ze op hetzelfde platform spelen als jij.\nOp PC toont de Zombies-spelmodus slechts zelden P2P-spelers.",

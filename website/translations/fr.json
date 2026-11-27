@@ -129,7 +129,6 @@
   "games.modal_resolver_plugins_desc": "Affiche automatiquement les pseudos des joueurs via les plugins officiels pour mod menus PC (Cherax, Lexis, Stand) ou Looky System.",
   "games.modal_resolver_ps3_desc": "Extraction automatique des pseudos PSN directement depuis les paquets de session PS3 capturés.",
   "games.modal_toolkit_note": "Inclut l'ensemble de fonctionnalités {game} dédié de Session Sniffer : couronne d'Hôte de session, suivi des relais, Session publique solo et Résolveur de joueurs.",
-  "games.note": "Des ensembles de fonctionnalités dédiés à GTA V et RDR2 débloquent les icônes d'Hôte de session, le suivi des relais, la Session publique solo et les flux du Résolveur de joueurs en jeu.",
   "games.note_cod_bo": "Sur PC, seuls les serveurs non classés et sans VAC sont en P2P.\nSur PC, le mode de jeu Zombies est toujours en P2P.",
   "games.note_cod_bo2": "Sur PC, le mode de jeu Zombies est toujours en P2P.",
   "games.note_cod_bocw": "Sur PC, seuls les matchs privés et les groupes COD sont en P2P, mais uniquement s'ils sont sur la même plateforme que vous.\nSur PC, le mode de jeu Zombies peut rarement afficher des joueurs en P2P.",

@@ -129,7 +129,6 @@
   "games.modal_resolver_plugins_desc": "透過官方 PC 修改器選單外掛（Cherax、Lexis、Stand）或 Looky System 自動顯示玩家名稱。",
   "games.modal_resolver_ps3_desc": "直接從擷取的 PS3 工作階段封包中自動擷取 PSN 使用者名稱。",
   "games.modal_toolkit_note": "包含 Session Sniffer 專屬的 {game} 功能組：工作階段主機皇冠、中繼追蹤、單人公開戰局與玩家解析器。",
-  "games.note": "GTA V 與 RDR2 專屬功能組可解鎖工作階段主機圖示、中繼追蹤、單人公開戰局與遊戲內玩家解析器工作流程。",
   "games.note_cod_bo": "在 PC 上，僅非積分且無 VAC 的伺服器採用 P2P。\n在 PC 上，殭屍模式一律採用 P2P。",
   "games.note_cod_bo2": "在 PC 上，殭屍模式一律採用 P2P。",
   "games.note_cod_bocw": "在 PC 上，僅私人對戰與 COD 群組採用 P2P，且僅限於與您同平台的玩家。\n在 PC 上，殭屍模式偶爾可能會顯示 P2P 玩家。",

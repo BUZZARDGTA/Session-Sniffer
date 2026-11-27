@@ -129,7 +129,6 @@
   "games.modal_resolver_plugins_desc": "Automatically displays player usernames via official PC mod menu plugins (Cherax, Lexis, Stand) or Looky System.",
   "games.modal_resolver_ps3_desc": "Automatic PSN username extraction directly from captured PS3 session packets.",
   "games.modal_toolkit_note": "Includes Session Sniffer's dedicated {game} feature set: Session Host crown, relay tracking, Solo Public Session, and Player Resolver.",
-  "games.note": "Dedicated feature sets for GTA V and RDR2 unlock Session Host icons, relay tracking, Solo Public Session, and in-game Player Resolver workflows.",
   "games.note_cod_bo": "On PC, only non-ranked servers & without VAC are P2P.\nOn PC, the Zombies game mode is always P2P.",
   "games.note_cod_bo2": "On PC, the Zombies game mode is always P2P.",
   "games.note_cod_bocw": "On PC, only private matches and COD groups are P2P but only if they are on the same platform as you.\nOn PC, the Zombies game mode may rarely show P2P players.",

@@ -129,7 +129,6 @@
   "games.modal_resolver_plugins_desc": "Exibe automaticamente os nomes dos jogadores usando plugins oficiais de mod menu para PC (Cherax, Lexis, Stand) ou Looky System.",
   "games.modal_resolver_ps3_desc": "Extração automática de nomes de usuário da PSN diretamente dos pacotes de sessão capturados no PS3.",
   "games.modal_toolkit_note": "Inclui o conjunto de recursos dedicado do Session Sniffer para {game}: coroa de Host da sessão, rastreamento de relay, Sessão pública solo e Resolvedor de jogadores.",
-  "games.note": "Conjuntos de recursos dedicados para GTA V e RDR2 desbloqueiam ícones de Host da sessão, rastreamento de relay, Sessão pública solo e fluxos do Resolvedor de jogadores no jogo.",
   "games.note_cod_bo": "No PC, apenas servidores não ranqueados e sem VAC são P2P.\nNo PC, o modo de jogo Zumbis é sempre P2P.",
   "games.note_cod_bo2": "No PC, o modo de jogo Zumbis é sempre P2P.",
   "games.note_cod_bocw": "No PC, apenas partidas privadas e grupos de COD são P2P, mas somente se estiverem na mesma plataforma que você.\nNo PC, o modo de jogo Zumbis pode raramente exibir jogadores P2P.",

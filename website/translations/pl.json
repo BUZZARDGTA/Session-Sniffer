@@ -129,7 +129,6 @@
   "games.modal_resolver_plugins_desc": "Automatycznie wyświetla nicki graczy za pomocą oficjalnych wtyczek PC do mod menu (Cherax, Lexis, Stand) lub Looky System.",
   "games.modal_resolver_ps3_desc": "Automatyczne wyodrębnianie nazw użytkowników PSN bezpośrednio z przechwyconych pakietów sesji PS3.",
   "games.modal_toolkit_note": "Zawiera dedykowany zestaw funkcji Session Sniffer dla {game}: korona hosta sesji, śledzenie przekaźników, Publiczna sesja solo oraz Rozpoznawanie graczy.",
-  "games.note": "Dedykowane zestawy funkcji dla GTA V i RDR2 odblokowują ikony hosta sesji, śledzenie przekaźników, Publiczną sesję solo oraz narzędzia Rozpoznawania graczy w grze.",
   "games.note_cod_bo": "Na PC połączenie P2P dotyczy wyłącznie serwerów nierankingowych bez VAC.\nNa PC tryb gry Zombies zawsze działa w trybie P2P.",
   "games.note_cod_bo2": "Na PC tryb gry Zombies zawsze działa w trybie P2P.",
   "games.note_cod_bocw": "Na PC tylko mecze prywatne i grupy COD działają w trybie P2P, lecz wyłącznie wtedy, gdy gracze są na tej samej platformie co Ty.\nNa PC tryb gry Zombies może sporadycznie wyświetlać graczy P2P.",

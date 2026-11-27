@@ -129,7 +129,6 @@
   "games.modal_resolver_plugins_desc": "Visar spelarnamn automatiskt via officiella PC mod-menytillägg (Cherax, Lexis, Stand) eller Looky System.",
   "games.modal_resolver_ps3_desc": "Automatisk extrahering av PSN-användarnamn direkt från insamlade PS3-sessionspaket.",
   "games.modal_toolkit_note": "Inkluderar Session Sniffers dedikerade funktionspaket för {game}: sessionsvärdskrona, reläspårning, offentlig solosession och spelarupplösare.",
-  "games.note": "Dedikerade funktionspaket för GTA V och RDR2 låser upp ikoner för sessionsvärd, reläspårning, offentlig solosession och arbetsflöden för spelarupplösare i spelet.",
   "games.note_cod_bo": "På PC är endast orankade servrar utan VAC P2P.\nPå PC är spelläget Zombies alltid P2P.",
   "games.note_cod_bo2": "På PC är spelläget Zombies alltid P2P.",
   "games.note_cod_bocw": "På PC är endast privata matcher och COD-grupper P2P, men bara om de spelar på samma plattform som du.\nPå PC kan spelläget Zombies i sällsynta fall visa P2P-spelare.",

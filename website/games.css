@@ -1346,27 +1346,6 @@
     color: var(--ss-text-muted);
 }
 
-.resolver-toolkit-pill {
-    margin: 0;
-    max-width: 540px;
-    display: inline-flex;
-    align-items: flex-start;
-    gap: 8px;
-    padding: 9px 13px;
-    border-radius: var(--ss-radius-md);
-    background: rgba(var(--ss-warning-rgb), 0.1);
-    border: 1px solid rgba(var(--ss-warning-rgb), 0.34);
-    color: var(--ss-text);
-    font-size: 12.5px;
-    line-height: 1.45;
-}
-
-.resolver-toolkit-pill .icon {
-    color: var(--ss-warning);
-    flex-shrink: 0;
-    margin-top: 2px;
-}
-
 .resolver-cards-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));

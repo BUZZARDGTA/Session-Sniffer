@@ -129,7 +129,6 @@
   "games.modal_resolver_plugins_desc": "通过官方 PC 修改器菜单插件（Cherax、Lexis、Stand）或 Looky System 自动显示玩家名称。",
   "games.modal_resolver_ps3_desc": "直接从捕获的 PS3 会话数据包中自动提取 PSN 用户名。",
   "games.modal_toolkit_note": "包含 Session Sniffer 的专属 {game} 功能集：会话主机皇冠、中继追踪、单人公开战局和玩家解析器。",
-  "games.note": "面向 GTA V 与 RDR2 的专属功能集可解锁会话主机图标、中继追踪、单人公开战局以及游戏内玩家解析器工作流。",
   "games.note_cod_bo": "在 PC 上，仅非排位且无 VAC 的服务器为 P2P。\n在 PC 上，僵尸模式始终为 P2P。",
   "games.note_cod_bo2": "在 PC 上，僵尸模式始终为 P2P。",
   "games.note_cod_bocw": "在 PC 上，仅私人对战和 COD 群组为 P2P，且仅限于与你处于同一平台的玩家。\n在 PC 上，僵尸模式偶尔可能会显示 P2P 玩家。",

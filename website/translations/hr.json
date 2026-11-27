@@ -129,7 +129,6 @@
   "games.modal_resolver_plugins_desc": "Automatski prikazuje imena igrača putem službenih PC dodataka za mod menije (Cherax, Lexis, Stand) ili Looky Systema.",
   "games.modal_resolver_ps3_desc": "Automatsko izdvajanje PSN korisničkih imena izravno iz uhvaćenih paketa PS3 sesije.",
   "games.modal_toolkit_note": "Uključuje namjenski skup značajki programa Session Sniffer za {game}: kruna domaćina sesije, praćenje releja, Samostalna javna sesija i Razrješavač igrača.",
-  "games.note": "Namjenski skupovi značajki za GTA V i RDR2 otključavaju ikone domaćina sesije, praćenje releja, Samostalnu javnu sesiju i tijekove rada za Razrješavač igrača u igri.",
   "games.note_cod_bo": "Na PC-u su samo nerangirani poslužitelji bez VAC-a P2P.\nNa PC-u je način igre Zombies uvijek P2P.",
   "games.note_cod_bo2": "Na PC-u je način igre Zombies uvijek P2P.",
   "games.note_cod_bocw": "Na PC-u su samo privatni mečevi i COD grupe P2P, ali samo ako su na istoj platformi kao i vi.\nNa PC-u način igre Zombies rijetko može prikazati P2P igrače.",

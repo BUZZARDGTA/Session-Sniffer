@@ -129,7 +129,6 @@
   "games.modal_resolver_plugins_desc": "公式 PC MOD メニュープラグイン（Cherax・Lexis・Stand）または Looky System によりプレイヤー名を自動表示します。",
   "games.modal_resolver_ps3_desc": "キャプチャした PS3 セッションパケットから PSN ユーザー名を自動抽出します。",
   "games.modal_toolkit_note": "Session Sniffer の {game} 専用機能セットを搭載：セッションホスト王冠、リレー追跡、ソロ公開セッション、プレイヤーリゾルバー。",
-  "games.note": "GTA V および RDR2 専用の機能セットにより、セッションホストアイコン、リレー追跡、ソロ公開セッション、ゲーム内プレイヤーリゾルバーのワークフローが利用できます。",
   "games.note_cod_bo": "PC 版では、VAC 無効の非ランクサーバーのみ P2P になります。\nPC 版の Zombies モードは常に P2P です。",
   "games.note_cod_bo2": "PC 版の Zombies モードは常に P2P です。",
   "games.note_cod_bocw": "PC 版ではプライベートマッチと COD グループのみ P2P ですが、自分と同じプラットフォーム上のプレイヤーに限られます。\nPC 版の Zombies モードではまれに P2P プレイヤーが表示されることがあります。",

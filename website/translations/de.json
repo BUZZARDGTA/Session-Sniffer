@@ -129,7 +129,6 @@
   "games.modal_resolver_plugins_desc": "Zeigt Spielernamen automatisch über offizielle PC-Mod-Menu-Plugins (Cherax, Lexis, Stand) oder Looky System an.",
   "games.modal_resolver_ps3_desc": "Automatische Extraktion von PSN-Benutzernamen direkt aus erfassten PS3-Sitzungspaketen.",
   "games.modal_toolkit_note": "Enthält das spezielle {game}-Funktionspaket von Session Sniffer: Sitzungshost-Krone, Relay-Verfolgung, Öffentliche Solo-Sitzung und Spieler-Auflöser.",
-  "games.note": "Spezielle Funktionspakete für GTA V und RDR2 schalten Sitzungshost-Symbole, Relay-Verfolgung, Öffentliche Solo-Sitzung und den Spieler-Auflöser im Spiel frei.",
   "games.note_cod_bo": "Auf dem PC sind nur nicht gewertete Server ohne VAC P2P.\nAuf dem PC ist der Spielmodus Zombies immer P2P.",
   "games.note_cod_bo2": "Auf dem PC ist der Spielmodus Zombies immer P2P.",
   "games.note_cod_bocw": "Auf dem PC sind nur private Matches und COD-Gruppen P2P, jedoch nur, wenn sie sich auf derselben Plattform wie Sie befinden.\nAuf dem PC zeigt der Spielmodus Zombies möglicherweise nur selten P2P-Spieler an.",

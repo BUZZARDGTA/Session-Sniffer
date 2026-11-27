@@ -129,7 +129,6 @@
   "games.modal_resolver_plugins_desc": "공식 PC 모드 메뉴 플러그인(Cherax, Lexis, Stand) 또는 Looky System을 통해 플레이어 이름을 자동으로 표시합니다.",
   "games.modal_resolver_ps3_desc": "캡처된 PS3 세션 패킷에서 PSN 사용자 이름을 직접 자동 추출합니다.",
   "games.modal_toolkit_note": "Session Sniffer의 {game} 전용 기능 세트가 포함되어 있습니다: 세션 호스트 왕관, 릴레이 추적, 단독 공개 세션, 플레이어 확인기.",
-  "games.note": "GTA V 및 RDR2 전용 기능 세트는 세션 호스트 아이콘, 릴레이 추적, 단독 공개 세션, 게임 내 플레이어 확인기 워크플로를 지원합니다.",
   "games.note_cod_bo": "PC에서는 비랭크 및 VAC 미적용 서버만 P2P입니다.\nPC에서는 좀비(Zombies) 게임 모드가 항상 P2P입니다.",
   "games.note_cod_bo2": "PC에서는 좀비(Zombies) 게임 모드가 항상 P2P입니다.",
   "games.note_cod_bocw": "PC에서는 비공개 매치와 COD 그룹만 P2P이며, 같은 플랫폼에 있는 경우에만 해당됩니다.\nPC에서는 좀비(Zombies) 게임 모드에서 드물게 P2P 플레이어가 표시될 수 있습니다.",

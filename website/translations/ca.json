@@ -129,7 +129,6 @@
   "games.modal_resolver_plugins_desc": "Mostra automàticament els noms dels jugadors mitjançant els plugins oficials per a PC (Cherax, Lexis, Stand) o Looky System.",
   "games.modal_resolver_ps3_desc": "Extracció automàtica de noms d'usuari de PSN directament des dels paquets capturats de la sessió de PS3.",
   "games.modal_toolkit_note": "Inclou el conjunt de funcions dedicat de Session Sniffer per a {game}: corona d'amfitrió de la sessió, seguiment de relés, Sessió pública en solitari i Resolutor de jugadors.",
-  "games.note": "Els conjunts de funcions dedicats per a GTA V i RDR2 desbloquegen icones d'amfitrió de la sessió, seguiment de relés, Sessió pública en solitari i fluxos del Resolutor de jugadors dins del joc.",
   "games.note_cod_bo": "A PC, només els servidors no classificats i sense VAC són P2P.\nA PC, el mode de joc Zombis sempre és P2P.",
   "games.note_cod_bo2": "A PC, el mode de joc Zombis sempre és P2P.",
   "games.note_cod_bocw": "A PC, només les partides privades i els grups de COD són P2P, però només si són a la mateixa plataforma que tu.\nA PC, el mode de joc Zombis pot mostrar jugadors P2P en rares ocasions.",
