@@ -989,12 +989,24 @@
         container.appendChild(img);
     }
 
-    function createP2pBadge(p2pKey) {
+    function getP2pDescKey(p2pKey, category) {
+        if (p2pKey === 'partial') {
+            if (category === 'software') {
+                return 'games.p2p_partial_software_desc';
+            }
+            if (category === 'game') {
+                return 'games.p2p_partial_game_desc';
+            }
+        }
+        return (P2P_META[p2pKey] || P2P_META.verified).descKey;
+    }
+
+    function createP2pBadge(p2pKey, category) {
         var meta = P2P_META[p2pKey] || P2P_META.verified;
         var span = document.createElement('span');
         span.className = 'p2p-badge p2p-badge--' + p2pKey;
         var label = tSite(meta.labelKey);
-        setRichTooltip(span, label, tSite(meta.descKey), p2pKey);
+        setRichTooltip(span, label, tSite(getP2pDescKey(p2pKey, category)), p2pKey);
         span.appendChild(createIconSvg(meta.icon, 'icon-xs'));
         var txt = document.createElement('span');
         txt.textContent = label;
@@ -1879,7 +1891,7 @@
             setRichTooltip(
                 btn,
                 getCatalogItemName(item) + ' · ' + tSite(p2pMeta.labelKey),
-                tSite(p2pMeta.descKey),
+                tSite(getP2pDescKey(item.p2p, item.category)),
                 item.p2p
             );
         });
@@ -1900,7 +1912,7 @@
                 { key: 'all', labelKey: 'games.filter_p2p_all', descKey: 'games.tip_p2p_all', dot: null, variant: 'neutral' },
                 { key: 'full', labelKey: 'games.p2p_full', descKey: 'games.p2p_full_desc', dot: 'full', variant: 'full' },
                 { key: 'host', labelKey: 'games.p2p_host', descKey: 'games.p2p_host_desc', dot: 'host', variant: 'host' },
-                { key: 'partial', labelKey: 'games.p2p_partial', descKey: 'games.p2p_partial_desc', dot: 'partial', variant: 'partial' },
+                { key: 'partial', labelKey: 'games.p2p_partial', descKey: getP2pDescKey('partial', gamesState.category), dot: 'partial', variant: 'partial' },
                 { key: 'verified', labelKey: 'games.p2p_verified', descKey: 'games.p2p_verified_desc', dot: 'verified', variant: 'verified' },
                 { key: 'resolver', labelKey: 'games.filter_resolver', descKey: 'games.tip_resolver_col', dot: 'resolver', variant: 'resolver' },
             ];
@@ -2054,7 +2066,7 @@
 
             /* Column 2: P2P Behavior */
             var tdP2p = document.createElement('td');
-            tdP2p.appendChild(createP2pBadge(item.p2p));
+            tdP2p.appendChild(createP2pBadge(item.p2p, item.category));
 
             /* Column 3: Tested Platforms */
             var tdPlat = document.createElement('td');
@@ -2148,7 +2160,7 @@
             p2pChip.className = 'game-jacket-p2p game-jacket-p2p--' + item.p2p;
             var p2pCardLabel = tSite(p2pMetaCard.labelKey);
             p2pChip.textContent = p2pCardLabel;
-            setRichTooltip(p2pChip, p2pCardLabel, tSite(p2pMetaCard.descKey), item.p2p);
+            setRichTooltip(p2pChip, p2pCardLabel, tSite(getP2pDescKey(item.p2p, item.category)), item.p2p);
             topBar.appendChild(p2pChip);
 
             if (item.toolkit || item.resolver !== 'no') {
@@ -2367,11 +2379,11 @@
         var p2pBadgeWrap = document.getElementById('game-modal-p2p-badge-wrap');
         if (p2pBadgeWrap) {
             p2pBadgeWrap.innerHTML = '';
-            p2pBadgeWrap.appendChild(createP2pBadge(item.p2p));
+            p2pBadgeWrap.appendChild(createP2pBadge(item.p2p, item.category));
         }
         var p2pDesc = document.getElementById('game-modal-p2p-desc');
         if (p2pDesc) {
-            p2pDesc.textContent = tSite(p2pMeta.descKey);
+            p2pDesc.textContent = tSite(getP2pDescKey(item.p2p, item.category));
         }
 
         var toolkitCard = document.getElementById('game-modal-toolkit-card');
@@ -2529,22 +2541,6 @@
                 }
             });
         });
-
-        var browseBtn = document.getElementById('games-showcase-browse-btn');
-        if (browseBtn) {
-            browseBtn.addEventListener('click', function onBrowseGallery() {
-                gamesState.category = 'game';
-                gamesState.view = 'jackets';
-                gamesState.p2pFilter = 'all';
-                gamesState.platformFilter = 'all';
-                gamesState.gridExpanded = false;
-                renderGamesExplorer();
-                var explorer = document.getElementById('games-explorer');
-                if (explorer && typeof explorer.scrollIntoView === 'function') {
-                    explorer.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }
-            });
-        }
 
         document.querySelectorAll('#games-category-tabs [data-games-cat]').forEach(function bindCat(btn) {
             btn.addEventListener('click', function onClickCat() {

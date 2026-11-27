@@ -92,7 +92,7 @@
 .games-marquee-footer {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: center;
     flex-wrap: wrap;
     gap: 10px 16px;
     padding: 4px 2px 0;
@@ -120,12 +120,6 @@
     font-size: 12.5px;
     color: var(--ss-text-muted);
     line-height: 1.4;
-}
-
-.games-marquee-browse-btn {
-    border-radius: 999px;
-    padding: 5px 12px;
-    font-size: 12px;
 }
 
 .games-marquee-viewport.is-dragging {
