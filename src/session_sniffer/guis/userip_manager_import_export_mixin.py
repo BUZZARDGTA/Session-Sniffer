@@ -1,6 +1,7 @@
 """Import and export mixin for the UserIP Databases Manager dialog."""
 
 import logging
+import lzma
 import shutil
 import zipfile
 import zlib
@@ -563,7 +564,7 @@ class UserIPImportExportMixin(QDialog):
                         overlay.set_status(tr('Extracting "{name}"\u2026', name=member.filename))
                         try:
                             member_bytes = run_with_active_loading(zf.read, member.filename)
-                        except (RuntimeError, zlib.error, zipfile.BadZipFile, OSError) as e:
+                        except (RuntimeError, zlib.error, lzma.LZMAError, zipfile.BadZipFile, EOFError, OSError) as e:
                             logger.warning('Failed to extract "%s" from ZIP "%s": %s', member.filename, zip_path, e)
                             with overlay.suspended():
                                 QMessageBox.critical(self, tr('Import Error'), tr('Failed to import "{name}":\n{error}', name=member.filename, error=e))
@@ -664,7 +665,7 @@ class UserIPImportExportMixin(QDialog):
                 with overlay.suspended():
                     QMessageBox.critical(self, TITLE, tr('"{name}" is not a valid ZIP archive.', name=zip_path.name))
                 return
-            except OSError as e:
+            except (NotImplementedError, EOFError, OSError) as e:
                 logger.warning('Failed to open ZIP archive "%s": %s', zip_path, e)
                 with overlay.suspended():
                     QMessageBox.critical(self, tr('Import Error'), tr('Failed to import "{name}":\n{error}', name=zip_path.name, error=e))
