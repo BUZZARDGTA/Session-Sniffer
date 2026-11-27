@@ -1,6 +1,7 @@
 """Background tasks for UserIP processing and detection notifications."""
 
 import csv
+import logging
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import datetime, timedelta
@@ -49,6 +50,8 @@ if TYPE_CHECKING:
 _DETECTION_CSV_HEADERS = ('Detection', 'Usernames', 'IP', 'Date', 'Time', 'Country')
 _USERIP_CSV_HEADERS = ('Database', 'Usernames', 'IP', 'Date', 'Time', 'Country')
 
+logger = logging.getLogger(__name__)
+
 
 class _DetectionSettings(NamedTuple):
     voice: Literal['Male', 'Female'] | bool
@@ -76,24 +79,23 @@ _userip_logging_file_write_lock = Lock()
 def _append_csv_log_row(lock: Lock, csv_path: Path, headers: Sequence[str], row: Sequence[str]) -> None:
     """Thread-safely append a row to a CSV log file, writing headers if the file is new or empty."""
     with lock:
-        csv_path.parent.mkdir(parents=True, exist_ok=True)
-        write_csv_header = not csv_path.exists() or not csv_path.stat().st_size
-        with csv_path.open('a', newline='', encoding='utf-8') as file:
-            writer = csv.writer(file)
-            if write_csv_header:
-                writer.writerow(headers)
-            writer.writerow(row)
+        try:
+            csv_path.parent.mkdir(parents=True, exist_ok=True)
+            write_csv_header = not csv_path.exists() or not csv_path.stat().st_size
+            with csv_path.open('a', newline='', encoding='utf-8') as file:
+                writer = csv.writer(file)
+                if write_csv_header:
+                    writer.writerow(headers)
+                writer.writerow(row)
+        except OSError as e:
+            logger.warning('Failed to append row to CSV log %s: %s', csv_path, e)
 
 
 def _log_to_protection_csv(detection: str, usernames: str, ip: str, country: str) -> None:
     """Append a protection event entry to Protection_Logging.csv."""
     now = datetime.now(tz=LOCAL_TZ)
-    _append_csv_log_row(
-        _protection_logging_file_write_lock,
-        PROTECTION_LOGGING_PATH,
-        _DETECTION_CSV_HEADERS,
-        [detection, usernames, ip, now.strftime('%Y-%m-%d'), now.strftime('%H:%M:%S'), country],
-    )
+    row = [detection, usernames, ip, now.strftime('%Y-%m-%d'), now.strftime('%H:%M:%S'), country]
+    _append_csv_log_row(_protection_logging_file_write_lock, PROTECTION_LOGGING_PATH, _DETECTION_CSV_HEADERS, row)
 
 
 def _format_persisted_player_usernames(player: Player) -> str:
