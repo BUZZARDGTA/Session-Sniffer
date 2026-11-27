@@ -895,11 +895,26 @@
         return platform === 'Any' ? tSite('games.platform_any') : platform;
     }
 
-    function getPlatformTipInfo(platform) {
+    function pickCategoryKey(category, gameKey, softwareKey, allKey) {
+        if (category === 'software') {
+            return softwareKey;
+        }
+        if (category === 'game') {
+            return gameKey;
+        }
+        return allKey;
+    }
+
+    function getPlatformTipInfo(platform, category) {
         if (platform === 'all') {
             return {
                 title: tSite('games.filter_platform_all'),
-                body: tSite('games.tip_platforms_col'),
+                body: tSite(pickCategoryKey(
+                    category,
+                    'games.tip_platforms_col_game',
+                    'games.tip_platforms_col_software',
+                    'games.tip_platforms_col'
+                )),
                 variant: 'neutral',
             };
         }
@@ -913,7 +928,12 @@
         if (platform === 'PC' || platform.indexOf('PC ') === 0) {
             return {
                 title: platform,
-                body: tSite('games.tip_plat_pc'),
+                body: tSite(pickCategoryKey(
+                    category,
+                    'games.tip_plat_pc_game',
+                    'games.tip_plat_pc_software',
+                    'games.tip_plat_pc'
+                )),
                 variant: 'neutral',
             };
         }
@@ -990,13 +1010,14 @@
     }
 
     function getP2pDescKey(p2pKey, category) {
+        if (p2pKey === 'full') {
+            return pickCategoryKey(category, 'games.p2p_full_desc', 'games.p2p_full_software_desc', 'games.p2p_full_desc');
+        }
+        if (p2pKey === 'host') {
+            return pickCategoryKey(category, 'games.p2p_host_desc', 'games.p2p_host_software_desc', 'games.p2p_host_desc');
+        }
         if (p2pKey === 'partial') {
-            if (category === 'software') {
-                return 'games.p2p_partial_software_desc';
-            }
-            if (category === 'game') {
-                return 'games.p2p_partial_game_desc';
-            }
+            return pickCategoryKey(category, 'games.p2p_partial_game_desc', 'games.p2p_partial_software_desc', 'games.p2p_partial_desc');
         }
         return (P2P_META[p2pKey] || P2P_META.verified).descKey;
     }
@@ -1014,7 +1035,7 @@
         return span;
     }
 
-    function createPlatformChips(platforms) {
+    function createPlatformChips(platforms, category) {
         var wrap = document.createElement('div');
         wrap.className = 'platform-chips';
         platforms.forEach(function addChip(p) {
@@ -1022,7 +1043,7 @@
             chip.className = 'platform-chip ' + getPlatformChipClass(p);
             chip.setAttribute('dir', 'ltr');
             chip.textContent = formatPlatformLabel(p);
-            var tipInfo = getPlatformTipInfo(p);
+            var tipInfo = getPlatformTipInfo(p, category);
             setRichTooltip(chip, tipInfo.title, tipInfo.body, tipInfo.variant);
             wrap.appendChild(chip);
         });
@@ -1826,6 +1847,28 @@
         updateGamesTooltips();
     }
 
+    function updateCategoryColumnTooltips() {
+        var cat = gamesState.category;
+        setRichTooltip(
+            document.getElementById('games-th-p2p'),
+            tSite('games.col_p2p'),
+            tSite(pickCategoryKey(cat, 'games.tip_p2p_col_game', 'games.tip_p2p_col_software', 'games.tip_p2p_col')),
+            'partial'
+        );
+        setRichTooltip(
+            document.getElementById('games-th-platforms'),
+            tSite('games.col_platforms'),
+            tSite(pickCategoryKey(cat, 'games.tip_platforms_col_game', 'games.tip_platforms_col_software', 'games.tip_platforms_col')),
+            'neutral'
+        );
+        setRichTooltip(
+            document.getElementById('games-th-resolver'),
+            tSite('games.col_resolver'),
+            tSite(pickCategoryKey(cat, 'games.tip_resolver_col_game', 'games.tip_resolver_col_software', 'games.tip_resolver_col')),
+            'resolver'
+        );
+    }
+
     function updateGamesTooltips() {
         var fullCount = GAMES_ONLY_LIST.filter(function isFull(i) { return i.p2p === 'full'; }).length;
         var hostCount = GAMES_ONLY_LIST.filter(function isHost(i) { return i.p2p === 'host'; }).length;
@@ -1859,24 +1902,7 @@
             'PC · PS5 · PS4 · PS3 · Xbox · Android · iOS',
             'neutral'
         );
-        setRichTooltip(
-            document.getElementById('games-th-p2p'),
-            tSite('games.col_p2p'),
-            tSite('games.tip_p2p_col'),
-            'partial'
-        );
-        setRichTooltip(
-            document.getElementById('games-th-platforms'),
-            tSite('games.col_platforms'),
-            tSite('games.tip_platforms_col'),
-            'neutral'
-        );
-        setRichTooltip(
-            document.getElementById('games-th-resolver'),
-            tSite('games.col_resolver'),
-            tSite('games.tip_resolver_col'),
-            'resolver'
-        );
+        updateCategoryColumnTooltips();
 
         var byId = {};
         GAMES_ONLY_LIST.forEach(function mapGame(g) {
@@ -1908,13 +1934,14 @@
                 return platformMatchesFilter(item.platforms, gamesState.platformFilter);
             });
 
+            var cat = gamesState.category;
             var p2pOptions = [
-                { key: 'all', labelKey: 'games.filter_p2p_all', descKey: 'games.tip_p2p_all', dot: null, variant: 'neutral' },
-                { key: 'full', labelKey: 'games.p2p_full', descKey: 'games.p2p_full_desc', dot: 'full', variant: 'full' },
-                { key: 'host', labelKey: 'games.p2p_host', descKey: 'games.p2p_host_desc', dot: 'host', variant: 'host' },
-                { key: 'partial', labelKey: 'games.p2p_partial', descKey: getP2pDescKey('partial', gamesState.category), dot: 'partial', variant: 'partial' },
-                { key: 'verified', labelKey: 'games.p2p_verified', descKey: 'games.p2p_verified_desc', dot: 'verified', variant: 'verified' },
-                { key: 'resolver', labelKey: 'games.filter_resolver', descKey: 'games.tip_resolver_col', dot: 'resolver', variant: 'resolver' },
+                { key: 'all', labelKey: 'games.filter_p2p_all', descKey: pickCategoryKey(cat, 'games.tip_p2p_all_game', 'games.tip_p2p_all_software', 'games.tip_p2p_all'), dot: null, variant: 'neutral' },
+                { key: 'full', labelKey: 'games.p2p_full', descKey: getP2pDescKey('full', cat), dot: 'full', variant: 'full' },
+                { key: 'host', labelKey: 'games.p2p_host', descKey: getP2pDescKey('host', cat), dot: 'host', variant: 'host' },
+                { key: 'partial', labelKey: 'games.p2p_partial', descKey: getP2pDescKey('partial', cat), dot: 'partial', variant: 'partial' },
+                { key: 'verified', labelKey: 'games.p2p_verified', descKey: getP2pDescKey('verified', cat), dot: 'verified', variant: 'verified' },
+                { key: 'resolver', labelKey: 'games.filter_resolver', descKey: pickCategoryKey(cat, 'games.tip_resolver_col_game', 'games.tip_resolver_col_software', 'games.tip_resolver_col'), dot: 'resolver', variant: 'resolver' },
             ];
 
             p2pOptions.forEach(function addP2pPill(opt) {
@@ -1977,7 +2004,7 @@
                 btn.className = 'games-filter-pill games-filter-pill--platform' + (isActive ? ' is-active' : '');
                 btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
 
-                var tipInfo = getPlatformTipInfo(opt.key);
+                var tipInfo = getPlatformTipInfo(opt.key, gamesState.category);
                 setRichTooltip(btn, tipInfo.title, tipInfo.body, tipInfo.variant);
 
                 var lbl = document.createElement('span');
@@ -2070,7 +2097,7 @@
 
             /* Column 3: Tested Platforms */
             var tdPlat = document.createElement('td');
-            tdPlat.appendChild(createPlatformChips(item.platforms));
+            tdPlat.appendChild(createPlatformChips(item.platforms, item.category));
 
             /* Column 4: Username Resolving */
             var tdRes = document.createElement('td');
@@ -2225,7 +2252,7 @@
                 chip.className = 'game-jacket-plat';
                 chip.setAttribute('dir', 'ltr');
                 chip.textContent = p === 'Xbox Series X|S' ? 'Xbox X|S' : (p === 'PC (Microsoft Store)' ? 'PC' : formatPlatformLabel(p));
-                var platTip = getPlatformTipInfo(p);
+                var platTip = getPlatformTipInfo(p, item.category);
                 setRichTooltip(chip, platTip.title, platTip.body, platTip.variant);
                 platsWrap.appendChild(chip);
             });
@@ -2296,6 +2323,7 @@
 
     function renderGamesExplorer() {
         syncGamesTabsUi();
+        updateCategoryColumnTooltips();
         renderGamesFilters();
         updateGamesSortHeaders();
 
@@ -2400,7 +2428,7 @@
         var platWrap = document.getElementById('game-modal-platforms');
         if (platWrap) {
             platWrap.innerHTML = '';
-            platWrap.appendChild(createPlatformChips(item.platforms));
+            platWrap.appendChild(createPlatformChips(item.platforms, item.category));
         }
 
         var resBadgeWrap = document.getElementById('game-modal-resolver-badge');
