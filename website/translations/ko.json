@@ -211,7 +211,6 @@
   "hero.cta_download_macos": "macOS용 다운로드 (Apple Silicon)",
   "hero.cta_download_windows": "Windows용 다운로드 (x64)",
   "hero.cta_preview": "대화형 UI 데모 체험",
-  "hero.eyebrow_desktop": "데스크톱 앱",
   "hero.eyebrow_foss": "무료 오픈소스",
   "hero.eyebrow_langs": "{count}개 언어",
   "hero.members_count": "멤버 {count}명",

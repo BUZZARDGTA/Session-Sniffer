@@ -211,7 +211,6 @@
   "hero.cta_download_macos": "Скачать для macOS (Apple Silicon)",
   "hero.cta_download_windows": "Скачать для Windows (x64)",
   "hero.cta_preview": "Открыть интерактивное UI-демо",
-  "hero.eyebrow_desktop": "Настольное приложение",
   "hero.eyebrow_foss": "Бесплатно и с открытым кодом",
   "hero.eyebrow_langs": "Поддержка {count} языков",
   "hero.members_count": "{count} участников",
