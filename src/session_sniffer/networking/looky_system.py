@@ -17,7 +17,7 @@ from urllib.parse import quote
 import requests
 from pydantic import TypeAdapter, ValidationError
 
-from session_sniffer.constants.standalone import LOOKY_BASE_HOST
+from session_sniffer.constants.standalone import LOOKY_API_KEY_CHAR_PATTERN, LOOKY_BASE_HOST
 from session_sniffer.models.looky_system import (
     LookyApiErrorResponse,
     LookyInstructionResponse,
@@ -59,6 +59,7 @@ _BATCH_RESPONSE_ADAPTER: TypeAdapter[list[LookyIpBatchResult]] = TypeAdapter(lis
 
 _TERMINAL_INSTRUCTION_STATUSES = frozenset({'completed', 'failed', 'canceled'})
 _TERMINAL_FAILURE_INSTRUCTION_STATUSES = frozenset({'failed', 'canceled'})
+_LOOKY_API_KEY_RE = re.compile(rf'^{LOOKY_API_KEY_CHAR_PATTERN}+$')
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,6 +119,9 @@ class LookyState:
 
 
 def _auth_headers(api_key: str) -> dict[str, str]:
+    if not _LOOKY_API_KEY_RE.fullmatch(api_key):
+        msg = 'Looky API key contains invalid characters.'
+        raise requests.exceptions.InvalidHeader(msg)
     return {'Authorization': f'Bearer {api_key}'}
 
 
@@ -886,8 +890,7 @@ def _post_instruction(url: str, api_key: str, referer: str, payload: dict[str, o
         response.raise_for_status()
         return LookyInstructionResponse.model_validate_json(response.content).tracking_id
     except requests.HTTPError as e:
-        status_code = e.response.status_code if e.response is not None else '?'
-        text = e.response.text if e.response is not None else ''
+        status_code, text = (e.response.status_code, e.response.text) if e.response is not None else ('?', '')
         logger.debug('Looky %s HTTP error: HTTP %s (response: %s)', context_desc, status_code, text)
         raise
     except (requests.RequestException, ValidationError) as e:
@@ -902,16 +905,14 @@ def send_crawlme_instruction(api_key: str, version: str) -> str:
 
 def send_crawler_instruction(rid: int, api_key: str, version: str) -> str:
     """POST a join instruction to the Looky System API to call the crawler bot for `rid`."""
-    return _post_instruction(
-        LOOKY_INSTRUCTION_URL, api_key, get_looky_user_url(rid), {'type': 'join', 'rid': rid, 'target': version}, f'crawler for rid={rid} target={version}',
-    )
+    payload: dict[str, object] = {'type': 'join', 'rid': rid, 'target': version}
+    return _post_instruction(LOOKY_INSTRUCTION_URL, api_key, get_looky_user_url(rid), payload, f'crawler for rid={rid} target={version}')
 
 
 def send_proxy_join_instruction(rid: int, api_key: str, version: str) -> str:
     """POST an `rid_join` instruction to the Looky System API to call the proxy join bot for `rid`."""
-    return _post_instruction(
-        LOOKY_INSTRUCTION_URL, api_key, get_looky_user_url(rid), {'type': 'rid_join', 'rid': rid, 'target': version}, f'proxy join for rid={rid} target={version}',
-    )
+    payload: dict[str, object] = {'type': 'rid_join', 'rid': rid, 'target': version}
+    return _post_instruction(LOOKY_INSTRUCTION_URL, api_key, get_looky_user_url(rid), payload, f'proxy join for rid={rid} target={version}')
 
 
 def watch_instruction_status(
@@ -937,8 +938,7 @@ def watch_instruction_status(
             initial_response = session.get(f'{LOOKY_INSTRUCTION_STATUS_INITIAL_URL}/{context.tracking_id}', headers=initial_headers, timeout=(3.0, 10.0))
             initial_response.raise_for_status()
         except requests.HTTPError as e:
-            status_code = e.response.status_code if e.response is not None else '?'
-            text = e.response.text if e.response is not None else ''
+            status_code, text = (e.response.status_code, e.response.text) if e.response is not None else ('?', '')
             logger.debug('Looky initial status HTTP error for %s: HTTP %s (response: %s)', context.tracking_id, status_code, text)
             raise
         except requests.RequestException as e:
@@ -963,9 +963,8 @@ def watch_instruction_status(
             reconnect_delay, completed = 2, False
             try:
                 sse_headers = {**headers, 'Accept': 'text/event-stream', 'Cache-Control': 'no-cache', 'Pragma': 'no-cache', 'Priority': 'u=4'}
-                with session.get(
-                    f'{LOOKY_INSTRUCTION_STATUS_URL}/{context.tracking_id}', headers=sse_headers, params={'token': context.api_key}, stream=True, timeout=(3.0, 300.0),
-                ) as response:
+                sse_url = f'{LOOKY_INSTRUCTION_STATUS_URL}/{context.tracking_id}'
+                with session.get(sse_url, headers=sse_headers, params={'token': context.api_key}, stream=True, timeout=(3.0, 300.0)) as response:
                     if on_response is not None:
                         on_response(response)
                     response.raise_for_status()

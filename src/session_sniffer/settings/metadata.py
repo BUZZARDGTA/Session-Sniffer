@@ -3,6 +3,7 @@
 from session_sniffer.constants.standalone import (
     CLASSICSTUN_PORT,
     LLMNR_PORT,
+    LOOKY_API_KEY_CHAR_PATTERN,
     MAX_PORT,
     MIN_PORT,
     RAKNET_PORT,
@@ -748,7 +749,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         display_label='API Key',
         setting_type=SettingType.STRING,
         tooltip='Your Looky System Bearer token. Required for all Looky System features — auto-resolve, manual lookups, and crawler requests.',
-        validator_pattern=r'[A-Za-z0-9._\-]',
+        validator_pattern=LOOKY_API_KEY_CHAR_PATTERN,
         secret=True,
         min_width=600,
         max_width=600,

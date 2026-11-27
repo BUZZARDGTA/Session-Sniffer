@@ -5,6 +5,7 @@ into their runtime Python types, while tracking whether the file needs rewriting
 """
 
 import math
+import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, Self, cast
 
@@ -15,6 +16,7 @@ from PySide6.QtGui import QColor, QKeySequence
 from session_sniffer.constants.standalone import (
     CAPTURE_FILTER_BLOCK_SETTINGS,
     DEFAULT_DETECTED_SERVER_COLOR,
+    LOOKY_API_KEY_CHAR_PATTERN,
     MAX_PORT,
     MIN_PORT,
     SPIKE_SOUND_MODES,
@@ -615,11 +617,18 @@ class SettingsModel(BaseModel):
         cls._set_flag(info)
         return default_str
 
+    _LOOKY_API_KEY_RE: ClassVar[re.Pattern[str]] = re.compile(rf'^{LOOKY_API_KEY_CHAR_PATTERN}+$')
+    _LONE_SURROGATE_RE: ClassVar[re.Pattern[str]] = re.compile(r'[\ud800-\udfff]')
+
     @field_validator('DISCORD_PRESENCE_TITLE', mode='before')
     @classmethod
     def _parse_discord_presence_title(cls, value: object, info: ValidationInfo) -> str:
-        if isinstance(value, str) and len(value) != 1:
-            return value
+        if isinstance(value, str):
+            sanitized = cls._LONE_SURROGATE_RE.sub('', value)
+            if len(sanitized) != 1:
+                if sanitized != value:
+                    cls._set_flag(info)
+                return sanitized
         cls._set_flag(info)
         default_value = cls._get_default_for_field(info)
         return default_value if isinstance(default_value, str) else ''
@@ -634,12 +643,7 @@ class SettingsModel(BaseModel):
         return str(default_value) if default_value is not None else DEFAULT_DETECTED_SERVER_COLOR
 
     @field_validator(
-        'CAPTURE_INTERFACE_NAME',
-        'DISCORD_WEBHOOK_URL',
-        'DISCORD_WEBHOOK_MESSAGE_IDS',
-        'WEBSERVER_USERNAME',
-        'WEBSERVER_PASSWORD',
-        'LOOKY_API_KEY',
+        'CAPTURE_INTERFACE_NAME', 'DISCORD_WEBHOOK_URL', 'DISCORD_WEBHOOK_MESSAGE_IDS', 'WEBSERVER_USERNAME', 'WEBSERVER_PASSWORD',
         mode='before',
     )
     @classmethod
@@ -647,10 +651,34 @@ class SettingsModel(BaseModel):
         if value is None:
             return None
         if isinstance(value, str):
+            sanitized = cls._LONE_SURROGATE_RE.sub('', value)
+            if sanitized != value:
+                cls._set_flag(info)
+            try:
+                none_value, _ = custom_str_to_nonetype(sanitized)
+            except InvalidNoneTypeValueError:
+                return sanitized
+            cls._set_flag(info)
+            return none_value
+        cls._set_flag(info)
+        return cast('str | None', cls._get_default_for_field(info))
+
+    @field_validator('LOOKY_API_KEY', mode='before')
+    @classmethod
+    def _parse_looky_api_key(cls, value: object, info: ValidationInfo) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, str):
             try:
                 none_value, _ = custom_str_to_nonetype(value)
             except InvalidNoneTypeValueError:
-                return value
+                stripped = value.strip()
+                if stripped and cls._LOOKY_API_KEY_RE.fullmatch(stripped):
+                    if stripped != value:
+                        cls._set_flag(info)
+                    return stripped
+                cls._set_flag(info)
+                return None
             cls._set_flag(info)
             return none_value
         cls._set_flag(info)
