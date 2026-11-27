@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Session Sniffer Supported Games & Software Explorer (games.html)
+   Session Sniffer Supported Games & Software Explorer (index.html)
    - Dual-row online game jackets marquee, Wiki table & cover gallery
    - Search, P2P architecture & platform filtering, sorting & detail modal
    ========================================================================== */

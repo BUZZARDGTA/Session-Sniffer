@@ -22,10 +22,10 @@
     <meta name="twitter:image" content="https://sessionsniffer.com/assets/history/2026-gui-v1-5-pyside6.png">
 
     <link rel="icon" type="image/svg+xml" href="assets/app_icon.svg">
-    <link rel="stylesheet" href="assets/themes.generated.css?v=31e31faa">
+    <link rel="stylesheet" href="assets/themes.generated.css?v=a0050fa2">
     <script src="theme-init.js?v=43008c51"></script>
-    <link rel="stylesheet" href="styles.css?v=20f18076">
-    <link rel="stylesheet" href="preview.css?v=42904f31">
+    <link rel="stylesheet" href="styles.css?v=eb66e24d">
+    <link rel="stylesheet" href="games.css?v=bdb495ca">
 </head>
 
 <body>
@@ -46,9 +46,9 @@
 
             <nav class="main-nav" aria-label="Primary navigation">
                 <a href="#features" data-i18n="nav.features">Features</a>
-                <a href="#preview" data-i18n="nav.preview">UI Demo</a>
+                <a href="#games" data-i18n="nav.games">Games</a>
                 <a href="#download" data-i18n="nav.download">Download</a>
-                <a href="/games" data-i18n="nav.games">Games</a>
+                <a href="/demo" data-i18n="nav.preview">UI Demo</a>
                 <a href="/history" data-i18n="nav.history">History</a>
             </nav>
 
@@ -166,14 +166,14 @@
                     </span>
                     <span class="mobile-nav-label" data-i18n="nav.features">Features</span>
                 </a>
-                <a href="#preview" class="mobile-nav-tile">
+                <a href="#games" class="mobile-nav-tile">
                     <span class="mobile-nav-tile-top">
-                        <span class="mobile-nav-icon mobile-nav-icon--warning" aria-hidden="true">
-                            <svg class="icon icon-sm"><use href="#icon-circle-play"></use></svg>
+                        <span class="mobile-nav-icon mobile-nav-icon--accent" aria-hidden="true">
+                            <svg class="icon icon-sm"><use href="#icon-gamepad-2"></use></svg>
                         </span>
                         <svg class="icon icon-xs mobile-nav-arrow" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
                     </span>
-                    <span class="mobile-nav-label" data-i18n="nav.preview">UI Demo</span>
+                    <span class="mobile-nav-label" data-i18n="nav.games">Games</span>
                 </a>
                 <a href="#download" class="mobile-nav-tile">
                     <span class="mobile-nav-tile-top">
@@ -184,14 +184,14 @@
                     </span>
                     <span class="mobile-nav-label" data-i18n="nav.download">Download</span>
                 </a>
-                <a href="/games" class="mobile-nav-tile">
+                <a href="/demo" class="mobile-nav-tile">
                     <span class="mobile-nav-tile-top">
-                        <span class="mobile-nav-icon mobile-nav-icon--accent" aria-hidden="true">
-                            <svg class="icon icon-sm"><use href="#icon-gamepad-2"></use></svg>
+                        <span class="mobile-nav-icon mobile-nav-icon--warning" aria-hidden="true">
+                            <svg class="icon icon-sm"><use href="#icon-circle-play"></use></svg>
                         </span>
                         <svg class="icon icon-xs mobile-nav-arrow" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
                     </span>
-                    <span class="mobile-nav-label" data-i18n="nav.games">Games</span>
+                    <span class="mobile-nav-label" data-i18n="nav.preview">UI Demo</span>
                 </a>
                 <a href="/history" class="mobile-nav-tile">
                     <span class="mobile-nav-tile-top">
@@ -279,11 +279,6 @@
                         </a>
                     </div>
 
-                    <p class="hero-mobile-note" id="hero-mobile-note" hidden>
-                        <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-monitor-smartphone"></use></svg>
-                        <span data-i18n="hero.mobile_desktop_note">Desktop app for Windows, Linux &amp; macOS — open this page on your PC to download.</span>
-                    </p>
-
                     <div class="hero-stats" aria-label="Project highlights">
                         <div class="hero-stat-item">
                             <span class="stat-label" data-i18n="hero.stat_release">Latest Release</span>
@@ -336,7 +331,7 @@
                             </button>
                             <div class="hero-showcase-overlay">
                                 <span class="hero-showcase-prompt" data-i18n="hero.showcase_prompt">Want to click around the UI before downloading?</span>
-                                <a href="#preview" class="btn btn-sm hero-showcase-demo-btn" id="hero-preview-cta">
+                                <a href="/demo" class="btn btn-sm hero-showcase-demo-btn" id="hero-preview-cta">
                                     <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-circle-play"></use></svg>
                                     <span data-i18n="hero.cta_preview">Try Interactive UI Demo</span>
                                 </a>
@@ -410,876 +405,256 @@
             </div>
         </section>
 
-        <!-- ==================== INTERACTIVE UI DEMO SANDBOX ==================== -->
-        <section class="section section-preview" id="preview">
+        <!-- ==================== SUPPORTED GAMES & SOFTWARE ==================== -->
+        <section class="section" id="games">
             <div class="container">
-                <div class="section-header">
-                    <span class="section-eyebrow" data-i18n="preview.eyebrow">Interactive UI Demo</span>
-                    <h2 class="section-title" data-i18n="preview.title">Explore the Desktop Interface</h2>
-                    <p class="section-lead" data-i18n="preview.lead">
-                        Test Session Sniffer's real desktop UI right in your browser with fake sample players — download the desktop app below to capture your own P2P traffic.
+                <div class="section-header games-header">
+                    <span class="section-eyebrow" id="games-eyebrow-pill" tabindex="0">
+                        <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-gamepad-2"></use></svg>
+                        <span data-i18n="games.eyebrow">Works With Any P2P Game or App</span>
+                    </span>
+                    <h2 class="section-title" data-i18n="games.title">Supported Games &amp; Software</h2>
+                    <p class="section-lead" id="games-section-lead">
+                        Browse 56 officially tested games and 12 apps with P2P details.
                     </p>
+
+                    <!-- Lightweight Inline Catalog Summary -->
+                    <div class="games-summary-strip" aria-label="Supported catalog summary">
+                        <button type="button" class="games-summary-pill" id="games-summary-games" data-summary-cat="game">
+                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-gamepad-2"></use></svg>
+                            <strong class="mono" id="games-stat-games" dir="ltr">56</strong>
+                            <span data-i18n="games.tab_games">Video Games</span>
+                        </button>
+                        <button type="button" class="games-summary-pill" id="games-summary-apps" data-summary-cat="software">
+                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-monitor-smartphone"></use></svg>
+                            <strong class="mono" id="games-stat-apps" dir="ltr">12</strong>
+                            <span data-i18n="games.tab_software">Software</span>
+                        </button>
+                        <button type="button" class="games-summary-pill" id="games-summary-platforms" data-summary-cat="all">
+                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-globe"></use></svg>
+                            <strong class="mono" dir="ltr">7</strong>
+                            <span data-i18n="hero.stat_platforms">Platforms</span>
+                        </button>
+                    </div>
                 </div>
 
-                <div class="preview-sandbox-frame">
-                    <div class="preview-toolbar">
-                        <div class="preview-toolbar-info">
-                            <span class="badge badge-warning">
-                                <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-triangle-alert"></use></svg>
-                                <span data-i18n="preview.badge">Simulated UI Preview · Fake Sample Data</span>
-                            </span>
-                            <span class="preview-toolbar-note" data-i18n="preview.note">
-                                Browser simulation with sample data — try searching, sorting columns, or right-clicking any row.
-                            </span>
+                <!-- Airy Dual-Row Online Game Jackets Wall -->
+                <div class="games-marquee-shell" id="games-marquee-shell">
+                    <div class="games-marquee-viewport" id="games-marquee-viewport" dir="ltr">
+                        <div class="games-marquee-track" id="games-marquee-row-1"></div>
+                        <div class="games-marquee-track" id="games-marquee-row-2"></div>
+                    </div>
+
+                    <div class="games-marquee-footer">
+                        <div class="games-marquee-hint-wrap">
+                            <span class="pulse-dot" aria-hidden="true"></span>
+                            <span class="games-marquee-hint" data-i18n="games.showcase_hint">Scroll or swipe · Click any cover for P2P details</span>
                         </div>
-                        <div class="preview-toolbar-controls">
-                            <div class="segmented" role="group" aria-label="Game mode preset">
-                                <button type="button" class="segmented-btn is-active" data-preset="gta5">GTA Online</button>
-                                <button type="button" class="segmented-btn" data-preset="rdr2">Red Dead Online</button>
-                                <button type="button" class="segmented-btn" data-preset="p2p" data-i18n="preview.preset_universal">Universal P2P</button>
+                        <button
+                            type="button"
+                            class="btn btn-control btn-sm games-marquee-browse-btn"
+                            id="games-showcase-browse-btn"
+                        >
+                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-eye"></use></svg>
+                            <span data-i18n="games.showcase_browse">Browse Cover Gallery</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Interactive Supported Games & Wiki Table Explorer -->
+                <div class="games-explorer-shell" id="games-explorer">
+                    <div class="games-explorer-head">
+                        <!-- Category Switcher -->
+                        <div class="segmented games-category-tabs" id="games-category-tabs" role="tablist" aria-label="Catalog categories">
+                            <button type="button" class="segmented-btn is-active" data-games-cat="game" role="tab" aria-selected="true">
+                                <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-gamepad-2"></use></svg>
+                                <span data-i18n="games.tab_games">Video Games</span>
+                                <span class="games-tab-count mono" id="games-cat-count-game">56</span>
+                            </button>
+                            <button type="button" class="segmented-btn" data-games-cat="software" role="tab" aria-selected="false">
+                                <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-monitor-smartphone"></use></svg>
+                                <span data-i18n="games.tab_software">Software</span>
+                                <span class="games-tab-count mono" id="games-cat-count-software">12</span>
+                            </button>
+                            <button type="button" class="segmented-btn" data-games-cat="all" role="tab" aria-selected="false">
+                                <span data-i18n="games.tab_all">All Tested</span>
+                                <span class="games-tab-count mono" id="games-cat-count-all">68</span>
+                            </button>
+                        </div>
+
+                        <div class="games-explorer-right">
+                            <!-- Search -->
+                            <div class="games-search-box">
+                                <svg class="icon icon-xs games-search-icon" aria-hidden="true"><use href="#icon-search"></use></svg>
+                                <input
+                                    type="search"
+                                    id="games-search-input"
+                                    class="games-search-input"
+                                    data-i18n-placeholder="games.search_placeholder"
+                                    placeholder="Search games, apps, platforms, or notes..."
+                                    aria-label="Search supported games and software"
+                                >
+                            </div>
+
+                            <!-- View Mode Switcher: Wiki Table / Jackets -->
+                            <div class="segmented games-view-tabs" id="games-view-tabs" role="group" aria-label="Display mode">
+                                <button type="button" class="segmented-btn is-active" data-games-view="table" aria-pressed="true">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-file-text"></use></svg>
+                                    <span data-i18n="games.view_table">Wiki Table</span>
+                                </button>
+                                <button type="button" class="segmented-btn" data-games-view="jackets" aria-pressed="false">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-gamepad-2"></use></svg>
+                                    <span data-i18n="games.view_jackets">Jackets</span>
+                                </button>
                             </div>
                         </div>
                     </div>
 
-                <!-- Responsive Desktop Stage (transparent pass-through on desktop > 900px) -->
-                <div class="ss-stage-shell" id="ss-stage-shell">
-                    <div class="ss-stage-bar" id="ss-stage-bar">
-                        <div class="ss-stage-bar-top">
-                            <div class="segmented ss-stage-mode-tabs" role="group" aria-label="Preview view mode">
-                                <button type="button" class="segmented-btn is-active" id="ss-stage-fit-btn" data-stage-mode="fit" aria-pressed="true" data-i18n="preview.stage_fit">Fit View</button>
-                                <button type="button" class="segmented-btn" id="ss-stage-pan-btn" data-stage-mode="pan" aria-pressed="false" data-i18n="preview.stage_pan">100% Pan</button>
-                            </div>
-                            <div class="ss-stage-bar-actions">
-                                <button type="button" class="btn btn-control btn-sm ss-stage-rotate-btn" id="ss-stage-rotate-btn" hidden>
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-rotate-ccw"></use></svg>
-                                    <span data-i18n="preview.stage_rotate">Rotate</span>
-                                </button>
-                                <button type="button" class="btn btn-primary btn-sm ss-stage-fs-btn" id="ss-stage-fs-btn" aria-expanded="false">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-maximize-2"></use></svg>
-                                    <span data-i18n="preview.stage_fullscreen">Fullscreen Landscape</span>
-                                </button>
-                                <button type="button" class="btn btn-control btn-sm ss-stage-exit-btn" id="ss-stage-exit-btn" hidden>
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-x"></use></svg>
-                                    <span data-i18n="preview.stage_exit_fullscreen">Exit</span>
-                                </button>
+                    <!-- Filter Bars: P2P Behavior + Platforms -->
+                    <div class="games-filters-wrap">
+                        <div class="games-filter-row" id="games-p2p-filters" role="group" aria-label="Filter by P2P behavior"></div>
+                        <div class="games-filter-row games-filter-row--platforms" id="games-platform-filters" role="group" aria-label="Filter by tested platform"></div>
+                    </div>
+
+                    <!-- Live Status & Wiki Link Strip -->
+                    <div class="games-results-bar">
+                        <div class="games-results-left">
+                            <span class="games-results-count" id="games-results-count">Showing 56 of 56 tested titles</span>
+                            <button type="button" class="games-reset-btn" id="games-reset-filters-btn" hidden>
+                                <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-rotate-ccw"></use></svg>
+                                <span data-i18n="games.reset_filters">Reset filters</span>
+                            </button>
+                        </div>
+                        <div class="games-results-right">
+                            <span class="games-wiki-caption" data-i18n="games.wiki_note">Officially tested list from the GitHub Wiki</span>
+                            <a
+                                href="https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Supported-Games-and-Softwares"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="text-link games-wiki-link"
+                            >
+                                <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-book-text"></use></svg>
+                                <span data-i18n="games.wiki_link">Open Wiki Page</span>
+                                <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-external-link"></use></svg>
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Wiki Compatibility Table View -->
+                    <div class="games-table-view" id="games-table-view">
+                        <div class="games-table-scroll">
+                            <table class="games-table" id="games-compat-table">
+                                <thead>
+                                    <tr>
+                                        <th scope="col" class="games-th-sortable is-sorted" data-games-sort="name" tabindex="0" aria-sort="ascending">
+                                            <span class="games-th-inner">
+                                                <span data-i18n="games.col_title">Title</span>
+                                                <svg class="icon games-sort-arrow" aria-hidden="true"><use href="#icon-chevron-up"></use></svg>
+                                            </span>
+                                        </th>
+                                        <th scope="col" class="games-th-sortable" id="games-th-p2p" data-games-sort="p2p" tabindex="0" aria-sort="none">
+                                            <span class="games-th-inner">
+                                                <span data-i18n="games.col_p2p">P2P Behavior</span>
+                                                <svg class="icon games-th-info" aria-hidden="true"><use href="#icon-info"></use></svg>
+                                                <svg class="icon games-sort-arrow" aria-hidden="true"><use href="#icon-chevron-up"></use></svg>
+                                            </span>
+                                        </th>
+                                        <th scope="col" class="games-th-sortable" id="games-th-platforms" data-games-sort="platforms" tabindex="0" aria-sort="none">
+                                            <span class="games-th-inner">
+                                                <span data-i18n="games.col_platforms">Tested Platforms</span>
+                                                <svg class="icon games-th-info" aria-hidden="true"><use href="#icon-info"></use></svg>
+                                                <svg class="icon games-sort-arrow" aria-hidden="true"><use href="#icon-chevron-up"></use></svg>
+                                            </span>
+                                        </th>
+                                        <th scope="col" class="games-th-sortable" id="games-th-resolver" data-games-sort="resolver" tabindex="0" aria-sort="none">
+                                            <span class="games-th-inner">
+                                                <span data-i18n="games.col_resolver">Username Resolving</span>
+                                                <svg class="icon games-th-info" aria-hidden="true"><use href="#icon-info"></use></svg>
+                                                <svg class="icon games-sort-arrow" aria-hidden="true"><use href="#icon-chevron-up"></use></svg>
+                                            </span>
+                                        </th>
+                                        <th scope="col" class="games-th-notes">
+                                            <span data-i18n="games.col_notes">Additional Notes</span>
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody id="games-table-tbody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Full Online Cover Jackets Gallery View -->
+                    <div class="games-grid-view" id="games-grid-view" hidden>
+                        <div class="games-cover-grid" id="games-cover-grid"></div>
+                        <div class="games-grid-more-wrap" id="games-grid-more-wrap" hidden>
+                            <button type="button" class="btn btn-control" id="games-grid-more-btn">
+                                <span id="games-grid-more-label">Show all 56 covers</span>
+                                <svg class="icon icon-xs" id="games-grid-more-icon" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Companion Panel: Dedicated Game Toolkits & Username Resolving -->
+                <div class="resolver-companion" id="username-resolving">
+                    <div class="resolver-companion-head">
+                        <div class="panel-card-head">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-user-round-search"></use></svg>
+                            <div>
+                                <h3 data-i18n="games.resolver_title">Username Resolving</h3>
+                                <p data-i18n="games.resolver_subtitle">Four flexible ways to match usernames to players in your session.</p>
                             </div>
                         </div>
-                        <p class="ss-stage-hint" id="ss-stage-hint">
-                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-monitor-smartphone"></use></svg>
-                            <span data-i18n="preview.stage_swipe_hint">Swipe horizontally across the full desktop UI or open Fullscreen Landscape</span>
+                        <p class="resolver-toolkit-pill">
+                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-crown"></use></svg>
+                            <span data-i18n="games.note">Dedicated feature sets for GTA V and RDR2 unlock Session Host icons, relay tracking, Solo Public Session, and in-game Player Resolver workflows.</span>
                         </p>
                     </div>
 
-                    <div class="ss-stage-viewport" id="ss-stage-viewport">
-                        <div class="ss-stage-sizer" id="ss-stage-sizer">
-                            <div class="ss-stage-canvas" id="ss-stage-canvas">
-                <!-- 1:1 PySide6 MainWindow Simulation -->
-                <div class="ss-window" id="ss-live-window" aria-label="Interactive Session Sniffer Desktop Preview">
-                    <!-- Windows Title Bar (matches real window) -->
-                    <div class="ss-titlebar">
-                        <div class="ss-titlebar-left">
-                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-app_icon"></use></svg>
-                            <span>Session Sniffer</span>
-                        </div>
-                        <div class="ss-titlebar-controls" aria-hidden="true">
-                            <span class="ss-win-btn">&#8212;</span>
-                            <span class="ss-win-btn">&#9723;</span>
-                            <span class="ss-win-btn ss-win-btn--close">&#10005;</span>
-                        </div>
-                    </div>
+                    <div class="resolver-cards-grid">
+                        <article class="resolver-mini-card">
+                            <div class="resolver-title">
+                                <strong data-i18n="games.r1_title">GTA Online (PC) Mod Menu Plugins</strong>
+                                <span class="badge badge-accent">Lua</span>
+                            </div>
+                            <p>
+                                <span data-i18n="games.r1_desc">Shows usernames automatically via official mod menu plugins:</span>
+                                <a href="https://github.com/BUZZARDGTA/Session_Sniffer-plugin-Cherax-Lua" target="_blank" rel="noopener noreferrer">Cherax</a> ·
+                                <a href="https://github.com/BUZZARDGTA/Session_Sniffer-plugin-Lexis-Lua" target="_blank" rel="noopener noreferrer">Lexis</a> ·
+                                <a href="https://github.com/BUZZARDGTA/Session_Sniffer-plugin-Stand-Lua" target="_blank" rel="noopener noreferrer">Stand</a>
+                            </p>
+                        </article>
 
-                    <!-- 1:1 Menu Bar (main_window.py + mixins, translated via resources/translations/*.json) -->
-                    <div class="ss-menubar" id="ss-menubar" role="menubar" aria-label="Application menu bar">
-                        <!-- Capture -->
-                        <div class="ss-menu-wrap">
-                            <button type="button" class="ss-menu-trigger" data-menu="capture" data-i18n-app="Capture" role="menuitem">Capture</button>
-                            <div class="ss-menu-popup" data-menu-popup="capture" hidden>
-                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Stop Capture">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-circle-stop"></use></svg>
-                                    <span data-i18n-app="Stop Capture">Stop Capture</span>
-                                </button>
-                                <div class="ss-menu-sep" role="separator"></div>
-                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Change Interface">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-refresh-cw"></use></svg>
-                                    <span data-i18n-app="Change Interface">Change Interface</span>
-                                </button>
-                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Hotspot && Sharing">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-router"></use></svg>
-                                    <span data-i18n-app="Hotspot && Sharing">Hotspot &amp; Sharing</span>
-                                </button>
+                        <article class="resolver-mini-card">
+                            <div class="resolver-title">
+                                <strong data-i18n="games.r2_title">Looky System (GTA Online PC)</strong>
+                                <span class="badge badge-looky" data-i18n="games.r2_badge">Cloud</span>
                             </div>
-                        </div>
+                            <p>
+                                <span data-i18n="games.r2_desc">Shows usernames automatically inside Session Sniffer — no mod menu needed.</span>
+                                <a href="https://looky-gta.cc/" target="_blank" rel="noopener noreferrer">looky-gta.cc</a> ·
+                                <a href="https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#looky-system-configuration" target="_blank" rel="noopener noreferrer" data-i18n="games.setup_guide">Setup guide</a>
+                            </p>
+                        </article>
 
-                        <!-- GTA V / RDR2 -->
-                        <div class="ss-menu-wrap" id="ss-game-menu-wrap">
-                            <button type="button" class="ss-menu-trigger" id="ss-game-menu-trigger" data-menu="game" role="menuitem">GTA V</button>
-                            <div class="ss-menu-popup" data-menu-popup="game" hidden>
-                                <div class="ss-menu-status-row" id="ss-game-status-row">
-                                    <span class="ss-game-status-dot" aria-hidden="true">●</span>
-                                    <span id="ss-game-status-text">GTA V Enhanced</span>
-                                </div>
-                                <div class="ss-menu-sep" role="separator"></div>
-                                <div class="ss-menu-subwrap">
-                                    <button type="button" class="ss-menu-item ss-menu-item--has-sub">
-                                        <span class="ss-menu-item-left">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-search"></use></svg>
-                                            <span data-i18n-app="Player Resolver">Player Resolver</span>
-                                        </span>
-                                        <svg class="icon icon-xs ss-menu-arrow" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
-                                    </button>
-                                    <div class="ss-menu-submenu">
-                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Open Player Resolver">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-search"></use></svg>
-                                            <span data-i18n-app="Open Player Resolver">Open Player Resolver</span>
-                                        </button>
-                                        <div class="ss-menu-sep" role="separator"></div>
-                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Player High Rate Monitor">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-gauge"></use></svg>
-                                            <span data-i18n-app="Player High Rate Monitor">Player High Rate Monitor</span>
-                                        </button>
-                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Player Identifier">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-user-round-search"></use></svg>
-                                            <span data-i18n-app="Player Identifier">Player Identifier</span>
-                                        </button>
-                                    </div>
-                                </div>
-                                <div class="ss-menu-subwrap" id="ss-menu-looky-wrap">
-                                    <button type="button" class="ss-menu-item ss-menu-item--has-sub">
-                                        <span class="ss-menu-item-left">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-scan-eye"></use></svg>
-                                            <span data-i18n-app="Looky System">Looky System</span>
-                                        </span>
-                                        <svg class="icon icon-xs ss-menu-arrow" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
-                                    </button>
-                                    <div class="ss-menu-submenu">
-                                        <a href="https://looky-gta.cc" target="_blank" rel="noopener noreferrer" class="ss-menu-item">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-globe"></use></svg>
-                                            <span data-i18n-app="Open Website">Open Website</span>
-                                        </a>
-                                        <div class="ss-menu-sep" role="separator"></div>
-                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Request Crawler in My Session">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-bot"></use></svg>
-                                            <span data-i18n-app="Request Crawler in My Session">Request Crawler in My Session</span>
-                                        </button>
-                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Rescan All Players">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-refresh-cw"></use></svg>
-                                            <span data-i18n-app="Rescan All Players">Rescan All Players</span>
-                                        </button>
-                                    </div>
-                                </div>
-                                <div class="ss-menu-sep" role="separator"></div>
-                                <div class="ss-menu-subwrap">
-                                    <button type="button" class="ss-menu-item ss-menu-item--has-sub">
-                                        <span class="ss-menu-item-left">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-radio"></use></svg>
-                                            <span data-i18n-app="Current Session">Current Session</span>
-                                        </span>
-                                        <svg class="icon icon-xs ss-menu-arrow" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
-                                    </button>
-                                    <div class="ss-menu-submenu">
-                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Host Diagnostics…">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-bug"></use></svg>
-                                            <span data-i18n-app="Host Diagnostics…">Host Diagnostics…</span>
-                                        </button>
-                                    </div>
-                                </div>
-                                <div class="ss-menu-subwrap">
-                                    <button type="button" class="ss-menu-item ss-menu-item--has-sub">
-                                        <span class="ss-menu-item-left">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-rotate-ccw-clock"></use></svg>
-                                            <span data-i18n-app="Session History">Session History</span>
-                                        </span>
-                                        <svg class="icon icon-xs ss-menu-arrow" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
-                                    </button>
-                                    <div class="ss-menu-submenu">
-                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Host History">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-host_history"></use></svg>
-                                            <span data-i18n-app="Host History">Host History</span>
-                                        </button>
-                                    </div>
-                                </div>
-                                <div class="ss-menu-sep" role="separator"></div>
-                                <div class="ss-menu-subwrap">
-                                    <button type="button" class="ss-menu-item ss-menu-item--has-sub">
-                                        <span class="ss-menu-item-left">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-gamepad-2"></use></svg>
-                                            <span id="ss-menu-game-process-label">GTA5 Process</span>
-                                        </span>
-                                        <svg class="icon icon-xs ss-menu-arrow" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
-                                    </button>
-                                    <div class="ss-menu-submenu">
-                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Solo Public Session">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-user-round"></use></svg>
-                                            <span data-i18n-app="Solo Public Session">Solo Public Session</span>
-                                        </button>
-                                        <div class="ss-menu-sep" role="separator"></div>
-                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Suspend Process">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-circle-pause"></use></svg>
-                                            <span data-i18n-app="Suspend Process">Suspend Process</span>
-                                        </button>
-                                    </div>
-                                </div>
+                        <article class="resolver-mini-card">
+                            <div class="resolver-title">
+                                <strong data-i18n="games.r3_title">Saved Player Lists (UserIP)</strong>
+                                <span class="badge badge-success" data-i18n="games.r3_badge">Any Game</span>
                             </div>
-                        </div>
+                            <p>
+                                <span data-i18n="games.r3_desc">Save known IPs with custom names, colors, alt syncing, and notes across every P2P title.</span>
+                                <a href="https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-json-databases-configuration" target="_blank" rel="noopener noreferrer" data-i18n="games.setup_guide">Setup guide</a>
+                            </p>
+                        </article>
 
-                        <!-- Tools -->
-                        <div class="ss-menu-wrap">
-                            <button type="button" class="ss-menu-trigger" data-menu="tools" data-i18n-app="Tools" role="menuitem">Tools</button>
-                            <div class="ss-menu-popup" data-menu-popup="tools" hidden>
-                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="UserIP Manager">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-database"></use></svg>
-                                    <span data-i18n-app="UserIP Manager">UserIP Manager</span>
-                                </button>
-                                <div class="ss-menu-subwrap">
-                                    <button type="button" class="ss-menu-item ss-menu-item--has-sub">
-                                        <span class="ss-menu-item-left">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-shield"></use></svg>
-                                            <span data-i18n-app="Detections Manager">Detections Manager</span>
-                                        </span>
-                                        <svg class="icon icon-xs ss-menu-arrow" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
-                                    </button>
-                                    <div class="ss-menu-submenu">
-                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Open Detections Manager">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-shield"></use></svg>
-                                            <span data-i18n-app="Open Detections Manager">Open Detections Manager</span>
-                                        </button>
-                                        <div class="ss-menu-sep" role="separator"></div>
-                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Player Events">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-user-round"></use></svg>
-                                            <span data-i18n-app="Player Events">Player Events</span>
-                                        </button>
-                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Network-Based">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-ethernet-port"></use></svg>
-                                            <span data-i18n-app="Network-Based">Network-Based</span>
-                                        </button>
-                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Geography-Based">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-globe"></use></svg>
-                                            <span data-i18n-app="Geography-Based">Geography-Based</span>
-                                        </button>
-                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Combo Rules">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-link"></use></svg>
-                                            <span data-i18n-app="Combo Rules">Combo Rules</span>
-                                        </button>
-                                        <button type="button" class="ss-menu-item" id="ss-detections-relays-item" data-menu-action="app-feature" data-feature-app="GTA5 Relays">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-route"></use></svg>
-                                            <span data-i18n-app="GTA5 Relays">GTA5 Relays</span>
-                                        </button>
-                                    </div>
-                                </div>
-                                <div class="ss-menu-subwrap">
-                                    <button type="button" class="ss-menu-item ss-menu-item--has-sub">
-                                        <span class="ss-menu-item-left">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-file-text"></use></svg>
-                                            <span data-i18n-app="Logs Manager">Logs Manager</span>
-                                        </span>
-                                        <svg class="icon icon-xs ss-menu-arrow" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
-                                    </button>
-                                    <div class="ss-menu-submenu">
-                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Open Logs Manager">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-file-text"></use></svg>
-                                            <span data-i18n-app="Open Logs Manager">Open Logs Manager</span>
-                                        </button>
-                                        <div class="ss-menu-sep" role="separator"></div>
-                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="UserIP Logging">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-database"></use></svg>
-                                            <span data-i18n-app="UserIP Logging">UserIP Logging</span>
-                                        </button>
-                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Detection Logging">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-bell"></use></svg>
-                                            <span data-i18n-app="Detection Logging">Detection Logging</span>
-                                        </button>
-                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Protection Logging">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-shield"></use></svg>
-                                            <span data-i18n-app="Protection Logging">Protection Logging</span>
-                                        </button>
-                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Sessions Logging">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-folder"></use></svg>
-                                            <span data-i18n-app="Sessions Logging">Sessions Logging</span>
-                                        </button>
-                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Debug Log">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-bug"></use></svg>
-                                            <span data-i18n-app="Debug Log">Debug Log</span>
-                                        </button>
-                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Crash Log">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-triangle-alert"></use></svg>
-                                            <span data-i18n-app="Crash Log">Crash Log</span>
-                                        </button>
-                                    </div>
-                                </div>
-                                <div class="ss-menu-sep" role="separator"></div>
-                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Most Seen Players">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-trophy"></use></svg>
-                                    <span data-i18n-app="Most Seen Players">Most Seen Players</span>
-                                </button>
-                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Port Scanner">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-radar"></use></svg>
-                                    <span data-i18n-app="Port Scanner">Port Scanner</span>
-                                </button>
-                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Ping Diagnostics">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-radio-tower"></use></svg>
-                                    <span data-i18n-app="Ping Diagnostics">Ping Diagnostics</span>
-                                </button>
+                        <article class="resolver-mini-card">
+                            <div class="resolver-title">
+                                <strong data-i18n="games.r4_title">PlayStation 3 (PS3)</strong>
+                                <span class="badge badge-muted" data-i18n="games.r4_badge">Packet</span>
                             </div>
-                        </div>
-
-                        <!-- Statistics -->
-                        <div class="ss-menu-wrap">
-                            <button type="button" class="ss-menu-trigger" data-menu="stats" data-i18n-app="Statistics" role="menuitem">Statistics</button>
-                            <div class="ss-menu-popup" data-menu-popup="stats" hidden>
-                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Capture Statistics">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-chart-line"></use></svg>
-                                    <span data-i18n-app="Capture Statistics">Capture Statistics</span>
-                                </button>
-                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Session Rate Graph">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-gauge"></use></svg>
-                                    <span data-i18n-app="Session Rate Graph">Session Rate Graph</span>
-                                </button>
-                                <div class="ss-menu-sep" role="separator"></div>
-                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Session Timeline">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-calendar-days"></use></svg>
-                                    <span data-i18n-app="Session Timeline">Session Timeline</span>
-                                </button>
-                                <div class="ss-menu-sep" role="separator"></div>
-                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Country Breakdown">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-globe"></use></svg>
-                                    <span data-i18n-app="Country Breakdown">Country Breakdown</span>
-                                </button>
-                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Reconnect Frequency">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-activity"></use></svg>
-                                    <span data-i18n-app="Reconnect Frequency">Reconnect Frequency</span>
-                                </button>
-                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Session Duration">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-timer"></use></svg>
-                                    <span data-i18n-app="Session Duration">Session Duration</span>
-                                </button>
-                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Port Heatmap">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-chart-scatter"></use></svg>
-                                    <span data-i18n-app="Port Heatmap">Port Heatmap</span>
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Data & Files -->
-                        <div class="ss-menu-wrap">
-                            <button type="button" class="ss-menu-trigger" data-menu="data" data-i18n-app="Data && Files" role="menuitem">Data &amp; Files</button>
-                            <div class="ss-menu-popup" data-menu-popup="data" hidden>
-                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Open Local AppData Folder">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-folder"></use></svg>
-                                    <span data-i18n-app="Open Local AppData Folder">Open Local AppData Folder</span>
-                                </button>
-                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Open Roaming AppData Folder">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-folder"></use></svg>
-                                    <span data-i18n-app="Open Roaming AppData Folder">Open Roaming AppData Folder</span>
-                                </button>
-                                <div class="ss-menu-sep" role="separator"></div>
-                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Open UserIP Databases Folder">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-folder"></use></svg>
-                                    <span data-i18n-app="Open UserIP Databases Folder">Open UserIP Databases Folder</span>
-                                </button>
-                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Open UserIP Backups Folder">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-folder"></use></svg>
-                                    <span data-i18n-app="Open UserIP Backups Folder">Open UserIP Backups Folder</span>
-                                </button>
-                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Open User Scripts Folder">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-folder"></use></svg>
-                                    <span data-i18n-app="Open User Scripts Folder">Open User Scripts Folder</span>
-                                </button>
-                                <div class="ss-menu-sep" role="separator"></div>
-                                <div class="ss-menu-subwrap">
-                                    <button type="button" class="ss-menu-item ss-menu-item--has-sub">
-                                        <span class="ss-menu-item-left">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-file-text"></use></svg>
-                                            <span data-i18n-app="Application Logs">Application Logs</span>
-                                        </span>
-                                        <svg class="icon icon-xs ss-menu-arrow" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
-                                    </button>
-                                    <div class="ss-menu-submenu">
-                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Open Logging Folder">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-folder"></use></svg>
-                                            <span data-i18n-app="Open Logging Folder">Open Logging Folder</span>
-                                        </button>
-                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Open Sessions Folder">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-folder"></use></svg>
-                                            <span data-i18n-app="Open Sessions Folder">Open Sessions Folder</span>
-                                        </button>
-                                        <div class="ss-menu-sep" role="separator"></div>
-                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Open Detection_Logging.csv">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-file-text"></use></svg>
-                                            <span data-i18n-app="Open Detection_Logging.csv">Open Detection_Logging.csv</span>
-                                        </button>
-                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Open Protection_Logging.csv">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-file-text"></use></svg>
-                                            <span data-i18n-app="Open Protection_Logging.csv">Open Protection_Logging.csv</span>
-                                        </button>
-                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Open UserIP_Logging.csv">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-file-text"></use></svg>
-                                            <span data-i18n-app="Open UserIP_Logging.csv">Open UserIP_Logging.csv</span>
-                                        </button>
-                                    </div>
-                                </div>
-                                <div class="ss-menu-subwrap">
-                                    <button type="button" class="ss-menu-item ss-menu-item--has-sub">
-                                        <span class="ss-menu-item-left">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-bug"></use></svg>
-                                            <span data-i18n-app="Debug Logs">Debug Logs</span>
-                                        </span>
-                                        <svg class="icon icon-xs ss-menu-arrow" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
-                                    </button>
-                                    <div class="ss-menu-submenu">
-                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Open Debug Logs Folder">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-folder"></use></svg>
-                                            <span data-i18n-app="Open Debug Logs Folder">Open Debug Logs Folder</span>
-                                        </button>
-                                        <div class="ss-menu-sep" role="separator"></div>
-                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Open debug.log">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-file-text"></use></svg>
-                                            <span data-i18n-app="Open debug.log">Open debug.log</span>
-                                        </button>
-                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Open crash.log">
-                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-file-text"></use></svg>
-                                            <span data-i18n-app="Open crash.log">Open crash.log</span>
-                                        </button>
-                                    </div>
-                                </div>
-                                <div class="ss-menu-sep" role="separator"></div>
-                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Open settings.json">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-file-cog"></use></svg>
-                                    <span data-i18n-app="Open settings.json">Open settings.json</span>
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Settings -->
-                        <div class="ss-menu-wrap">
-                            <button type="button" class="ss-menu-trigger" data-menu="settings" data-i18n-app="Settings" role="menuitem">Settings</button>
-                            <div class="ss-menu-popup" data-menu-popup="settings" hidden>
-                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Open Settings">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-settings"></use></svg>
-                                    <span data-i18n-app="Open Settings">Open Settings</span>
-                                </button>
-                                <div class="ss-menu-sep" role="separator"></div>
-                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="General">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-sliders-horizontal"></use></svg>
-                                    <span data-i18n-app="General">General</span>
-                                </button>
-                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Themes">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-palette"></use></svg>
-                                    <span data-i18n-app="Themes">Themes</span>
-                                </button>
-                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Shortcuts">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-keyboard"></use></svg>
-                                    <span data-i18n-app="Shortcuts">Shortcuts</span>
-                                </button>
-                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Capture">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-network"></use></svg>
-                                    <span data-i18n-app="Capture">Capture</span>
-                                </button>
-                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Session">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-activity"></use></svg>
-                                    <span data-i18n-app="Session">Session</span>
-                                </button>
-                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Columns">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-eye"></use></svg>
-                                    <span data-i18n-app="Columns">Columns</span>
-                                </button>
-                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Discord">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-discord"></use></svg>
-                                    <span data-i18n-app="Discord">Discord</span>
-                                </button>
-                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Web Server">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-monitor-smartphone"></use></svg>
-                                    <span data-i18n-app="Web Server">Web Server</span>
-                                </button>
-                                <button type="button" class="ss-menu-item" id="ss-settings-game-item" data-menu-action="app-feature" data-feature-app="GTA V">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-gamepad-2"></use></svg>
-                                    <span id="ss-settings-game-label" data-i18n-app="GTA V">GTA V</span>
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Help -->
-                        <div class="ss-menu-wrap">
-                            <button type="button" class="ss-menu-trigger" data-menu="help" data-i18n-app="Help" role="menuitem">Help</button>
-                            <div class="ss-menu-popup" data-menu-popup="help" hidden>
-                                <a href="https://sessionsniffer.com/" target="_blank" rel="noopener noreferrer" class="ss-menu-item">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-globe"></use></svg>
-                                    <span data-i18n-app="Official Website">Official Website</span>
-                                </a>
-                                <a href="https://github.com/BUZZARDGTA/Session-Sniffer" target="_blank" rel="noopener noreferrer" class="ss-menu-item">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-github"></use></svg>
-                                    <span data-i18n-app="Project Repository">Project Repository</span>
-                                </a>
-                                <a href="https://github.com/BUZZARDGTA/Session-Sniffer/wiki" target="_blank" rel="noopener noreferrer" class="ss-menu-item">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-book-text"></use></svg>
-                                    <span data-i18n-app="Documentation">Documentation</span>
-                                </a>
-                                <a href="https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Tips-and-Tricks" target="_blank" rel="noopener noreferrer" class="ss-menu-item">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-lightbulb"></use></svg>
-                                    <span data-i18n-app="Tips and Tricks">Tips and Tricks</span>
-                                </a>
-                                <a href="https://github.com/BUZZARDGTA/Session-Sniffer/releases" target="_blank" rel="noopener noreferrer" class="ss-menu-item">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-rotate-ccw-clock"></use></svg>
-                                    <span data-i18n-app="Release Notes">Release Notes</span>
-                                </a>
-                                <a href="https://github.com/BUZZARDGTA/Session-Sniffer/blob/main/COPYING" target="_blank" rel="noopener noreferrer" class="ss-menu-item">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-scale"></use></svg>
-                                    <span data-i18n-app="View License">View License</span>
-                                </a>
-                                <div class="ss-menu-sep" role="separator"></div>
-                                <a href="https://github.com/BUZZARDGTA/Session-Sniffer/issues" target="_blank" rel="noopener noreferrer" class="ss-menu-item">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-bug"></use></svg>
-                                    <span data-i18n-app="Report Issue">Report Issue</span>
-                                </a>
-                                <a href="https://discord.gg/hMZ7MsPX7G" target="_blank" rel="noopener noreferrer" class="ss-menu-item">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-discord"></use></svg>
-                                    <span data-i18n-app="Discord Server">Discord Server</span>
-                                </a>
-                                <div class="ss-menu-sep" role="separator"></div>
-                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Check for Updates">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-cloud-download"></use></svg>
-                                    <span data-i18n-app="Check for Updates">Check for Updates</span>
-                                </button>
-                                <div class="ss-menu-sep" role="separator"></div>
-                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="About">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-info"></use></svg>
-                                    <span data-i18n-app="About">About</span>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Real SessionHeader -->
-                    <div class="ss-app-header">
-                        <div class="ss-brand-col">
-                            <div class="ss-brand-row">
-                                <span class="ss-app-title">Session Sniffer</span>
-                                <span class="ss-version-badge" data-app-version>v1.5.0 - 2026/11/21 (11:36)</span>
-                            </div>
-                            <div class="ss-app-subtitle" id="ss-app-subtitle">The best <span class="ss-subtitle-hi">FREE</span> and <span class="ss-subtitle-hi">Open-Source</span> packet sniffer</div>
-                        </div>
-
-                        <div class="ss-search-col">
-                            <div class="ss-search-box">
-                                <svg class="icon icon-xs ss-search-icon" aria-hidden="true"><use href="#icon-search"></use></svg>
-                                <input
-                                    type="search"
-                                    id="ss-search-input"
-                                    class="ss-search-input"
-                                    placeholder="Search connected + disconnected players..."
-                                    aria-label="Search demo players"
-                                >
-                            </div>
-                            <div class="ss-search-combo" id="ss-search-column-wrap">
-                                <button
-                                    type="button"
-                                    id="ss-search-column"
-                                    class="ss-search-combo-btn"
-                                    aria-haspopup="listbox"
-                                    aria-expanded="false"
-                                    aria-controls="ss-search-column-popup"
-                                    aria-label="Search column"
-                                >
-                                    <span class="ss-search-combo-label" id="ss-search-column-label" data-i18n-app="All Columns">All Columns</span>
-                                    <span class="ss-search-combo-drop" aria-hidden="true">
-                                        <svg class="icon ss-search-combo-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
-                                    </span>
-                                </button>
-                                <div id="ss-search-column-popup" class="ss-search-combo-popup" role="listbox" aria-label="Search column" hidden>
-                                    <button type="button" class="ss-search-combo-option is-selected" role="option" aria-selected="true" data-search-col="all" data-i18n-app="All Columns">All Columns</button>
-                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="username" data-i18n-app="Usernames">Usernames</button>
-                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="ip" data-i18n-app="IP Address">IP Address</button>
-                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="hostname" data-i18n-app="Hostname">Hostname</button>
-                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="ports" data-i18n-app="Ports">Ports</button>
-                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="lastPort" data-i18n-app="Last Port">Last Port</button>
-                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="middlePorts" data-i18n-app="Middle Ports">Middle Ports</button>
-                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="firstPort" data-i18n-app="First Port">First Port</button>
-                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="continent" data-i18n-app="Continent">Continent</button>
-                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="country" data-i18n-app="Country">Country</button>
-                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="region" data-i18n-app="Region">Region</button>
-                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="regionCode" data-i18n-app="R. Code">R. Code</button>
-                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="city" data-i18n-app="City">City</button>
-                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="district" data-i18n-app="District">District</button>
-                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="zipCode" data-i18n-app="ZIP Code">ZIP Code</button>
-                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="timeZone" data-i18n-app="Time Zone">Time Zone</button>
-                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="currency" data-i18n-app="Currency">Currency</button>
-                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="organization" data-i18n-app="Organization">Organization</button>
-                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="ispName" data-i18n-app="ISP">ISP</button>
-                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="isp" data-i18n-app="ASN / ISP">ASN / ISP</button>
-                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="as" data-i18n-app="AS">AS</button>
-                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="asn" data-i18n-app="ASN">ASN</button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="ss-metrics-col">
-                            <div class="ss-notif-card" aria-label="Notification toggles">
-                                <button
-                                    type="button"
-                                    class="ss-notif-btn is-enabled"
-                                    id="ss-visual-notif-btn"
-                                    aria-pressed="true"
-                                >
-                                    <svg class="icon icon-xs" id="ss-visual-notif-icon" aria-hidden="true"><use href="#icon-bell"></use></svg>
-                                </button>
-                                <button
-                                    type="button"
-                                    class="ss-notif-btn is-enabled"
-                                    id="ss-voice-notif-btn"
-                                    aria-pressed="true"
-                                >
-                                    <svg class="icon icon-xs" id="ss-voice-notif-icon" aria-hidden="true"><use href="#icon-volume-2"></use></svg>
-                                </button>
-                            </div>
-
-                            <div class="ss-stats-card">
-                                <svg class="icon icon-sm ss-pulse-icon" aria-hidden="true"><use href="#icon-activity"></use></svg>
-                                <div class="ss-stat-block">
-                                    <span class="ss-stat-title" data-i18n-app="Uptime">Uptime</span>
-                                    <span class="ss-stat-val mono" id="ss-uptime-val">00:14:32</span>
-                                </div>
-                                <span class="ss-stats-divider" aria-hidden="true"></span>
-                                <div class="ss-stat-block">
-                                    <span class="ss-stat-title" data-i18n-app="Captured Packets">Captured Packets</span>
-                                    <span class="ss-stat-val mono" id="ss-packets-val">184,920</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Workspace Body: Connected + Splitter + Disconnected SessionTableSections (1:1 with _session_table_section.py) -->
-                    <div class="ss-workspace">
-                        <!-- Connected Players Section -->
-                        <div class="ss-section ss-section--connected" id="ss-connected-section">
-                            <div class="ss-section-bar ss-section-bar--connected">
-                                <div class="ss-section-bar-left">
-                                    <svg class="icon ss-section-icon ss-section-icon--connected" aria-hidden="true"><use href="#icon-user-round"></use></svg>
-                                    <span class="ss-section-title" id="ss-connected-title">Connected Players (7)</span>
-                                </div>
-                                <div class="ss-section-bar-right">
-                                    <span class="ss-bar-meta" data-i18n-app="Rows:">Rows:</span>
-                                    <div class="ss-spinbox ss-spinbox--rows" id="ss-connected-rows-box" aria-label="Connected table rows per page">
-                                        <span class="ss-spinbox-val" id="ss-connected-rows-val">All (7)</span>
-                                        <span class="ss-spinbox-arrows">
-                                            <button type="button" class="ss-spin-btn ss-spin-btn--up" id="ss-connected-rows-up" aria-label="Increase rows per page">
-                                                <svg class="icon" aria-hidden="true"><use href="#icon-chevron-up"></use></svg>
-                                            </button>
-                                            <button type="button" class="ss-spin-btn ss-spin-btn--down" id="ss-connected-rows-down" aria-label="Decrease rows per page">
-                                                <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
-                                            </button>
-                                        </span>
-                                    </div>
-                                    <span class="ss-bar-meta" data-i18n-app="Page:">Page:</span>
-                                    <div class="ss-spinbox ss-spinbox--page" id="ss-connected-page-box" aria-label="Connected table page">
-                                        <span class="ss-spinbox-val mono" id="ss-connected-page">1 / 1</span>
-                                        <span class="ss-spinbox-arrows">
-                                            <button type="button" class="ss-spin-btn ss-spin-btn--up" id="ss-connected-page-up" aria-label="Next connected page">
-                                                <svg class="icon" aria-hidden="true"><use href="#icon-chevron-up"></use></svg>
-                                            </button>
-                                            <button type="button" class="ss-spin-btn ss-spin-btn--down" id="ss-connected-page-down" aria-label="Previous connected page">
-                                                <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
-                                            </button>
-                                        </span>
-                                    </div>
-                                    <span class="ss-bar-vsep" aria-hidden="true"></span>
-                                    <button type="button" class="ss-bar-btn ss-bar-btn--merge" id="ss-merge-btn" aria-pressed="false" data-i18n-app="MERGE">
-                                        MERGE
-                                    </button>
-                                    <button type="button" class="ss-bar-btn ss-bar-btn--clear" id="ss-connected-clear" data-i18n-app="CLEAR">
-                                        CLEAR
-                                    </button>
-                                    <button type="button" class="ss-bar-icon-btn" id="ss-connected-collapse" aria-label="Hide connected players table">
-                                        <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-arrow-down-to-line"></use></svg>
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div class="ss-table-scroll" id="ss-connected-body">
-                                <table class="ss-table ss-table--connected">
-                                    <thead>
-                                        <tr>
-                                            <th data-sort-table="connected" data-sort-col="username" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Usernames">Usernames</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
-                                            <th data-sort-table="connected" data-sort-col="firstSeen" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="First Seen">First Seen</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
-                                            <th data-sort-table="connected" data-sort-col="lastRejoin" tabindex="0" aria-sort="descending" class="is-sorted"><span class="ss-th-inner"><span data-i18n-app="Last Rejoin">Last Rejoin</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
-                                            <th class="num" data-sort-table="connected" data-sort-col="rejoins" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Rejoins">Rejoins</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
-                                            <th class="num" data-sort-table="connected" data-sort-col="packets" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Packets">Packets</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
-                                            <th class="num" data-sort-table="connected" data-sort-col="pps" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="PPS">PPS</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
-                                            <th class="num" data-sort-table="connected" data-sort-col="bandwidth" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Bandwidth">Bandwidth</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
-                                            <th class="num" data-sort-table="connected" data-sort-col="bps" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="BPS">BPS</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
-                                            <th data-sort-table="connected" data-sort-col="ip" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="IP Address">IP Address</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
-                                            <th data-sort-table="connected" data-sort-col="hostname" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Hostname">Hostname</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
-                                            <th data-sort-table="connected" data-sort-col="ports" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Ports">Ports</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
-                                            <th data-sort-table="connected" data-sort-col="country" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Country">Country</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
-                                            <th data-sort-table="connected" data-sort-col="region" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Region">Region</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
-                                            <th data-sort-table="connected" data-sort-col="isp" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="ASN / ISP">ASN / ISP</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
-                                            <th data-sort-table="connected" data-sort-col="mobile" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Mobile">Mobile</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
-                                            <th data-sort-table="connected" data-sort-col="vpn" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="VPN">VPN</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
-                                            <th data-sort-table="connected" data-sort-col="hosting" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Hosting">Hosting</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
-                                            <th data-sort-table="connected" data-sort-col="ping" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Pinging">Pinging</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="ss-connected-tbody"></tbody>
-                                </table>
-                                <div class="ss-table-empty ss-table-empty--connected" id="ss-connected-empty" hidden>
-                                    <svg class="icon ss-table-empty-icon" aria-hidden="true"><use href="#icon-user-round-check"></use></svg>
-                                    <div class="ss-table-empty-title" id="ss-connected-empty-title">No connected players</div>
-                                    <div class="ss-table-empty-subtitle" id="ss-connected-empty-subtitle">Connected players will appear here.</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- QSplitter Handle -->
-                        <div class="ss-splitter-handle" id="ss-splitter-handle" role="separator" aria-orientation="horizontal" aria-label="Resize connected and disconnected player tables" tabindex="0"></div>
-
-                        <!-- Disconnected Players Section -->
-                        <div class="ss-section ss-section--disconnected" id="ss-disconnected-section">
-                            <div class="ss-section-bar ss-section-bar--disconnected">
-                                <div class="ss-section-bar-left">
-                                    <svg class="icon ss-section-icon ss-section-icon--disconnected" aria-hidden="true"><use href="#icon-user-round"></use></svg>
-                                    <span class="ss-section-title" id="ss-disconnected-title">Disconnected Players (4)</span>
-                                </div>
-                                <div class="ss-section-bar-right">
-                                    <span class="ss-bar-meta" data-i18n-app="Rows:">Rows:</span>
-                                    <div class="ss-spinbox ss-spinbox--rows" id="ss-disconnected-rows-box" aria-label="Disconnected table rows per page">
-                                        <span class="ss-spinbox-val" id="ss-disconnected-rows-val">All (4)</span>
-                                        <span class="ss-spinbox-arrows">
-                                            <button type="button" class="ss-spin-btn ss-spin-btn--up" id="ss-disconnected-rows-up" aria-label="Increase rows per page">
-                                                <svg class="icon" aria-hidden="true"><use href="#icon-chevron-up"></use></svg>
-                                            </button>
-                                            <button type="button" class="ss-spin-btn ss-spin-btn--down" id="ss-disconnected-rows-down" aria-label="Decrease rows per page">
-                                                <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
-                                            </button>
-                                        </span>
-                                    </div>
-                                    <span class="ss-bar-meta" data-i18n-app="Page:">Page:</span>
-                                    <div class="ss-spinbox ss-spinbox--page" id="ss-disconnected-page-box" aria-label="Disconnected table page">
-                                        <span class="ss-spinbox-val mono" id="ss-disconnected-page">1 / 1</span>
-                                        <span class="ss-spinbox-arrows">
-                                            <button type="button" class="ss-spin-btn ss-spin-btn--up" id="ss-disconnected-page-up" aria-label="Next disconnected page">
-                                                <svg class="icon" aria-hidden="true"><use href="#icon-chevron-up"></use></svg>
-                                            </button>
-                                            <button type="button" class="ss-spin-btn ss-spin-btn--down" id="ss-disconnected-page-down" aria-label="Previous disconnected page">
-                                                <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
-                                            </button>
-                                        </span>
-                                    </div>
-                                    <span class="ss-bar-vsep" aria-hidden="true"></span>
-                                    <button type="button" class="ss-bar-btn ss-bar-btn--merge" id="ss-disconnected-merge-btn" aria-pressed="false" data-i18n-app="MERGE">
-                                        MERGE
-                                    </button>
-                                    <button type="button" class="ss-bar-btn ss-bar-btn--clear" id="ss-disconnected-clear" data-i18n-app="CLEAR">
-                                        CLEAR
-                                    </button>
-                                    <button type="button" class="ss-bar-icon-btn" id="ss-disconnected-collapse" aria-label="Hide disconnected players table">
-                                        <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-arrow-down-to-line"></use></svg>
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div class="ss-table-scroll" id="ss-disconnected-body">
-                                <table class="ss-table ss-table--disconnected">
-                                    <thead>
-                                        <tr>
-                                            <th data-sort-table="disconnected" data-sort-col="username" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Usernames">Usernames</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
-                                            <th data-sort-table="disconnected" data-sort-col="firstSeen" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="First Seen">First Seen</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
-                                            <th data-sort-table="disconnected" data-sort-col="lastRejoin" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Last Rejoin">Last Rejoin</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
-                                            <th data-sort-table="disconnected" data-sort-col="lastSeen" tabindex="0" aria-sort="ascending" class="is-sorted"><span class="ss-th-inner"><span data-i18n-app="Last Seen">Last Seen</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-up"></use></svg></span></th>
-                                            <th data-sort-table="disconnected" data-sort-col="totalSessionTime" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="T. Session Time">T. Session Time</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
-                                            <th data-sort-table="disconnected" data-sort-col="sessionTime" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Session Time">Session Time</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
-                                            <th class="num" data-sort-table="disconnected" data-sort-col="rejoins" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Rejoins">Rejoins</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
-                                            <th class="num" data-sort-table="disconnected" data-sort-col="packets" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Packets">Packets</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
-                                            <th class="num" data-sort-table="disconnected" data-sort-col="bandwidth" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Bandwidth">Bandwidth</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
-                                            <th data-sort-table="disconnected" data-sort-col="ip" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="IP Address">IP Address</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
-                                            <th data-sort-table="disconnected" data-sort-col="hostname" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Hostname">Hostname</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
-                                            <th data-sort-table="disconnected" data-sort-col="ports" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Ports">Ports</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
-                                            <th data-sort-table="disconnected" data-sort-col="country" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Country">Country</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
-                                            <th data-sort-table="disconnected" data-sort-col="region" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Region">Region</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
-                                            <th data-sort-table="disconnected" data-sort-col="isp" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="ASN / ISP">ASN / ISP</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
-                                            <th data-sort-table="disconnected" data-sort-col="mobile" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Mobile">Mobile</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
-                                            <th data-sort-table="disconnected" data-sort-col="vpn" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="VPN">VPN</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
-                                            <th data-sort-table="disconnected" data-sort-col="hosting" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Hosting">Hosting</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
-                                            <th data-sort-table="disconnected" data-sort-col="ping" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Pinging">Pinging</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="ss-disconnected-tbody"></tbody>
-                                </table>
-                                <div class="ss-table-empty ss-table-empty--disconnected" id="ss-disconnected-empty" hidden>
-                                    <svg class="icon ss-table-empty-icon" aria-hidden="true"><use href="#icon-user-round-x"></use></svg>
-                                    <div class="ss-table-empty-title" id="ss-disconnected-empty-title">No disconnected players</div>
-                                    <div class="ss-table-empty-subtitle" id="ss-disconnected-empty-subtitle">Disconnected players will appear here.</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- _MinimizedTablesPlaceholder (shown only when both tables are minimized) -->
-                        <div class="ss-minimized-placeholder" id="ss-minimized-placeholder" hidden>
-                            <svg class="icon ss-placeholder-icon" aria-hidden="true"><use href="#icon-app_icon"></use></svg>
-                            <strong data-i18n-app="All Tables Minimized">All Tables Minimized</strong>
-                            <span data-i18n-app="Expand connected or disconnected players below to view session data">Expand connected or disconnected players below to view session data</span>
-                        </div>
-
-                        <!-- Real Expand Buttons (main_window.py lines 358-359) -->
-                        <button type="button" class="ss-expand-btn ss-expand-btn--connected" id="ss-connected-expand" hidden>
-                            Show Connected Players (7)
-                        </button>
-                        <button type="button" class="ss-expand-btn ss-expand-btn--disconnected" id="ss-disconnected-expand" hidden>
-                            Show Disconnected Players (4)
-                        </button>
-                    </div>
-
-                    <!-- 1:1 SessionStatusBar (exact pill structure & tones from _status_bar.py & status_bar_renderer.py) -->
-                    <div class="ss-statusbar">
-                        <div class="ss-statusbar-left">
-                            <div class="ss-sb-pill ss-sb-pill--capture" data-i18n-app-title="Capture:" title="Capture">
-                                <svg class="ss-sb-icon" aria-hidden="true"><use href="#icon-wifi"></use></svg>
-                                <span class="ss-sb-item">
-                                    <span class="ss-sb-label" data-i18n-app-strip="Interface:">Interface</span>
-                                    <span class="ss-sb-value ss-sb-tone-success"><span class="ss-sb-dot" aria-hidden="true"></span><span id="ss-status-iface">Ethernet 3</span></span>
-                                </span>
-                                <span class="ss-sb-divider" aria-hidden="true"></span>
-                                <span class="ss-sb-item">
-                                    <span class="ss-sb-label" data-i18n-app-strip="IP:">IP</span>
-                                    <span class="ss-sb-value ss-sb-mono" id="ss-status-ip">192.168.1.42</span>
-                                </span>
-                            </div>
-                            <div class="ss-sb-pill ss-sb-pill--config" data-i18n-app-title="Config:" title="Config">
-                                <svg class="ss-sb-icon" aria-hidden="true"><use href="#icon-sliders-horizontal"></use></svg>
-                                <span class="ss-sb-item">
-                                    <span class="ss-sb-label" data-i18n-app-strip="Discord:">Discord</span>
-                                    <span class="ss-sb-value ss-sb-tone-success"><span class="ss-sb-dot" aria-hidden="true"></span><span data-i18n-app="Connected">Connected</span></span>
-                                </span>
-                                <span id="ss-status-feature-wrap" class="ss-sb-feature-wrap">
-                                    <span class="ss-sb-divider" aria-hidden="true"></span>
-                                    <span class="ss-sb-item">
-                                        <span class="ss-sb-label" data-i18n-app-strip="Feature Set:">Feature Set</span>
-                                        <span class="ss-sb-value ss-sb-tone-accent" id="ss-status-mode">GTA V</span>
-                                    </span>
-                                </span>
-                            </div>
-                        </div>
-                        <div class="ss-statusbar-right">
-                            <div class="ss-sb-pill ss-sb-pill--performance" data-i18n-app-title="Performance:" title="Performance">
-                                <svg class="ss-sb-icon" aria-hidden="true"><use href="#icon-activity"></use></svg>
-                                <span class="ss-sb-item">
-                                    <span class="ss-sb-label" data-i18n-app-strip="Latency:">Latency</span>
-                                    <span class="ss-sb-value ss-sb-tone-success ss-sb-mono"><span class="ss-sb-dot" aria-hidden="true"></span><span id="ss-status-latency">0.4ms</span></span>
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                    <div class="preview-sandbox-footer">
-                        <span class="preview-sandbox-footer-note">
-                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-info"></use></svg>
-                            <span data-i18n="preview.footer_note">Showing fake sample players. Ready to monitor your own real P2P sessions?</span>
-                        </span>
-                        <a href="#download" class="btn btn-primary btn-sm">
-                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-cloud-download"></use></svg>
-                            <span data-i18n="preview.footer_cta">Download Desktop App</span>
-                        </a>
+                            <p data-i18n="games.r4_desc">Shows PSN usernames automatically on supported PS3 titles (patched on PS4 / Xbox One and newer).</p>
+                        </article>
                     </div>
                 </div>
             </div>
@@ -1479,17 +854,17 @@
                 <div class="explore-list">
                     <article class="explore-row">
                         <div class="explore-row-icon" aria-hidden="true">
-                            <svg class="icon"><use href="#icon-gamepad-2"></use></svg>
+                            <svg class="icon"><use href="#icon-circle-play"></use></svg>
                         </div>
                         <div class="explore-row-body">
                             <div class="explore-row-head">
-                                <h3 data-i18n="games.title">Supported Games &amp; Software</h3>
-                                <span class="badge badge-accent" data-i18n="games.stat_universal_value">Any P2P</span>
+                                <h3 data-i18n="preview.eyebrow">Interactive UI Demo</h3>
+                                <span class="badge badge-warning" data-i18n="explore.demo_badge">In-Browser</span>
                             </div>
-                            <p data-i18n="explore.games_desc">Explore officially tested P2P games and apps with connection behavior, platforms, and username lookup support.</p>
+                            <p data-i18n="explore.demo_desc">Try Session Sniffer's desktop interface right in your browser with sample players, presets, column sorting, and right-click menus.</p>
                         </div>
-                        <a href="/games" class="btn btn-control explore-row-btn">
-                            <span data-i18n="explore.games_cta">Browse Catalog</span>
+                        <a href="/demo" class="btn btn-control explore-row-btn">
+                            <span data-i18n="explore.demo_cta">Launch UI Demo</span>
                             <svg class="icon icon-xs history-dir-icon" aria-hidden="true"><use href="#icon-arrow-right"></use></svg>
                         </a>
                     </article>
@@ -1606,7 +981,7 @@
                                 </div>
                             </div>
                             <div class="faq-links">
-                                <a href="/games#username-resolving" class="faq-link-chip">
+                                <a href="#username-resolving" class="faq-link-chip">
                                     <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-user-round-search"></use></svg>
                                     <span data-i18n="games.modal_jump_resolver">View Username Resolving options</span>
                                 </a>
@@ -1958,7 +1333,7 @@
                     <span class="badge badge-warning hero-showcase-badge" data-i18n="hero.showcase_badge">Screenshot</span>
                 </div>
                 <div class="hero-lightbox-controls">
-                    <a href="#preview" class="btn btn-sm hero-showcase-demo-btn" id="hero-lightbox-demo">
+                    <a href="/demo" class="btn btn-sm hero-showcase-demo-btn" id="hero-lightbox-demo">
                         <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-circle-play"></use></svg>
                         <span data-i18n="hero.cta_preview">Try Interactive UI Demo</span>
                     </a>
@@ -1984,8 +1359,113 @@
         </div>
     </div>
 
-    <!-- Floating Qt-styled Right-Click Context Menu for table rows -->
-    <div class="ss-context-menu" id="ss-context-menu" role="menu" hidden></div>
+    <!-- Game / Software Compatibility Detail Modal -->
+    <div
+        class="game-detail-modal"
+        id="game-detail-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="game-modal-title"
+        hidden
+    >
+        <div class="game-modal-backdrop" id="game-modal-backdrop"></div>
+        <div class="game-modal-dialog">
+            <div class="game-modal-ambient" id="game-modal-ambient" aria-hidden="true"></div>
+            <div class="game-modal-topbar">
+                <div class="game-modal-top-badges" id="game-modal-top-badges"></div>
+                <div class="game-modal-nav">
+                    <button
+                        type="button"
+                        class="icon-btn"
+                        id="game-modal-prev"
+                        data-i18n-title="games.modal_prev"
+                        aria-label="Previous title"
+                        title="Previous title"
+                    >
+                        <svg class="icon icon-sm history-dir-icon" aria-hidden="true"><use href="#icon-arrow-left"></use></svg>
+                    </button>
+                    <button
+                        type="button"
+                        class="icon-btn"
+                        id="game-modal-next"
+                        data-i18n-title="games.modal_next"
+                        aria-label="Next title"
+                        title="Next title"
+                    >
+                        <svg class="icon icon-sm history-dir-icon" aria-hidden="true"><use href="#icon-arrow-right"></use></svg>
+                    </button>
+                    <button
+                        type="button"
+                        class="icon-btn"
+                        id="game-modal-close"
+                        data-i18n-title="games.modal_close"
+                        aria-label="Close details"
+                        title="Close details"
+                    >
+                        <svg class="icon icon-sm" aria-hidden="true"><use href="#icon-x"></use></svg>
+                    </button>
+                </div>
+            </div>
+
+            <div class="game-modal-body">
+                <div class="game-modal-cover-col" id="game-modal-cover-col"></div>
+                <div class="game-modal-info-col">
+                    <h3 class="game-modal-title" id="game-modal-title"></h3>
+
+                    <div class="game-modal-card" id="game-modal-p2p-card">
+                        <div class="game-modal-card-label" data-i18n="games.modal_p2p_heading">P2P Connection Type</div>
+                        <div class="game-modal-p2p-row" id="game-modal-p2p-badge-wrap"></div>
+                        <p class="game-modal-card-desc" id="game-modal-p2p-desc"></p>
+                    </div>
+
+                    <div class="game-modal-card game-modal-card--toolkit" id="game-modal-toolkit-card" hidden>
+                        <div class="game-modal-toolkit-row">
+                            <svg class="icon icon-sm" aria-hidden="true"><use href="#icon-crown"></use></svg>
+                            <p id="game-modal-toolkit-desc"></p>
+                        </div>
+                    </div>
+
+                    <div class="game-modal-meta-grid">
+                        <div class="game-modal-card">
+                            <div class="game-modal-card-label" data-i18n="games.modal_platforms_heading">Tested Platforms</div>
+                            <div class="game-modal-platforms" id="game-modal-platforms"></div>
+                        </div>
+
+                        <div class="game-modal-card">
+                            <div class="game-modal-card-label" data-i18n="games.modal_resolver_heading">Username Resolving</div>
+                            <div id="game-modal-resolver-badge"></div>
+                            <p class="game-modal-card-desc" id="game-modal-resolver-desc"></p>
+                            <a href="#username-resolving" class="text-link game-modal-resolver-link" id="game-modal-resolver-link" hidden>
+                                <span data-i18n="games.modal_jump_resolver">View Username Resolving options</span>
+                                <svg class="icon icon-xs history-dir-icon" aria-hidden="true"><use href="#icon-arrow-right"></use></svg>
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="game-modal-card game-modal-card--notes" id="game-modal-notes-card" hidden>
+                        <div class="game-modal-card-label">
+                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-info"></use></svg>
+                            <span data-i18n="games.modal_notes_heading">Wiki Notes</span>
+                        </div>
+                        <div class="game-modal-notes-body" id="game-modal-notes-body"></div>
+                    </div>
+
+                    <div class="game-modal-footer">
+                        <a
+                            href="https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Supported-Games-and-Softwares"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="btn btn-control btn-sm"
+                        >
+                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-book-text"></use></svg>
+                            <span data-i18n="games.wiki_link">Open Wiki Page</span>
+                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-external-link"></use></svg>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Live toast notification for interactive actions -->
     <div class="toast-region" id="toast-region" aria-live="polite" aria-atomic="true"></div>
@@ -1999,9 +1479,9 @@
         <p class="ss-tooltip-body" id="ss-tooltip-body"></p>
     </div>
 
-    <script src="assets/app-data.generated.js?v=31e31faa" defer></script>
-    <script src="core.js?v=17ebd90e" defer></script>
-    <script src="preview.js?v=8089a55a" defer></script>
+    <script src="assets/app-data.generated.js?v=a0050fa2" defer></script>
+    <script src="core.js?v=672bd113" defer></script>
+    <script src="games.js?v=a197b99a" defer></script>
 </body>
 
 </html>

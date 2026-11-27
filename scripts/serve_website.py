@@ -53,7 +53,7 @@ class _CloudflarePagesHandler(SimpleHTTPRequestHandler):
                 clean_path = normalized.removesuffix('.html')
                 return urlunsplit(('', '', clean_path, parsed.query, ''))
 
-        # Redirect trailing slash on extensionless HTML page (`/games/` -> `/games`).
+        # Redirect trailing slash on extensionless HTML page (`/demo/` -> `/demo`).
         if normalized != '/' and normalized.endswith('/'):
             stem = normalized.strip('/')
             if (WEBSITE_DIR / f'{stem}.html').is_file():
@@ -63,7 +63,7 @@ class _CloudflarePagesHandler(SimpleHTTPRequestHandler):
 
     @override
     def translate_path(self, path: str) -> str:
-        """Resolve extensionless Pretty URLs (e.g. `/games` -> `games.html`)."""
+        """Resolve extensionless Pretty URLs (e.g. `/demo` -> `demo.html`)."""
         resolved = super().translate_path(path)
         candidate = Path(resolved)
         if not candidate.exists():

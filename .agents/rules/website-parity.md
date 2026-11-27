@@ -5,7 +5,7 @@ description: Use when modifying Session Sniffer's desktop GUI, stylesheets, them
 
 # Desktop App ↔ Website Visual Parity Rules
 
-Session Sniffer ships an interactive live UI preview in `website/` (`website/index.html`, `website/styles.css`, `website/preview.css`, `website/preview.js`, `website/core.js`, and generated bundles in `website/assets/`).
+Session Sniffer ships an interactive live UI preview in `website/` (`website/demo.html`, `website/index.html`, `website/styles.css`, `website/preview.css`, `website/preview.js`, `website/core.js`, and generated bundles in `website/assets/`).
 
 **The desktop application and the `website/` live preview must stay visually and structurally identical (1:1).** Never finish a user-visible desktop GUI change without mirroring it in `website/` in the same task, and never fix or refine a UI detail in the `website/` preview without verifying whether the desktop app needs the matching change so neither side drifts.
 
@@ -20,7 +20,7 @@ Always inspect the corresponding desktop implementation and QSS before editing `
 
 * **Main Window Shell & Menu Bar:**
   * Desktop: `src/session_sniffer/guis/main_window.py`, `_main_window_files_mixin.py`, `_main_window_game_mixin.py`, `_main_window_looky_mixin.py`, `_main_window_stats_mixin.py`, `stylesheets/_menus.py`, `theme.py`
-  * Website: `.ss-window`, `.ss-titlebar`, `.ss-menubar`, `#ss-menubar` in `website/index.html`, `website/styles.css`, `website/app.js`
+  * Website: `.ss-window`, `.ss-titlebar`, `.ss-menubar`, `#ss-menubar` in `website/demo.html`, `website/preview.css`, `website/preview.js`
   * Keep exact menu titles, item order, submenus (including `GTA V` → `Looky System`), icons, and separators aligned. Desktop-only menu actions show the demo-only toast with Download CTA rather than faking results.
 * **Main Header, Search Bar, Column Selector & Live Metrics:**
   * Desktop: `src/session_sniffer/guis/_main_header.py`, `stylesheets/_main_header.py`, `src/session_sniffer/constants/tables.py` (`SEARCHABLE_COLUMN_EXCLUSIONS`)
@@ -34,14 +34,14 @@ Always inspect the corresponding desktop implementation and QSS before editing `
   * Website: `#ss-connected-table`, `#ss-disconnected-table`, numeric quantity right-alignment (`.num`) with comma thousands grouping (`44,912`, never on ports/identifiers), `PPS`/`BPS` red → yellow → green rate thresholds (`PPS_MAX_THRESHOLD`, `BPS_MAX_THRESHOLD`), row state tinting (host, relay, server, VPN, Looky, high-rate), and centered icon + title + subtitle empty states (`#ss-connected-empty`, `#ss-disconnected-empty`)
 * **Row Right-Click Context Menu:**
   * Desktop: `src/session_sniffer/guis/tables_context_menu_mixin.py`, `table_context_menu.py`
-  * Website: `#ss-context-menu` in `website/index.html`, `website/styles.css`, `website/app.js`
+  * Website: `#ss-context-menu` in `website/demo.html`, `website/preview.css`, `website/preview.js`
   * Keep exact action hierarchy, icons, shortcuts, and submenus (including `Looky System`, `Ping`, `UserIP`).
 * **Status Bar:**
   * Desktop: `src/session_sniffer/rendering_core/status_bar_renderer.py`, `src/session_sniffer/guis/colors.py`
   * Website: `.ss-statusbar` (exact `Capture:`, `Config:`, `Performance:` segments and canonical Dark-theme colors)
 * **Language Selector & Country Flags:**
   * Desktop: `src/session_sniffer/i18n.py` (`SUPPORTED_LANGUAGES`, `RTL_LANGUAGE_CODES`, `LANGUAGE_COUNTRY_FLAGS`), `settings_dialog.py`, `_settings_widget_builders.py`
-  * Website: `#nav-lang-switcher` / `#lang-menu-dropdown` in `website/index.html`, `website/styles.css`, `website/app.js`
+  * Website: `#nav-lang-switcher` / `#lang-menu-dropdown` in `website/*.html`, `website/styles.css`, `website/core.js`
   * Always share the single source of truth `LANGUAGE_COUNTRY_FLAGS` from `src/session_sniffer/i18n.py` rather than duplicating flag mappings.
 * **Built-in Themes:**
   * Desktop: `src/session_sniffer/models/themes.py` (`BUILTIN_THEMES`), `src/session_sniffer/guis/theme.py`
@@ -75,5 +75,5 @@ Always inspect the corresponding desktop implementation and QSS before editing `
 * Preserve RTL layout mirroring (`[dir='rtl']`) for `ar`, `fa`, and `he` on every directional preview control (icons, arrows, padding, alignment, popups).
 * Enforce **CRLF (`\r\n`)** line endings across all modified and generated files under `website/` (`core.md`).
 * When `website/sync_assets.py` is modified, validate it with the project's `.venv` static-analysis/linting tools (`testing.md`).
-* To preview and test `website/` locally, always run `.venv\Scripts\python.exe scripts\serve_website.py` (on Linux/macOS: `.venv/bin/python scripts/serve_website.py`) — it serves over `HTTP/1.1` (preventing 64 KB truncation on large HTML/JS assets) and mirrors Cloudflare Pages Pretty URLs (`/`, `/games`, `/history`) plus custom `404.html` handling.
+* To preview and test `website/` locally, always run `.venv\Scripts\python.exe scripts\serve_website.py` (on Linux/macOS: `.venv/bin/python scripts/serve_website.py`) — it serves over `HTTP/1.1` (preventing 64 KB truncation on large HTML/JS assets) and mirrors Cloudflare Pages Pretty URLs (`/`, `/demo`, `/history`) plus custom `404.html` handling.
 * Visually verify non-trivial website preview changes in a live browser across Dark and Light themes (and a non-English / RTL locale when text or directional layout changed) with zero console or network errors.

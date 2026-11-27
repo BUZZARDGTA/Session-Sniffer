@@ -1148,29 +1148,6 @@ summary:focus-visible {
     margin-bottom: 16px;
 }
 
-.hero-mobile-note {
-    margin: -4px 0 16px;
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    padding: 7px 11px;
-    border-radius: var(--ss-radius-sm);
-    background: rgba(var(--ss-warning-rgb), 0.12);
-    border: 1px solid rgba(var(--ss-warning-rgb), 0.35);
-    font-size: 12.5px;
-    line-height: 1.4;
-    color: var(--ss-text);
-}
-
-.hero-mobile-note[hidden] {
-    display: none;
-}
-
-.hero-mobile-note .icon {
-    color: var(--ss-warning);
-    flex-shrink: 0;
-}
-
 .hero-cta-row .btn-discord {
     background: linear-gradient(
         135deg,
@@ -2874,11 +2851,6 @@ summary:focus-visible {
         max-width: 340px;
         white-space: normal;
         text-align: center;
-    }
-
-    .hero-mobile-note {
-        max-width: 340px;
-        text-align: start;
     }
 
     .hero-stats {

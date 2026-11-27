@@ -133,7 +133,7 @@
             links: [
                 {
                     labelKey: 'history.era_try_live',
-                    url: '/#preview',
+                    url: '/demo',
                     icon: 'circle-play',
                     primary: true,
                     internal: true,

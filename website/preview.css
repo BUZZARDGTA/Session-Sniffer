@@ -1,11 +1,11 @@
 /* ==========================================================================
-   Session Sniffer Interactive Desktop Window Preview Stylesheet (index.html)
+   Session Sniffer Interactive Desktop Window Preview Stylesheet (demo.html)
    1:1 visual parity with PySide6 MainWindow, tables, menus, and status bar
    ========================================================================== */
 
 .section-preview {
-    padding-top: 56px;
-    padding-bottom: 58px;
+    padding-top: 34px;
+    padding-bottom: 64px;
 }
 
 .section-preview .container {
@@ -317,23 +317,6 @@ body.ss-preview-fullscreen-open {
     font-size: 12.5px;
     color: var(--ss-text);
     transition: border-color 0.25s ease, box-shadow 0.25s ease;
-}
-
-.ss-window.is-spotlight {
-    border-color: var(--ss-success);
-    animation: previewSpotlight 1.15s ease-out;
-}
-
-@keyframes previewSpotlight {
-    0% {
-        box-shadow: 0 0 0 0 rgba(var(--ss-success-rgb), 0.55), var(--ss-shadow-lg);
-    }
-    40% {
-        box-shadow: 0 0 0 8px rgba(var(--ss-success-rgb), 0.22), 0 0 38px rgba(var(--ss-success-rgb), 0.22), var(--ss-shadow-lg);
-    }
-    100% {
-        box-shadow: 0 0 0 0 rgba(var(--ss-success-rgb), 0), var(--ss-shadow-lg);
-    }
 }
 
 .ss-titlebar {
@@ -2161,8 +2144,8 @@ body.ss-is-resizing-splitter * {
 
 @media (max-width: 680px) {
     .section-preview {
-        padding-top: 44px;
-        padding-bottom: 48px;
+        padding-top: 18px;
+        padding-bottom: 44px;
     }
 
     .preview-sandbox-frame {

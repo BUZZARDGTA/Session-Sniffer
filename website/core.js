@@ -40,7 +40,7 @@
 
     var PAGE_META_KEYS = {
         home: { title: 'meta.title', description: 'meta.description' },
-        games: { title: 'meta.games_title', description: 'meta.games_description' },
+        demo: { title: 'meta.demo_title', description: 'meta.demo_description' },
         history: { title: 'meta.history_title', description: 'meta.history_description' },
         notFound: { title: 'meta.not_found_title', description: 'meta.not_found_description' },
     };
@@ -1287,11 +1287,6 @@
             }
         }
 
-        var mobileNote = document.getElementById('hero-mobile-note');
-        if (mobileNote) {
-            mobileNote.hidden = !mobile;
-        }
-
         document.querySelectorAll('.download-card').forEach(function markCard(card) {
             var isMatch = card.getAttribute('data-os') === osKey;
             var highlightCard = !mobile && isMatch;
@@ -1606,6 +1601,50 @@
         });
     }
 
+    function initHeroLightbox() {
+        var heroLightbox = document.getElementById('hero-lightbox');
+        var heroZoomBtn = document.getElementById('hero-showcase-zoom-btn');
+        if (!heroLightbox || !heroZoomBtn) {
+            return;
+        }
+        var heroLbBackdrop = document.getElementById('hero-lightbox-backdrop');
+        var heroLbClose = document.getElementById('hero-lightbox-close');
+        var heroLbDownload = document.getElementById('hero-lightbox-download');
+
+        function openHeroLightbox() {
+            heroLightbox.hidden = false;
+            document.body.style.overflow = 'hidden';
+            if (heroLbClose) {
+                heroLbClose.focus();
+            }
+        }
+
+        function closeHeroLightbox() {
+            if (heroLightbox.hidden) {
+                return;
+            }
+            heroLightbox.hidden = true;
+            document.body.style.overflow = '';
+            heroZoomBtn.focus();
+        }
+
+        heroZoomBtn.addEventListener('click', openHeroLightbox);
+        if (heroLbBackdrop) {
+            heroLbBackdrop.addEventListener('click', closeHeroLightbox);
+        }
+        if (heroLbClose) {
+            heroLbClose.addEventListener('click', closeHeroLightbox);
+        }
+        if (heroLbDownload) {
+            heroLbDownload.addEventListener('click', closeHeroLightbox);
+        }
+        document.addEventListener('keydown', function onHeroLbEscape(ev) {
+            if (ev.key === 'Escape') {
+                closeHeroLightbox();
+            }
+        });
+    }
+
     /* ----------------------------------------------------------------------
        Public Core API + Immediate Chrome Initialization
        ---------------------------------------------------------------------- */
@@ -1661,6 +1700,7 @@
         applyOsRecommendation();
         renderLanguageDropdown();
         initFaqAnchors();
+        initHeroLightbox();
         setLanguage(detectInitialLanguage(), { skipSave: true });
         hydrateLiveCommunityStats();
     }

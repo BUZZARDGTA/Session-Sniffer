@@ -1,10 +1,6 @@
 /* ==========================================================================
-   Supported Games & Software Showcase Stylesheet (games.html)
+   Supported Games & Software Showcase Stylesheet (index.html)
    ========================================================================== */
-
-.games-page {
-    padding-top: 34px;
-}
 
 .games-header {
     margin-bottom: 18px;
@@ -743,7 +739,7 @@
 }
 
 .games-table-scroll {
-    max-height: 610px;
+    max-height: 480px;
     overflow: auto;
     border-radius: var(--ss-radius-md);
     border: 1px solid var(--ss-border);
@@ -1680,10 +1676,6 @@
 }
 
 @media (max-width: 680px) {
-    .games-page {
-        padding: 18px 0 44px;
-    }
-
     .games-header {
         margin-bottom: 14px;
     }

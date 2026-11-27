@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Session Sniffer Live Interactive Desktop Preview Controller (index.html)
+   Session Sniffer Live Interactive Desktop Preview Controller (demo.html)
    - Runs 1:1 PySide6 MainWindow simulation + real right-click context menu
    - Handles presets, live ticks, sorting, pagination, merge/split & mobile stage
    ========================================================================== */
@@ -2762,95 +2762,6 @@
                 }
             }, true);
         }
-
-        var heroPreviewCta = document.getElementById('hero-preview-cta');
-        var liveWindow = document.getElementById('ss-live-window');
-        var spotlightTimer = null;
-
-        function jumpToInteractiveDemo(ev) {
-            var targetSection = document.getElementById('preview');
-            if (targetSection) {
-                if (ev) {
-                    ev.preventDefault();
-                }
-                targetSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }
-            if (!liveWindow) {
-                return;
-            }
-            liveWindow.classList.remove('is-spotlight');
-            void liveWindow.offsetWidth;
-            liveWindow.classList.add('is-spotlight');
-            if (spotlightTimer) {
-                window.clearTimeout(spotlightTimer);
-            }
-            spotlightTimer = window.setTimeout(function clearSpotlight() {
-                liveWindow.classList.remove('is-spotlight');
-                spotlightTimer = null;
-            }, 1200);
-        }
-
-        if (heroPreviewCta && liveWindow) {
-            heroPreviewCta.addEventListener('click', jumpToInteractiveDemo);
-        }
-
-        /* Hero Screenshot Full-Size Lightbox */
-        var heroLightbox = document.getElementById('hero-lightbox');
-        var heroZoomBtn = document.getElementById('hero-showcase-zoom-btn');
-        var heroLbBackdrop = document.getElementById('hero-lightbox-backdrop');
-        var heroLbClose = document.getElementById('hero-lightbox-close');
-        var heroLbDemo = document.getElementById('hero-lightbox-demo');
-        var heroLbDownload = document.getElementById('hero-lightbox-download');
-
-        function openHeroLightbox() {
-            if (!heroLightbox) {
-                return;
-            }
-            heroLightbox.hidden = false;
-            document.body.style.overflow = 'hidden';
-            if (heroLbClose) {
-                heroLbClose.focus();
-            }
-        }
-
-        function closeHeroLightbox() {
-            if (!heroLightbox || heroLightbox.hidden) {
-                return;
-            }
-            heroLightbox.hidden = true;
-            if (!previewStageState.fullscreen) {
-                document.body.style.overflow = '';
-            }
-            if (heroZoomBtn) {
-                heroZoomBtn.focus();
-            }
-        }
-
-        if (heroZoomBtn) {
-            heroZoomBtn.addEventListener('click', openHeroLightbox);
-        }
-        if (heroLbBackdrop) {
-            heroLbBackdrop.addEventListener('click', closeHeroLightbox);
-        }
-        if (heroLbClose) {
-            heroLbClose.addEventListener('click', closeHeroLightbox);
-        }
-        if (heroLbDemo) {
-            heroLbDemo.addEventListener('click', function onLbDemoClick(ev) {
-                closeHeroLightbox();
-                jumpToInteractiveDemo(ev);
-            });
-        }
-        if (heroLbDownload) {
-            heroLbDownload.addEventListener('click', function onLbDownloadClick() {
-                closeHeroLightbox();
-            });
-        }
-        document.addEventListener('keydown', function onHeroLbEscape(ev) {
-            if (ev.key === 'Escape') {
-                closeHeroLightbox();
-            }
-        });
 
         /* Touch long-press context menu for mobile browsers (iOS Safari does not fire contextmenu on long-press) */
         [

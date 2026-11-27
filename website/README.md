@@ -4,8 +4,8 @@ Static multi-page website for **Session Sniffer**, synced directly from the desk
 
 ## Pages & Structure
 
-- `index.html` (`/`) — Focused landing page: Hero, 1:1 interactive desktop preview (`preview.css` / `preview.js`), core features, OS-aware downloads, Explore More hub, and FAQ.
-- `games.html` (`/games`) — Supported Games & Software Explorer (`games.css` / `games.js`): cover marquee, searchable/filterable Wiki compatibility table & gallery, detail modal, and Username Resolving guide.
+- `index.html` (`/`) — Focused landing page: Desktop-App Split Hero with screenshot lightbox, core features, Supported Games & Software Explorer (`games.css` / `games.js`) with cover marquee, filterable Wiki table/gallery, detail modal & Username Resolving guide, OS-aware downloads, Explore More hub, and FAQ.
+- `demo.html` (`/demo`) — Dedicated Interactive UI Demo (`preview.css` / `preview.js`): sandboxed 1:1 PySide6 desktop window preview with sample players, game presets, search, sorting, and right-click menus.
 - `history.html` (`/history`) — Project History & Release Archive (`history.css` / `history.js`): 5-era screenshot showcase with lightbox, version-by-version release ledger, and 163-tag Git archive.
 - `404.html` — Custom `noindex` HTTP 404 page (disables Cloudflare Pages' SPA fallback so invalid or removed paths return a real `404 Not Found` instead of a `200 OK` copy of `index.html`).
 - `styles.css`, `core.js`, `theme-init.js` — Shared built-in theme switcher, 33-language i18n/RTL switcher, navigation chrome, toasts, tooltips, and live GitHub/Discord stats.
@@ -28,7 +28,7 @@ Run the sync script whenever you update themes, icons, version, or translations 
 
 ## Preview Locally (Testing)
 
-Run the local HTTP/1.1 preview server from the repository root (mirrors Cloudflare Pages Pretty URLs like `/games`, `/history`, and custom `404.html`):
+Run the local HTTP/1.1 preview server from the repository root (mirrors Cloudflare Pages Pretty URLs like `/demo`, `/history`, and custom `404.html`):
 
 **Windows (PowerShell / CMD):**
 ```powershell
@@ -42,7 +42,7 @@ Run the local HTTP/1.1 preview server from the repository root (mirrors Cloudfla
 
 Then open `http://127.0.0.1:8080/` in your browser (pass `--host 0.0.0.0 --port 8080` if you need LAN access).
 
-> **Why `scripts/serve_website.py` instead of plain `http.server`?** It defaults to `HTTP/1.1` (preventing 64 KB truncation behind local HTTP filters/proxies such as AdGuard), resolves clean canonical routes (`/games` → `games.html`, `/history` → `history.html`), and serves `404.html` with HTTP `404` for unknown paths just like Cloudflare Pages.
+> **Why `scripts/serve_website.py` instead of plain `http.server`?** It defaults to `HTTP/1.1` (preventing 64 KB truncation behind local HTTP filters/proxies such as AdGuard), resolves clean canonical routes (`/demo` → `demo.html`, `/history` → `history.html`), and serves `404.html` with HTTP `404` for unknown paths just like Cloudflare Pages.
 
 ## Deploy Free on Cloudflare Pages
 
