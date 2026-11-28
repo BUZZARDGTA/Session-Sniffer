@@ -690,7 +690,7 @@
 }
 
 .games-p2p-legend {
-    margin: -4px 0 14px;
+    margin: -2px 0 14px;
     padding: 13px 15px;
     border-radius: var(--ss-radius-md);
     border: 1px solid var(--ss-border);
@@ -704,25 +704,25 @@
 .games-p2p-legend-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px 18px;
+    gap: 12px 20px;
 }
 
 .games-p2p-legend-item {
     display: flex;
+    flex-direction: column;
     align-items: flex-start;
-    gap: 10px;
+    gap: 5px;
     min-width: 0;
 }
 
 .games-p2p-legend-item .p2p-badge {
     flex-shrink: 0;
-    margin-top: 1px;
 }
 
 .games-p2p-legend-desc {
     margin: 0;
     font-size: 12.5px;
-    line-height: 1.45;
+    line-height: 1.48;
     color: var(--ss-text-muted);
 }
 
@@ -1943,12 +1943,26 @@
     }
 
     .games-p2p-legend {
-        padding: 11px 12px;
+        padding: 12px 13px;
     }
 
     .games-p2p-legend-grid {
         grid-template-columns: 1fr;
-        gap: 9px;
+        gap: 0;
+    }
+
+    .games-p2p-legend-item {
+        padding: 10px 0;
+        border-bottom: 1px solid rgba(var(--ss-border-rgb), 0.45);
+    }
+
+    .games-p2p-legend-item:first-child {
+        padding-top: 0;
+    }
+
+    .games-p2p-legend-item:last-child {
+        padding-bottom: 0;
+        border-bottom: none;
     }
 
     .games-table thead th,
