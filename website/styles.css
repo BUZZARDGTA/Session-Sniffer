@@ -1225,6 +1225,7 @@ summary:focus-visible {
 
 .hero-stat-item .stat-value {
     font-size: 13.5px;
+    font-variant-numeric: tabular-nums;
 }
 
 .hero-showcase {

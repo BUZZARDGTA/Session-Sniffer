@@ -305,6 +305,8 @@
     var liveStatsState = {
         discordMembers: null,
         totalDownloads: null,
+        downloadsCtrl: null,
+        discordCtrl: null,
     };
 
     window.__ssRegisterLocale = function registerLocale(code, payload) {
@@ -531,13 +533,17 @@
             heroEyebrowLangs.textContent = tSite('hero.eyebrow_langs', { count: DATA.languagesCount });
         }
 
-        if (liveStatsState.discordMembers !== null) {
+        if (liveStatsState.discordCtrl) {
+            liveStatsState.discordCtrl.refreshText();
+        } else if (liveStatsState.discordMembers !== null) {
             var statEl = document.getElementById('stat-discord-members');
             if (statEl) {
                 statEl.textContent = tSite('hero.members_count', { count: formatNumber(liveStatsState.discordMembers) });
             }
         }
-        if (liveStatsState.totalDownloads !== null) {
+        if (liveStatsState.downloadsCtrl) {
+            liveStatsState.downloadsCtrl.refreshText();
+        } else if (liveStatsState.totalDownloads !== null) {
             var dlEl = document.getElementById('stat-total-downloads');
             if (dlEl) {
                 dlEl.textContent = formatNumber(liveStatsState.totalDownloads) + '+';
@@ -1309,7 +1315,138 @@
         });
     }
 
+    function createCountUpController(el, options) {
+        var formatFn = options.format;
+        var fallbackKey = options.fallbackKey;
+        var currentValue = 0;
+        var phase = 'idle';
+        var rafId = null;
+
+        function cancelFrame() {
+            if (rafId !== null && typeof window.cancelAnimationFrame === 'function') {
+                window.cancelAnimationFrame(rafId);
+            }
+            rafId = null;
+        }
+
+        function renderValue(val) {
+            el.textContent = formatFn(Math.max(0, Math.round(val)));
+        }
+
+        function startWarmup(cap, tauSec) {
+            cancelFrame();
+            currentValue = 0;
+            phase = 'warmup';
+            renderValue(0);
+            if (typeof window.requestAnimationFrame !== 'function') {
+                return;
+            }
+            var startTs = null;
+            var tau = Math.max(0.2, Number(tauSec) || 1.4);
+            function step(ts) {
+                if (phase !== 'warmup') {
+                    return;
+                }
+                if (startTs === null) {
+                    startTs = ts;
+                }
+                var elapsedSec = (ts - startTs) / 1000;
+                currentValue = Math.min(cap, Math.floor(cap * (1 - Math.exp(-elapsedSec / tau))));
+                renderValue(currentValue);
+                if (currentValue < cap) {
+                    rafId = window.requestAnimationFrame(step);
+                } else {
+                    rafId = null;
+                }
+            }
+            rafId = window.requestAnimationFrame(step);
+        }
+
+        function animateTo(targetValue, durationMs) {
+            cancelFrame();
+            var finalVal = Math.max(0, Math.round(Number(targetValue) || 0));
+            if (durationMs <= 0 || typeof window.requestAnimationFrame !== 'function') {
+                currentValue = finalVal;
+                phase = 'done';
+                renderValue(finalVal);
+                return;
+            }
+            var startVal = Math.min(currentValue, finalVal);
+            phase = 'counting';
+            var startTs = null;
+            function step(ts) {
+                if (phase !== 'counting') {
+                    return;
+                }
+                if (startTs === null) {
+                    startTs = ts;
+                }
+                var progress = Math.min(1, (ts - startTs) / durationMs);
+                var eased = 1 - Math.pow(1 - progress, 3);
+                currentValue = startVal + (finalVal - startVal) * eased;
+                renderValue(currentValue);
+                if (progress < 1) {
+                    rafId = window.requestAnimationFrame(step);
+                } else {
+                    currentValue = finalVal;
+                    phase = 'done';
+                    rafId = null;
+                    renderValue(finalVal);
+                }
+            }
+            rafId = window.requestAnimationFrame(step);
+        }
+
+        function fail() {
+            cancelFrame();
+            phase = 'failed';
+            el.textContent = tSite(fallbackKey);
+        }
+
+        function refreshText() {
+            if (phase === 'failed') {
+                el.textContent = tSite(fallbackKey);
+                return;
+            }
+            renderValue(currentValue);
+        }
+
+        return {
+            startWarmup: startWarmup,
+            animateTo: animateTo,
+            fail: fail,
+            refreshText: refreshText,
+        };
+    }
+
     function hydrateLiveCommunityStats() {
+        var totalEl = document.getElementById('stat-total-downloads');
+        var discordEl = document.getElementById('stat-discord-members');
+        var downloadsCtrl = null;
+        var discordCtrl = null;
+
+        if (totalEl) {
+            downloadsCtrl = createCountUpController(totalEl, {
+                format: function fmtDownloads(val) {
+                    return formatNumber(val) + '+';
+                },
+                fallbackKey: 'hero.stat_downloads_fallback',
+            });
+            liveStatsState.downloadsCtrl = downloadsCtrl;
+            downloadsCtrl.startWarmup(1200, 1.4);
+        }
+
+        if (discordEl) {
+            discordCtrl = createCountUpController(discordEl, {
+                format: function fmtMembers(val) {
+                    return tSite('hero.members_count', { count: formatNumber(val) });
+                },
+                fallbackKey: 'hero.stat_community_fallback',
+            });
+            liveStatsState.discordCtrl = discordCtrl;
+            discordCtrl.startWarmup(120, 1.4);
+        }
+
         function applyLatestStableRelease(latest) {
             if (!latest || latest.draft || latest.prerelease) {
                 return;
@@ -1413,6 +1550,9 @@
             })
             .then(function applyGitHub(releases) {
                 if (!Array.isArray(releases) || releases.length === 0) {
+                    if (downloadsCtrl) {
+                        downloadsCtrl.fail();
+                    }
                     return;
                 }
                 var totalDownloads = 0;
@@ -1424,10 +1564,13 @@
                     }
                 });
 
-                var totalEl = document.getElementById('stat-total-downloads');
-                if (totalEl && totalDownloads > 0) {
-                    liveStatsState.totalDownloads = totalDownloads;
-                    totalEl.textContent = formatNumber(totalDownloads) + '+';
+                if (downloadsCtrl) {
+                    if (totalDownloads > 0) {
+                        liveStatsState.totalDownloads = totalDownloads;
+                        downloadsCtrl.animateTo(totalDownloads, 1250);
+                    } else {
+                        downloadsCtrl.fail();
+                    }
                 }
 
                 var latest = releases.find(function isStable(r) { return !r.draft && !r.prerelease; });
@@ -1446,12 +1589,14 @@
                     .then(applyLatestStableRelease);
             })
             .catch(function ignoreOffline() {
-                /* Keep synced fallback values when offline or rate-limited. */
+                /* Fall back to localized label when offline or rate-limited. */
+                if (downloadsCtrl) {
+                    downloadsCtrl.fail();
+                }
             });
 
         /* Discord Invite API: live member count (only needed when hero stats tile exists) */
-        var statEl = document.getElementById('stat-discord-members');
-        if (!statEl) {
+        if (!discordCtrl) {
             return;
         }
         window.fetch('https://discord.com/api/v9/invites/hMZ7MsPX7G?with_counts=true')
@@ -1463,14 +1608,15 @@
             })
             .then(function applyDiscord(invite) {
                 if (!invite || typeof invite.approximate_member_count !== 'number') {
+                    discordCtrl.fail();
                     return;
                 }
                 liveStatsState.discordMembers = invite.approximate_member_count;
-                var formatted = formatNumber(invite.approximate_member_count);
-                statEl.textContent = tSite('hero.members_count', { count: formatted });
+                discordCtrl.animateTo(invite.approximate_member_count, 950);
             })
             .catch(function ignoreDiscordErr() {
-                /* Keep fallback label when offline. */
+                /* Fall back to localized label when offline. */
+                discordCtrl.fail();
             });
     }
 
