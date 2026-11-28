@@ -247,6 +247,8 @@ SHARED_APP_MESSAGE_KEYS: Final[tuple[str, ...]] = (
     'No',
     # Right-click context menu (1:1 with tables_context_menu_mixin.py)
     'Copy Selection',
+    'Copy Username',
+    'Copy All ({count})',
     'Copy for Discord',
     'Clear Session Host',
     'Host Diagnostics…',
@@ -259,6 +261,7 @@ SHARED_APP_MESSAGE_KEYS: Final[tuple[str, ...]] = (
     'Looky System',
     'Open Website',
     'View on Website',
+    'Open All ({count})',
     'Request Crawler in My Session',
     'Rescan All Players',
     'Lookup',
@@ -274,13 +277,38 @@ SHARED_APP_MESSAGE_KEYS: Final[tuple[str, ...]] = (
     'UserIP All Databases',
     'UserIP Logging',
     'Sessions Logging',
+    # Session info tooltips & selected-session bar summary (1:1 with _session_info_format.py & _session_table_section.py)
+    'Session #{id}',
+    'Current Session ({label})',
+    'Past Session ({label})',
+    '{session}: {players}',
+    '{connected}, {disconnected}',
+    'Time: Started at {time} ({duration})',
+    'Time: {start} - {end} ({duration})',
+    'Host: {ip}  |  {usernames}',
+    'Host: {ip}',
     # Preview table column header tooltips (1:1 with GUI_COLUMN_HEADERS_TOOLTIPS)
     *(GUI_COLUMN_HEADERS_TOOLTIPS[col] for col in PREVIEW_TABLE_COLUMNS),
     # Built-in theme names (for the website's 6-theme switcher)
     *(theme.name for theme in BUILTIN_THEMES),
 )
 
-SHARED_APP_PLURAL_SINGULAR_KEYS: Final[tuple[str, ...]] = ('Remove Player',)
+SHARED_APP_PLURAL_SINGULAR_KEYS: Final[tuple[str, ...]] = (
+    'Remove Player',
+    '{base} ({count} player selected)',
+    '{base} ({count} player selected · {session})',
+    '{count} player',
+    'Players: {count} player',
+    '{count} connected player',
+    '{count} disconnected player',
+)
+
+SHARED_APP_PLURAL_OTHER_KEYS: Final[tuple[tuple[str, str], ...]] = (
+    ('{count} player', '{count} players'),
+    ('Players: {count} player', 'Players: {count} players'),
+    ('{count} connected player', '{count} connected players'),
+    ('{count} disconnected player', '{count} disconnected players'),
+)
 
 SYNCED_ICONS: Final[tuple[str, ...]] = (
     'activity',
@@ -560,6 +588,14 @@ def _extract_shared_app_strings(lang_code: str) -> dict[str, str]:
             singular = forms.get('one') or forms.get('other')
             if isinstance(singular, str) and singular:
                 extracted[plural_key] = singular.replace('&&', '&')
+
+    for plural_key, other_export_key in SHARED_APP_PLURAL_OTHER_KEYS:
+        forms_raw = plurals.get(plural_key)
+        if isinstance(forms_raw, dict):
+            forms = cast('dict[str, object]', forms_raw)
+            other_form = forms.get('other') or forms.get('many') or forms.get('one')
+            if isinstance(other_form, str) and other_form:
+                extracted[other_export_key] = other_form.replace('&&', '&')
 
     return extracted
 

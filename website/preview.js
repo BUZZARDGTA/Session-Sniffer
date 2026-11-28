@@ -83,6 +83,7 @@
             connected: [
                 {
                     id: 'gta-1',
+                    sessionId: 2,
                     username: 'NovaDrift_99',
                     note: 'Crew',
                     source: 'userip',
@@ -112,6 +113,7 @@
                 },
                 {
                     id: 'gta-2',
+                    sessionId: 2,
                     username: 'Kestrel_FR',
                     note: '',
                     source: 'looky',
@@ -141,6 +143,7 @@
                 },
                 {
                     id: 'gta-3',
+                    sessionId: 2,
                     username: 'Valkyrie_DE',
                     note: 'Friend',
                     source: 'userip',
@@ -170,6 +173,7 @@
                 },
                 {
                     id: 'gta-4',
+                    sessionId: 2,
                     username: 'ShadowByte_UK',
                     note: '',
                     source: 'looky',
@@ -199,6 +203,7 @@
                 },
                 {
                     id: 'gta-5',
+                    sessionId: 2,
                     username: 'AkiraZero',
                     note: '',
                     source: 'default',
@@ -228,6 +233,7 @@
                 },
                 {
                     id: 'gta-6',
+                    sessionId: 2,
                     username: '',
                     note: '',
                     source: 'default',
@@ -257,6 +263,7 @@
                 },
                 {
                     id: 'gta-7',
+                    sessionId: 2,
                     username: 'TulipDrift_NL',
                     note: '',
                     source: 'default',
@@ -288,7 +295,8 @@
             disconnected: [
                 {
                     id: 'gta-d1',
-                    username: 'Riptide_BR',
+                    sessionId: 2,
+                    username: 'Riptide_BR, RiptideAlt',
                     note: '',
                     source: 'looky',
                     isServer: false,
@@ -315,6 +323,7 @@
                 },
                 {
                     id: 'gta-d2',
+                    sessionId: 2,
                     username: '',
                     note: '',
                     source: 'default',
@@ -342,6 +351,7 @@
                 },
                 {
                     id: 'gta-d3',
+                    sessionId: 1,
                     username: 'FrostByte_CA',
                     note: 'Saved',
                     source: 'userip',
@@ -352,7 +362,7 @@
                     totalSessionSec: 1105,
                     sessionSec: 1105,
                     rejoins: 0,
-                    pastSession: false,
+                    pastSession: true,
                     ip: '203.0.113.112',
                     hostname: 'bas1-toronto.dsl.bell.ca',
                     packets: 34200,
@@ -369,6 +379,7 @@
                 },
                 {
                     id: 'gta-d4',
+                    sessionId: 1,
                     username: 'NordicPulse',
                     note: '',
                     source: 'default',
@@ -379,7 +390,7 @@
                     totalSessionSec: 430,
                     sessionSec: 430,
                     rejoins: 1,
-                    pastSession: false,
+                    pastSession: true,
                     ip: '192.0.2.214',
                     hostname: 'h-192-0-2-214.a146.priv.bahnhof.se',
                     packets: 9810,
@@ -804,6 +815,126 @@
 
     function getDisplayHostname(player) {
         return player.hostname || player.ip;
+    }
+
+    function tAppPlural(singularKey, pluralKey, count, vars) {
+        var params = Object.assign({ count: count }, vars || {});
+        return tApp(count === 1 ? singularKey : pluralKey, params);
+    }
+
+    function getPlayerUsernames(player) {
+        if (!player || !player.username) {
+            return [];
+        }
+        return String(player.username)
+            .split(',')
+            .map(function trimName(part) { return part.trim(); })
+            .filter(Boolean);
+    }
+
+    function getCurrentSessionId() {
+        return simState.presetKey === 'gta5' ? 2 : 1;
+    }
+
+    function getSessionPlayerCounts(sessionId) {
+        var targetId = sessionId || getCurrentSessionId();
+        var connectedCount = 0;
+        var disconnectedCount = 0;
+        simState.connected.forEach(function countConn(p) {
+            if (!p.isServer && (p.sessionId || getCurrentSessionId()) === targetId) {
+                connectedCount += 1;
+            }
+        });
+        simState.disconnected.forEach(function countDisc(p) {
+            if (!p.isServer && (p.sessionId || getCurrentSessionId()) === targetId) {
+                disconnectedCount += 1;
+            }
+        });
+        return {
+            total: connectedCount + disconnectedCount,
+            connected: connectedCount,
+            disconnected: disconnectedCount,
+        };
+    }
+
+    function formatSessionBarSummary(sessionId) {
+        var targetId = sessionId || getCurrentSessionId();
+        var counts = getSessionPlayerCounts(targetId);
+        return tApp('{session}: {players}', {
+            session: tApp('Session #{id}', { id: targetId }),
+            players: tAppPlural('{count} player', '{count} players', counts.total),
+        });
+    }
+
+    function buildSessionTooltipText(sessionId) {
+        var targetId = sessionId || getCurrentSessionId();
+        var currentId = getCurrentSessionId();
+        var isCurrent = targetId === currentId;
+        var sessionLabel = tApp('Session #{id}', { id: targetId });
+        var counts = getSessionPlayerCounts(targetId);
+
+        var lines = [
+            tApp(isCurrent ? 'Current Session ({label})' : 'Past Session ({label})', { label: sessionLabel }),
+        ];
+
+        var playersLine = tAppPlural('Players: {count} player', 'Players: {count} players', counts.total);
+        if (isCurrent) {
+            var breakdown = tApp('{connected}, {disconnected}', {
+                connected: tAppPlural('{count} connected player', '{count} connected players', counts.connected),
+                disconnected: tAppPlural('{count} disconnected player', '{count} disconnected players', counts.disconnected),
+            });
+            lines.push(playersLine + ' (' + breakdown + ')');
+            lines.push(tApp('Time: Started at {time} ({duration})', {
+                time: '14:05:12',
+                duration: formatDuration(simState.uptimeSeconds),
+            }));
+        } else {
+            lines.push(playersLine);
+            lines.push(tApp('Time: {start} - {end} ({duration})', {
+                start: '13:42:08',
+                end: '14:04:55',
+                duration: formatDuration(1367),
+            }));
+        }
+
+        if (simState.presetKey === 'gta5' || simState.presetKey === 'rdr2') {
+            var hostPlayer = null;
+            if (isCurrent) {
+                for (var i = 0; i < simState.connected.length; i += 1) {
+                    if (simState.connected[i].isHost) {
+                        hostPlayer = simState.connected[i];
+                        break;
+                    }
+                }
+            } else {
+                for (var j = 0; j < simState.disconnected.length; j += 1) {
+                    if ((simState.disconnected[j].sessionId || currentId) === targetId && !simState.disconnected[j].isServer) {
+                        hostPlayer = simState.disconnected[j];
+                        break;
+                    }
+                }
+            }
+            if (hostPlayer) {
+                var hostNames = getPlayerUsernames(hostPlayer).join(', ');
+                lines.push(
+                    hostNames
+                        ? tApp('Host: {ip}  |  {usernames}', { ip: hostPlayer.ip, usernames: hostNames })
+                        : tApp('Host: {ip}', { ip: hostPlayer.ip }),
+                );
+            }
+        }
+
+        return lines.join('\n');
+    }
+
+    function applyRowSessionTooltip(tr, sessionTooltip) {
+        if (!sessionTooltip) {
+            return;
+        }
+        tr.querySelectorAll('td').forEach(function attachTip(td) {
+            var existing = td.title ? td.title.trim() : '';
+            td.title = existing && existing !== sessionTooltip ? existing + '\n\n' + sessionTooltip : sessionTooltip;
+        });
     }
 
     function matchesSearch(player) {
@@ -1268,11 +1399,30 @@
         var openLeft = isRtl ? clickX >= flipThreshold : clickX > boundsW - flipThreshold;
         var hasGameHostTools = simState.presetKey === 'gta5' || simState.presetKey === 'rdr2';
 
-        /* Copy Selection & Copy for Discord */
+        /* Copy Selection, Copy Username & Copy for Discord */
+        var playerUsernames = getPlayerUsernames(player);
         menu.appendChild(createCtxItem('copy', tApp('Copy Selection'), function copyCell() {
             var val = (clickedCellText || player.ip).trim();
             copyToClipboard(val, tSite('preview.toast_copied') + ': ' + val);
         }, { shortcut: 'Ctrl+C' }));
+
+        if (playerUsernames.length === 1) {
+            menu.appendChild(createCtxItem('copy', tApp('Copy Username'), function copySingleUsername() {
+                copyToClipboard(playerUsernames[0], tSite('preview.toast_copied') + ': ' + playerUsernames[0]);
+            }));
+        } else if (playerUsernames.length > 1) {
+            var copyNameItems = playerUsernames.map(function buildCopyNameItem(name) {
+                return createCtxItem('copy', name, function copyOneName() {
+                    copyToClipboard(name, tSite('preview.toast_copied') + ': ' + name);
+                });
+            });
+            copyNameItems.push(createCtxSeparator());
+            copyNameItems.push(createCtxItem('copy', tApp('Copy All ({count})', { count: playerUsernames.length }), function copyAllNames() {
+                var joinedNames = playerUsernames.join(', ');
+                copyToClipboard(joinedNames, tSite('preview.toast_copied') + ': ' + joinedNames);
+            }));
+            menu.appendChild(createCtxSubmenu('copy', tApp('Copy Username'), copyNameItems, openLeft));
+        }
 
         menu.appendChild(createCtxItem('copy', tApp('Copy for Discord'), function copyDiscord() {
             var report = '**' + displayName + '** · `' + player.ip + '` · ' + player.country + ' · ' + player.isp;
@@ -1350,10 +1500,23 @@
                     window.open('https://looky-gta.cc', '_blank', 'noopener,noreferrer');
                 }),
             ];
-            if (player.source === 'looky') {
-                lookyItems.push(createCtxItem('globe', tApp('View on Website'), function openLookyProfile() {
-                    showDemoFeatureToast(tApp('View on Website'));
-                }));
+            if (player.source === 'looky' || playerUsernames.length > 0) {
+                if (playerUsernames.length > 1) {
+                    var profileSubItems = playerUsernames.map(function buildProfileItem(name) {
+                        return createCtxItem('globe', name, function openNamedProfile() {
+                            showDemoFeatureToast(tApp('View on Website'));
+                        });
+                    });
+                    profileSubItems.push(createCtxSeparator());
+                    profileSubItems.push(createCtxItem('globe', tApp('Open All ({count})', { count: playerUsernames.length }), function openAllProfiles() {
+                        showDemoFeatureToast(tApp('View on Website'));
+                    }));
+                    lookyItems.push(createCtxSubmenu('globe', tApp('View on Website'), profileSubItems, openLeft));
+                } else {
+                    lookyItems.push(createCtxItem('globe', tApp('View on Website'), function openLookyProfile() {
+                        showDemoFeatureToast(tApp('View on Website'));
+                    }));
+                }
             }
             lookyItems.push(createCtxSeparator());
             lookyItems.push(createCtxItem('user-round', tApp('Lookup'), function runLookyLookup() {
@@ -1503,6 +1666,10 @@
         tr.appendChild(makeTextCell(tApp(player.hosting ? 'Yes' : 'No')));
         tr.appendChild(makeTextCell(tApp(!isDisconnected && player.pinging ? 'Yes' : 'No')));
 
+        if (simState.merged) {
+            applyRowSessionTooltip(tr, buildSessionTooltipText(player.sessionId || getCurrentSessionId()));
+        }
+
         tr.addEventListener('click', function onRowClick() {
             simState.selectedId = simState.selectedId === player.id ? null : player.id;
             renderPreviewTables();
@@ -1563,6 +1730,8 @@
         tr.appendChild(makeTextCell(tApp(player.vpn ? 'Yes' : 'No'), player.vpn ? 'vpn-yes' : ''));
         tr.appendChild(makeTextCell(tApp(player.hosting ? 'Yes' : 'No')));
         tr.appendChild(makeTextCell(tApp('No')));
+
+        applyRowSessionTooltip(tr, buildSessionTooltipText(player.sessionId || getCurrentSessionId()));
 
         tr.addEventListener('click', function onRowClick() {
             simState.selectedId = simState.selectedId === player.id ? null : player.id;
@@ -2067,8 +2236,30 @@
         connectedBody.innerHTML = '';
         if (simState.merged) {
             var mergedTotal = filteredConnected.length + filteredDisconnected.length;
+            var selectedMergedPlayer = null;
+            if (simState.selectedId) {
+                var mergedPool = filteredConnected.concat(filteredDisconnected);
+                for (var mi = 0; mi < mergedPool.length; mi += 1) {
+                    if (mergedPool[mi].id === simState.selectedId) {
+                        selectedMergedPlayer = mergedPool[mi];
+                        break;
+                    }
+                }
+            }
             if (connectedTitle) {
-                connectedTitle.textContent = tApp('Players ({count})', { count: mergedTotal });
+                var mergedBase = tApp('Players ({count})', { count: mergedTotal });
+                if (selectedMergedPlayer) {
+                    var mergedSessionId = selectedMergedPlayer.sessionId || getCurrentSessionId();
+                    connectedTitle.textContent = tApp('{base} ({count} player selected · {session})', {
+                        base: mergedBase,
+                        count: 1,
+                        session: formatSessionBarSummary(mergedSessionId),
+                    });
+                    connectedTitle.title = buildSessionTooltipText(mergedSessionId);
+                } else {
+                    connectedTitle.textContent = mergedBase;
+                    connectedTitle.title = '';
+                }
             }
             simState.connectedPage = updateSpinboxControls('connected', mergedTotal, simState.connectedRowLimit, simState.connectedPage);
             var mergedPairs = [];
@@ -2092,11 +2283,46 @@
             return;
         }
 
+        var selectedConnectedPlayer = null;
+        var selectedDisconnectedPlayer = null;
+        if (simState.selectedId) {
+            for (var ci = 0; ci < filteredConnected.length; ci += 1) {
+                if (filteredConnected[ci].id === simState.selectedId) {
+                    selectedConnectedPlayer = filteredConnected[ci];
+                    break;
+                }
+            }
+            if (!selectedConnectedPlayer) {
+                for (var di = 0; di < filteredDisconnected.length; di += 1) {
+                    if (filteredDisconnected[di].id === simState.selectedId) {
+                        selectedDisconnectedPlayer = filteredDisconnected[di];
+                        break;
+                    }
+                }
+            }
+        }
+
         if (connectedTitle) {
-            connectedTitle.textContent = tApp('Connected Players ({count})', { count: filteredConnected.length });
+            var connectedBase = tApp('Connected Players ({count})', { count: filteredConnected.length });
+            connectedTitle.textContent = selectedConnectedPlayer
+                ? tApp('{base} ({count} player selected)', { base: connectedBase, count: 1 })
+                : connectedBase;
+            connectedTitle.title = '';
         }
         if (disconnectedTitle) {
-            disconnectedTitle.textContent = tApp('Disconnected Players ({count})', { count: filteredDisconnected.length });
+            var disconnectedBase = tApp('Disconnected Players ({count})', { count: filteredDisconnected.length });
+            if (selectedDisconnectedPlayer) {
+                var selectedSessionId = selectedDisconnectedPlayer.sessionId || getCurrentSessionId();
+                disconnectedTitle.textContent = tApp('{base} ({count} player selected · {session})', {
+                    base: disconnectedBase,
+                    count: 1,
+                    session: formatSessionBarSummary(selectedSessionId),
+                });
+                disconnectedTitle.title = buildSessionTooltipText(selectedSessionId);
+            } else {
+                disconnectedTitle.textContent = disconnectedBase;
+                disconnectedTitle.title = '';
+            }
         }
 
         var sortedConnected = filteredConnected
