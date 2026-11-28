@@ -29,6 +29,7 @@ from session_sniffer.guis.tables_player_actions import (
 from session_sniffer.guis.tables_userip_menu import add_action, add_menu, build_userip_menu, build_userip_menu_multi
 from session_sniffer.guis.tables_userip_mixin import resolve_usernames_for_player
 from session_sniffer.guis.theming import ICONS_DIR_PATH
+from session_sniffer.guis.utils import set_clipboard_text
 from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.networking.ip_range import check_ip_against_ranges
 from session_sniffer.networking.isp_filter import get_player_primary_isp, is_player_isp_filtered
@@ -117,6 +118,78 @@ class TableContextMenuMixin(QTableView):
 
         def remove_blocked_players_from_tables() -> None:
             remove_matching_players_from_tables(lambda player: check_ip_against_ranges(player.ip, Settings.blocked_ip_ranges) is not None)
+
+        def add_copy_username_action(players: list[Player]) -> None:
+            if not players:
+                return
+
+            copy_icon = QIcon(str(ICONS_DIR_PATH / 'copy.svg'))
+
+            def _make_copy_handler(text: str) -> Callable[[], None]:
+                def _copy() -> None:
+                    set_clipboard_text(text)
+
+                return _copy
+
+            if len(players) == 1:
+                usernames = resolve_usernames_for_player(players[0], include_relay_mod_menus=True)
+                if not usernames:
+                    return
+                if len(usernames) == 1:
+                    single_username = usernames[0]
+                    add_action(
+                        context_menu,
+                        tr('Copy Username'),
+                        tooltip=tr('Copy "{username}" to your clipboard.', username=single_username),
+                        handler=_make_copy_handler(single_username),
+                        icon=copy_icon,
+                    )
+                    return
+
+                copy_username_menu = add_menu(
+                    context_menu,
+                    tr('Copy Username'),
+                    tr('Copy a single username for this player to your clipboard.'),
+                    icon=copy_icon,
+                )
+                for username in usernames:
+                    add_action(
+                        copy_username_menu,
+                        username,
+                        tooltip=tr('Copy "{username}" to your clipboard.', username=username),
+                        handler=_make_copy_handler(username),
+                        icon=copy_icon,
+                    )
+                copy_username_menu.addSeparator()
+                add_action(
+                    copy_username_menu,
+                    tr('Copy All ({count})', count=len(usernames)),
+                    tooltip=tr('Copy all {count} usernames for this player to your clipboard.', count=len(usernames)),
+                    handler=_make_copy_handler(', '.join(usernames)),
+                    icon=copy_icon,
+                )
+                return
+
+            all_usernames = dedup_preserve_order(*(resolve_usernames_for_player(player, include_relay_mod_menus=True) for player in players))
+            if not all_usernames:
+                return
+            if len(all_usernames) == 1:
+                single_username = all_usernames[0]
+                add_action(
+                    context_menu,
+                    tr('Copy Username'),
+                    tooltip=tr('Copy "{username}" to your clipboard.', username=single_username),
+                    handler=_make_copy_handler(single_username),
+                    icon=copy_icon,
+                )
+                return
+            add_action(
+                context_menu,
+                tr('Copy Usernames ({count})', count=len(all_usernames)),
+                tooltip=tr('Copy all {count} usernames from the selected players to your clipboard.', count=len(all_usernames)),
+                handler=_make_copy_handler('\n'.join(all_usernames)),
+                icon=copy_icon,
+            )
 
         def add_copy_for_discord_action(players: list[Player]) -> None:
             if not players:
@@ -678,6 +751,7 @@ class TableContextMenuMixin(QTableView):
             icon=QIcon(str(ICONS_DIR_PATH / 'copy.svg')),
         )
         copy_selection_action.setShortcut('Ctrl+C')
+        add_copy_username_action(selected_players)
         add_copy_for_discord_action(selected_players)
         context_menu.addSeparator()
 
