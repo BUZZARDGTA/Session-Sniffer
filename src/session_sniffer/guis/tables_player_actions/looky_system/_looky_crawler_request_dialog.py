@@ -61,6 +61,7 @@ from session_sniffer.networking.looky_system import (
     send_proxy_join_instruction,
     watch_instruction_status,
 )
+from session_sniffer.player.looky_rids import resolve_player_rockstar_ids
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings.settings import Settings
 
@@ -804,10 +805,8 @@ def _show_player_instruction_request(
     if api_key is None:
         return
 
-    with player.looky_system.lock:
-        rockstarids = list(player.looky_system.rockstarids)
-        entry_names = list(player.looky_system.entry_names)
-    if not rockstarids:
+    entries = resolve_player_rockstar_ids(player)
+    if not entries:
         QMessageBox.warning(
             parent,
             get_looky_title(),
@@ -815,10 +814,9 @@ def _show_player_instruction_request(
         )
         return
 
-    entries = [(entry_names[i] if i < len(entry_names) else '', rid) for i, rid in enumerate(rockstarids)]
     rid = (
-        rockstarids[0]
-        if len(rockstarids) == 1
+        entries[0][1]
+        if len(entries) == 1
         else _RIDPickerDialog.pick_rid(parent, entries, title_prefix=spec.title_prefix, select_prompt=spec.select_prompt)
     )
     if rid is None:

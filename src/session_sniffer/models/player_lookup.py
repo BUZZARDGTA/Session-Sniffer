@@ -248,6 +248,7 @@ class PlayerLooky:
 
     is_initialized: bool = False
     needs_refresh: bool = False
+    empty_retry_done: bool = False
     as_userip_checked: bool = False
     last_fetched_at: float = 0.0
     raw_results: list[LookyPlayer] = dataclasses.field(default_factory=_empty_looky_players)
@@ -292,6 +293,8 @@ class PlayerLooky:
             self.rockstarids = [entry.rockstarid for entry in filtered_results]
             self.last_seens = [entry.last_seen for entry in filtered_results]
             self.needs_refresh = False
+            if unique_results:
+                self.empty_retry_done = False
             self.last_fetched_at = time.monotonic()
             self.is_initialized = True
         return filtered_results

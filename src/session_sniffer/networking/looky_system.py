@@ -221,22 +221,13 @@ def get_cached_looky_usernames() -> list[str]:
     """Return all non-empty usernames currently held in the in-memory Looky lookup caches."""
     names: list[str] = []
     with _CACHE_LOCK:
-        names.extend(
-            stripped
-            for _, players in _IP_PLAYERS_CACHE.values()
-            for player in players
-            if (stripped := player.name.strip())
-        )
+        names.extend(stripped for _, players in _IP_PLAYERS_CACHE.values() for player in players if (stripped := player.name.strip()))
         for _, profile in _PROFILE_BY_RID_CACHE.values():
             if profile is None:
                 continue
             if last_name := profile.last_name.strip():
                 names.append(last_name)
-            names.extend(
-                sighting_name
-                for sighting in profile.users_by_rockstar_id
-                if (sighting_name := sighting.name.strip())
-            )
+            names.extend(sighting_name for sighting in profile.users_by_rockstar_id if (sighting_name := sighting.name.strip()))
     return names
 
 
@@ -249,6 +240,15 @@ def _get_cached_rid_for_username(name_cf: str, now: float) -> tuple[bool, int | 
         return True, cached_rid
     del _RID_BY_USERNAME_CF_CACHE[name_cf]
     return False, None
+
+
+def get_cached_rid_for_username(username: str) -> int | None:
+    """Return the cached Rockstar ID for *username* if present and unexpired, without making any network requests."""
+    if not (stripped := username.strip()):
+        return None
+    with _CACHE_LOCK:
+        is_cached, cached_rid = _get_cached_rid_for_username(stripped.casefold(), time.monotonic())
+    return cached_rid if is_cached and cached_rid is not None and cached_rid > 0 else None
 
 
 def lookup_ip(ip: str, api_key: str, version: str = 'both') -> list[LookyPlayer]:
@@ -265,11 +265,7 @@ def lookup_ip(ip: str, api_key: str, version: str = 'both') -> list[LookyPlayer]
 
 def _sort_looky_players(players: list[LookyPlayer]) -> list[LookyPlayer]:
     """Sort Looky players from most recent to oldest by `last_seen`."""
-    return sorted(
-        players,
-        key=lambda player: player.last_seen.astimezone(UTC) if player.last_seen.tzinfo is not None else player.last_seen.replace(tzinfo=UTC),
-        reverse=True,
-    )
+    return sorted(players, key=lambda p: p.last_seen.astimezone(UTC) if p.last_seen.tzinfo is not None else p.last_seen.replace(tzinfo=UTC), reverse=True)
 
 
 def lookup_ip_batch(ip_addresses: list[str], api_key: str, version: str = 'both') -> dict[str, list[LookyPlayer]]:
@@ -970,10 +966,8 @@ def watch_instruction_status(
                     response.raise_for_status()
                     for raw_line in response.iter_lines():
                         check_cancel()
-                        if not raw_line:
-                            continue
                         line = raw_line.decode('utf-8') if isinstance(raw_line, bytes) else raw_line
-                        if not line.startswith('data: '):
+                        if not line or not line.startswith('data: '):
                             continue
                         event = LookyInstructionStatusEvent.model_validate_json(line[6:])
                         yield event.data.status, event.data.result

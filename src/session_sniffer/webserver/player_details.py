@@ -24,6 +24,7 @@ from session_sniffer.guis.utils import format_duration
 from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.models.player_traffic import PlayerBandwidth
 from session_sniffer.networking.looky_system import get_looky_user_url
+from session_sniffer.player.looky_rids import resolve_player_rockstar_ids
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.player.seen_stats import SEEN_STATS_LABELS, analyze_sessions_logging
 from session_sniffer.player.session_host import SessionHost
@@ -46,15 +47,13 @@ def _extract_looky_profiles(player: Player) -> list[dict[str, str]]:
     """Extract already-resolved Looky profile links for *player* without performing any network requests."""
     if not _is_looky_context_allowed(player):
         return []
-    with player.looky_system.lock:
-        rockstar_ids = list(player.looky_system.rockstarids)
-        entry_names = list(player.looky_system.entry_names)
-    profiles: list[dict[str, str]] = []
-    for i, rockstar_id in enumerate(rockstar_ids):
-        user_name = entry_names[i] if i < len(entry_names) else ''
-        label = f'{user_name} ({rockstar_id})' if user_name else str(rockstar_id)
-        profiles.append({'label': label, 'url': get_looky_user_url(rockstar_id)})
-    return profiles
+    return [
+        {
+            'label': f'{user_name} ({rockstar_id})' if user_name else str(rockstar_id),
+            'url': get_looky_user_url(rockstar_id),
+        }
+        for user_name, rockstar_id in resolve_player_rockstar_ids(player)
+    ]
 
 
 def _is_player_looky_resolved(player: Player) -> bool:

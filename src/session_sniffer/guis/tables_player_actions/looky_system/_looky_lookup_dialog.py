@@ -34,6 +34,7 @@ from session_sniffer.guis.tables_player_actions.looky_system._looky_crawler_requ
 )
 from session_sniffer.guis.tables_player_actions.looky_system._looky_helpers import (
     check_looky_prerequisites,
+    close_all_rid_lookup_workers,
     format_looky_request_error,
     sync_player_looky_usernames_and_userip,
 )
@@ -230,6 +231,7 @@ def close_all_lookup_dialogs() -> None:
     for worker in list(_active_lookup_workers):
         worker.cancel()
     _active_lookup_workers.clear()
+    close_all_rid_lookup_workers()
 
 
 def show_looky_lookup(parent: QWidget, player: Player | StandaloneIPLookup) -> None:

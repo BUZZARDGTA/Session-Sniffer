@@ -397,7 +397,14 @@ class SessionTableModel(QAbstractTableModel):
                 snapshot_player = SessionTracker.get_session_snapshot_player(selected_session, ip)
                 if snapshot_player is not None:
                     return snapshot_player
-        return PlayersRegistry.get_player_by_ip(ip)
+        live_player = PlayersRegistry.get_player_by_ip(ip)
+        if live_player is not None:
+            return live_player
+        if not self.view.is_connected_table or TableMergeState.is_merged():
+            for snapshot_player in reversed(SessionTracker.get_all_snapshot_players()):
+                if snapshot_player.ip == ip:
+                    return snapshot_player
+        return None
 
     def _is_row_session_host(self, ip: str) -> bool:
         """Return True if *ip* should be badged as session host in the current table view."""

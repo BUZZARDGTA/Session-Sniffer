@@ -4,18 +4,17 @@ import sys
 from datetime import datetime
 from typing import TYPE_CHECKING, cast
 
-from PySide6.QtCore import QItemSelectionModel, QUrl
-from PySide6.QtGui import QAction, QDesktopServices, QIcon
+from PySide6.QtCore import QItemSelectionModel
+from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QInputDialog, QMenu, QTableView
 
 from session_sniffer.constants.local import BUILTIN_SCRIPTS_DIR_PATH, USER_SCRIPTS_DIR_PATH
-from session_sniffer.constants.standalone import LOOKY_BASE_HOST
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.error_messages import ensure_instance
-from session_sniffer.guis.looky_text import configure_looky_action, get_looky_restriction
 from session_sniffer.guis.session_host_diagnostics_dialog import show_session_host_diagnostics_dialog
 from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables_detections_mixin import build_detections_menu, build_detections_menu_multi
+from session_sniffer.guis.tables_looky_menu import build_looky_system_menu
 from session_sniffer.guis.tables_player_actions import (
     block_ip_as_range,
     copy_player_info_for_discord,
@@ -23,17 +22,9 @@ from session_sniffer.guis.tables_player_actions import (
     create_ping_menu,
     filter_player_isp,
     scan_ports_ip,
-    show_crawler_request,
     show_detailed_ip_lookup,
-    show_looky_lookup,
     show_player_joins,
-    show_proxy_join_request,
     show_seen_stats,
-)
-from session_sniffer.guis.tables_player_actions._userip_dialog import (
-    get_player_looky_username_lists,
-    looky_remove_usernames_for_player,
-    looky_restore_usernames_for_player,
 )
 from session_sniffer.guis.tables_userip_menu import add_action, add_menu, build_userip_menu, build_userip_menu_multi
 from session_sniffer.guis.tables_userip_mixin import resolve_usernames_for_player
@@ -41,7 +32,6 @@ from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.networking.ip_range import check_ip_against_ranges
 from session_sniffer.networking.isp_filter import get_player_primary_isp, is_player_isp_filtered
-from session_sniffer.networking.looky_system import get_looky_user_url
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.player.session_host import HostDiagnosticsSnapshot, SessionHost
 from session_sniffer.rendering_core.types import CaptureState
@@ -402,186 +392,7 @@ class TableContextMenuMixin(QTableView):
             )
 
         def add_looky_system_menu(parent_menu: QMenu, players: list[Player]) -> None:
-            if not Settings.is_gta5_feature_set() or not CaptureState.is_local_capture() or not players or any(player.is_third_party_server for player in players):
-                return
-
-            def _apply_looky_gating(action: QAction) -> None:
-                configure_looky_action(
-                    action,
-                    default_tooltip=action.toolTip(),
-                    restriction=get_looky_restriction(players),
-                )
-
-            looky_menu = add_menu(
-                parent_menu,
-                tr('Looky System'),
-                tr('Looky System tools and shortcuts.'),
-                icon=QIcon(str(ICONS_DIR_PATH / 'scan-eye.svg')),
-            )
-
-            def _open_looky_website() -> None:
-                QDesktopServices.openUrl(QUrl(LOOKY_BASE_HOST))
-
-            add_action(
-                looky_menu,
-                tr('Open Website'),
-                tooltip=tr('Open the Looky System website in your default browser.'),
-                handler=_open_looky_website,
-                icon=QIcon(str(ICONS_DIR_PATH / 'globe.svg')),
-            )
-
-            if len(players) == 1:
-                if players[0].looky_system.rockstarids:
-                    rockstar_ids = players[0].looky_system.rockstarids
-                    entry_names = players[0].looky_system.entry_names
-                    if len(rockstar_ids) == 1:
-                        target_rockstar_id = rockstar_ids[0]
-                        target_name = entry_names[0] if entry_names else str(target_rockstar_id)
-                        profile_url = get_looky_user_url(target_rockstar_id)
-
-                        def _open_single_profile() -> None:
-                            QDesktopServices.openUrl(QUrl(profile_url))
-
-                        add_action(
-                            looky_menu,
-                            tr('View on Website'),
-                            tooltip=tr("Open {name}'s profile on the Looky System website ({url}).", name=target_name, url=profile_url),
-                            handler=_open_single_profile,
-                            icon=QIcon(str(ICONS_DIR_PATH / 'globe.svg')),
-                        )
-                    else:
-                        view_website_menu = add_menu(
-                            looky_menu,
-                            tr('View on Website'),
-                            tr("Open this player's profile on the Looky System website."),
-                            icon=QIcon(str(ICONS_DIR_PATH / 'globe.svg')),
-                        )
-
-                        def _make_profile_opener(url: str) -> Callable[[], None]:
-                            def _open() -> None:
-                                QDesktopServices.openUrl(QUrl(url))
-
-                            return _open
-
-                        all_profile_urls: list[str] = []
-                        for i, target_rockstar_id in enumerate(rockstar_ids):
-                            user_name = entry_names[i] if i < len(entry_names) else ''
-                            label = f'{user_name} ({target_rockstar_id})' if user_name else str(target_rockstar_id)
-                            target_name = user_name or str(target_rockstar_id)
-                            profile_url = get_looky_user_url(target_rockstar_id)
-                            all_profile_urls.append(profile_url)
-                            add_action(
-                                view_website_menu,
-                                label,
-                                tooltip=tr("Open {name}'s profile on the Looky System website ({url}).", name=target_name, url=profile_url),
-                                handler=_make_profile_opener(profile_url),
-                                icon=QIcon(str(ICONS_DIR_PATH / 'globe.svg')),
-                            )
-                        view_website_menu.addSeparator()
-
-                        def _open_all_player_profiles() -> None:
-                            for profile_url in all_profile_urls:
-                                QDesktopServices.openUrl(QUrl(profile_url))
-
-                        add_action(
-                            view_website_menu,
-                            tr('Open All ({count})', count=len(rockstar_ids)),
-                            tooltip=tr('Open all {count} player profiles on the Looky System website.', count=len(rockstar_ids)),
-                            handler=_open_all_player_profiles,
-                            icon=QIcon(str(ICONS_DIR_PATH / 'globe.svg')),
-                        )
-
-                looky_menu.addSeparator()
-
-                lookup_action = add_action(
-                    looky_menu,
-                    tr('Lookup'),
-                    tooltip=tr('Query the Looky System API to find players associated with this IP.'),
-                    handler=lambda: show_looky_lookup(self, players[0]),
-                    icon=QIcon(str(ICONS_DIR_PATH / 'user-round.svg')),
-                )
-                _apply_looky_gating(lookup_action)
-
-                if players[0].looky_system.rockstarids:
-                    crawler_action = add_action(
-                        looky_menu,
-                        tr('Call Crawler'),
-                        tooltip=tr('Call the crawler bot to resolve usernames for players in the session associated with this IP.'),
-                        handler=lambda: show_crawler_request(self, players[0]),
-                        icon=QIcon(str(ICONS_DIR_PATH / 'bot.svg')),
-                    )
-                    _apply_looky_gating(crawler_action)
-
-                    proxy_join_action = add_action(
-                        looky_menu,
-                        tr('Proxy Join'),
-                        tooltip=tr("Call the Looky System proxy bot to join this player's session."),
-                        handler=lambda: show_proxy_join_request(self, players[0]),
-                        icon=QIcon(str(ICONS_DIR_PATH / 'user-plus.svg')),
-                    )
-                    _apply_looky_gating(proxy_join_action)
-
-                target_player = players[0]
-                active_looky_names, removed_looky_names = get_player_looky_username_lists(target_player)
-                if active_looky_names or removed_looky_names:
-                    looky_menu.addSeparator()
-                if active_looky_names:
-                    add_action(
-                        looky_menu,
-                        tr('Remove Looky Usernames…'),
-                        tooltip=tr('Hide selected Looky System usernames on this IP (useful for VPN or shared IPs).'),
-                        handler=lambda: looky_remove_usernames_for_player(self, target_player, active_looky_names),
-                        icon=QIcon(str(ICONS_DIR_PATH / 'remove.svg')),
-                    )
-                if removed_looky_names:
-                    add_action(
-                        looky_menu,
-                        tr('Restore Removed Looky Usernames…'),
-                        tooltip=tr('Re-add previously removed Looky System usernames on this IP.'),
-                        handler=lambda: looky_restore_usernames_for_player(self, target_player, removed_looky_names),
-                        icon=QIcon(str(ICONS_DIR_PATH / 'rotate-ccw.svg')),
-                    )
-                return
-
-            all_selected_rockstar_ids: list[int] = []
-            for player in players:
-                for rockstar_id in player.looky_system.rockstarids:
-                    if rockstar_id not in all_selected_rockstar_ids:
-                        all_selected_rockstar_ids.append(rockstar_id)
-
-            if all_selected_rockstar_ids:
-
-                def _open_all_selected_profiles() -> None:
-                    for rockstar_id in all_selected_rockstar_ids:
-                        QDesktopServices.openUrl(QUrl(get_looky_user_url(rockstar_id)))
-
-                profile_count = len(all_selected_rockstar_ids)
-                add_action(
-                    looky_menu,
-                    tr('View on Website (All Selected)'),
-                    tooltip=tr_plural(
-                        'Open {count} player profile on the Looky System website.',
-                        'Open {count} player profiles on the Looky System website.',
-                        profile_count,
-                    ),
-                    handler=_open_all_selected_profiles,
-                    icon=QIcon(str(ICONS_DIR_PATH / 'globe.svg')),
-                )
-
-            looky_menu.addSeparator()
-
-            def _show_looky_lookup_for_all() -> None:
-                for player in players:
-                    show_looky_lookup(self, player)
-
-            lookup_all_action = add_action(
-                looky_menu,
-                tr('Lookup (All Selected)'),
-                tooltip=tr('Query the Looky System API for each selected player IP.'),
-                handler=_show_looky_lookup_for_all,
-                icon=QIcon(str(ICONS_DIR_PATH / 'user-round.svg')),
-            )
-            _apply_looky_gating(lookup_all_action)
+            build_looky_system_menu(parent_menu, players, self)
 
         def add_ping_menu(ip_addresses: list[str]) -> None:
             if not ip_addresses:

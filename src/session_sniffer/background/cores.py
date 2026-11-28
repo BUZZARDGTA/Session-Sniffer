@@ -203,11 +203,46 @@ def _wait_iplookup_event(timeout: float, *, ignore_wake: bool = False) -> None:
             return
 
 
+def _collect_players_for_looky_ip(ip: str) -> list[Player]:
+    """Return distinct live and past-session snapshot players matching *ip*."""
+    targets: list[Player] = []
+    seen_ids: set[int] = set()
+    live_player = PlayersRegistry.get_player_by_ip(ip)
+    if live_player is not None:
+        seen_ids.add(id(live_player))
+        targets.append(live_player)
+    for snapshot_player in SessionTracker.get_all_snapshot_players():
+        if snapshot_player.ip == ip and id(snapshot_player) not in seen_ids:
+            seen_ids.add(id(snapshot_player))
+            targets.append(snapshot_player)
+    return targets
+
+
+def _needs_looky_fetch(player: Player, current_time: float, *, is_connected: bool) -> bool:
+    """Return True when *player* should be queried via Looky System now."""
+    if not is_looky_eligible(player):
+        return False
+    with player.looky_system.lock:
+        if not player.looky_system.is_initialized or player.looky_system.needs_refresh:
+            return True
+        if is_connected:
+            return (current_time - player.looky_system.last_fetched_at) >= _LOOKY_REFRESH_INTERVAL
+        return (
+            not player.looky_system.raw_results
+            and not player.looky_system.empty_retry_done
+            and (current_time - player.looky_system.last_fetched_at) >= _LOOKY_REFRESH_INTERVAL
+        )
+
+
 def wake_looky_core() -> None:
     """Signal the Looky System background core to immediately check for pending player lookups."""
     _looky_wakeup_event.set()
     if Settings.is_gta5_feature_set():
-        for player in chain(PlayersRegistry.get_connected_players(), PlayersRegistry.get_disconnected_players()):
+        for player in chain(
+            PlayersRegistry.get_connected_players(),
+            PlayersRegistry.get_disconnected_players(),
+            SessionTracker.get_all_snapshot_players(),
+        ):
             if is_looky_eligible(player) and (not player.looky_system.is_initialized or player.looky_system.needs_refresh) and _looky_queue.put(player.ip):
                 _looky_wakeup_event.set()
 
@@ -215,22 +250,26 @@ def wake_looky_core() -> None:
 def trigger_looky_rescan_all_players() -> int:
     """Queue all eligible session players for immediate Looky System lookup.
 
-    Marks all eligible players in the registry for immediate refresh and wakes the Looky core.
+    Marks all eligible players in the registry and past-session snapshots for
+    immediate refresh and wakes the Looky core.
 
     Returns:
-        The number of players queued for rescan.
+        The number of unique player IPs queued for rescan.
     """
-    count = 0
-    for player in PlayersRegistry.get_default_sorted_players():
-        if not is_looky_eligible(player):
+    seen_ids: set[int] = set()
+    queued_ips: set[str] = set()
+    for player in chain(PlayersRegistry.get_default_sorted_players(), SessionTracker.get_all_snapshot_players()):
+        if id(player) in seen_ids or not is_looky_eligible(player):
             continue
+        seen_ids.add(id(player))
         with player.looky_system.lock:
             player.looky_system.last_fetched_at = 0.0
             player.looky_system.needs_refresh = True
-        count += 1
-    if count > 0:
+            player.looky_system.empty_retry_done = False
+        queued_ips.add(player.ip)
+    if queued_ips:
         wake_looky_core()
-    return count
+    return len(queued_ips)
 
 
 def wake_all_player_cores() -> None:
@@ -697,42 +736,28 @@ def looky_core() -> None:
             continue
 
         pending_ip_addresses: list[str] = []
+        current_time = time.monotonic()
         while len(pending_ip_addresses) < _batch_size:
             target_ip = _looky_queue.get()
             if target_ip is None:
                 break
-            if is_third_party_server_ip(target_ip):
+            if is_third_party_server_ip(target_ip) or target_ip in pending_ip_addresses:
                 continue
-            matched_player = PlayersRegistry.get_player_by_ip(target_ip)
-            if matched_player is None or not is_looky_eligible(matched_player):
-                continue
-            if (
-                not matched_player.looky_system.is_initialized
-                or matched_player.looky_system.needs_refresh
-                or (time.monotonic() - matched_player.looky_system.last_fetched_at) >= _LOOKY_REFRESH_INTERVAL
-            ):
+            targets = _collect_players_for_looky_ip(target_ip)
+            if any(_needs_looky_fetch(target, current_time, is_connected=PlayersRegistry.is_player_connected(target)) for target in targets):
                 pending_ip_addresses.append(target_ip)
 
         if not pending_ip_addresses:
-            # Check if any connected players need initial lookup or periodic refresh
-            current_time = time.monotonic()
+            # Check if any connected, disconnected, or past-session snapshot players need lookup or refresh
             for player in PlayersRegistry.get_connected_players():
-                if (
-                    is_looky_eligible(player)
-                    and (
-                        not player.looky_system.is_initialized
-                        or player.looky_system.needs_refresh
-                        or (current_time - player.looky_system.last_fetched_at) >= _LOOKY_REFRESH_INTERVAL
-                    )
-                    and player.ip not in pending_ip_addresses
-                ):
+                if _needs_looky_fetch(player, current_time, is_connected=True) and player.ip not in pending_ip_addresses:
                     pending_ip_addresses.append(player.ip)
                     if len(pending_ip_addresses) >= _batch_size:
                         break
 
             if len(pending_ip_addresses) < _batch_size:
-                for player in PlayersRegistry.get_disconnected_players():
-                    if is_looky_eligible(player) and (not player.looky_system.is_initialized or player.looky_system.needs_refresh) and player.ip not in pending_ip_addresses:
+                for player in chain(PlayersRegistry.get_disconnected_players(), SessionTracker.get_all_snapshot_players()):
+                    if _needs_looky_fetch(player, current_time, is_connected=False) and player.ip not in pending_ip_addresses:
                         pending_ip_addresses.append(player.ip)
                         if len(pending_ip_addresses) >= _batch_size:
                             break
@@ -776,9 +801,8 @@ def looky_core() -> None:
                 continue
             logger.debug('[Looky System] HTTP error for batch %s: %s', batch, e)
             for ip in batch:
-                matched_player = PlayersRegistry.get_player_by_ip(ip)
-                if matched_player is not None:
-                    matched_player.looky_system.mark_fetched()
+                for target in _collect_players_for_looky_ip(ip):
+                    target.looky_system.mark_fetched()
             _looky_wakeup_event.wait(1)
             _looky_wakeup_event.clear()
         except requests.RequestException as e:
@@ -791,9 +815,8 @@ def looky_core() -> None:
         except ValidationError as e:
             logger.warning('[Looky System] Validation error for batch %s: %s', batch, e)
             for ip in batch:
-                matched_player = PlayersRegistry.get_player_by_ip(ip)
-                if matched_player is not None:
-                    matched_player.looky_system.mark_fetched()
+                for target in _collect_players_for_looky_ip(ip):
+                    target.looky_system.mark_fetched()
             _looky_wakeup_event.wait(1)
             _looky_wakeup_event.clear()
         else:
@@ -801,24 +824,34 @@ def looky_core() -> None:
             groups_updated = False
             matched_players_with_looky: list[tuple[Player, list[str]]] = []
             for ip in batch:
-                matched_player = PlayersRegistry.get_player_by_ip(ip)
-                if matched_player is not None:
-                    excluded_cfs = get_excluded_looky_usernames_cf(ip)
-                    matched_player.looky_system.apply_results(results.get(ip, []), excluded_cfs=excluded_cfs)
-                    with matched_player.looky_system.lock:
-                        looky_usernames = list(matched_player.looky_system.usernames)
+                targets = _collect_players_for_looky_ip(ip)
+                if not targets:
+                    continue
+                excluded_cfs = get_excluded_looky_usernames_cf(ip)
+                ip_results = results.get(ip, [])
+                recorded_correlation = False
+                for target in targets:
+                    was_initialized = target.looky_system.is_initialized
+                    target.looky_system.apply_results(ip_results, excluded_cfs=excluded_cfs)
+                    if was_initialized and not ip_results and not PlayersRegistry.is_player_connected(target):
+                        with target.looky_system.lock:
+                            target.looky_system.empty_retry_done = True
+                    with target.looky_system.lock:
+                        looky_usernames = list(target.looky_system.usernames)
 
-                    if record_looky_db_correlation(looky_usernames, db_by_username_cf):
+                    if not recorded_correlation and record_looky_db_correlation(looky_usernames, db_by_username_cf):
                         groups_updated = True
+                    recorded_correlation = True
 
-                    matched_players_with_looky.append((matched_player, looky_usernames))
+                    matched_players_with_looky.append((target, looky_usernames))
             if groups_updated:
                 update_userip_databases()
             for matched_player, looky_usernames in matched_players_with_looky:
                 if matched_player.userip is not None:
                     matched_player.userip = UserIPDatabases.resolve_userip_for_player(matched_player)
                 matched_player.rebuild_usernames(looky_usernames=looky_usernames)
-                SessionTracker.update_session_player_snapshot(matched_player, metadata_only=True)
+                if PlayersRegistry.get_player_by_ip(matched_player.ip) is matched_player:
+                    SessionTracker.update_session_player_snapshot(matched_player, metadata_only=True)
             wake_rendering_core()
             server_error_consecutive_failures = 0
             gui_closed__event.wait(0.1)

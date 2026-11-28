@@ -7,8 +7,9 @@ from http import HTTPStatus
 from typing import TYPE_CHECKING, override
 
 import requests
-from PySide6.QtCore import QRectF, Qt, QTimer
-from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPainterPath, QPen
+from pydantic import ValidationError
+from PySide6.QtCore import QRectF, Qt, QTimer, QUrl, Signal
+from PySide6.QtGui import QColor, QDesktopServices, QLinearGradient, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -19,7 +20,9 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from shiboken6 import isValid
 
+from session_sniffer.guis._crashing_qthread import CrashingQThread
 from session_sniffer.guis.live_language import register_language_refresh
 from session_sniffer.guis.looky_text import (
     LOOKY_WARNING_API_ACCESS_MISSING,
@@ -27,6 +30,7 @@ from session_sniffer.guis.looky_text import (
     LOOKY_WARNING_DISABLED,
     LOOKY_WARNING_RESTRICTED_GTA5_NOT_RUNNING,
     LOOKY_WARNING_RESTRICTED_NOT_LOCAL,
+    get_looky_restriction,
     get_looky_title,
 )
 from session_sniffer.guis.stylesheets import (
@@ -46,6 +50,9 @@ from session_sniffer.networking.looky_system import (
     LookyState,
     extract_rate_limit_message,
     extract_rate_limit_wait_seconds,
+    get_cached_rid_for_username,
+    get_looky_user_url,
+    get_rid_by_username,
 )
 from session_sniffer.player.registry import SessionTracker
 from session_sniffer.player.userip import UserIPDatabases
@@ -376,6 +383,83 @@ def format_looky_request_error(exc: Exception) -> str:
     if isinstance(exc, requests.RequestException):
         return tr('Looky System request failed: {error}', error=exc)
     return tr('Looky System response format unexpected: {error}', error=exc)
+
+
+class _LookyUsernameRidWorker(CrashingQThread):
+    """Background worker resolving a single username to its Rockstar ID via Looky System."""
+
+    rid_resolved: Signal = Signal(int)
+    rid_not_found: Signal = Signal()
+    rid_failed: Signal = Signal(str)
+
+    def __init__(self, username: str, api_key: str) -> None:
+        super().__init__()
+        self.username = username
+        self._api_key = api_key
+
+    @override
+    def _run(self) -> None:
+        try:
+            rid = get_rid_by_username(self.username, self._api_key)
+        except (requests.RequestException, ValidationError) as e:
+            if not self.isInterruptionRequested():
+                self.rid_failed.emit(format_looky_request_error(e))
+            return
+        if self.isInterruptionRequested():
+            return
+        if rid is not None and rid > 0:
+            self.rid_resolved.emit(rid)
+        else:
+            self.rid_not_found.emit()
+
+
+_active_rid_workers: set[_LookyUsernameRidWorker] = set()
+
+
+def close_all_rid_lookup_workers() -> None:
+    """Cancel any in-flight username-to-RID Looky lookup workers on application shutdown."""
+    for worker in list(_active_rid_workers):
+        worker.cancel()
+    _active_rid_workers.clear()
+
+
+def open_looky_profile_by_username(parent: QWidget, player: Player, username: str) -> None:
+    """Resolve *username* to its Rockstar ID via Looky System and open the profile URL."""
+    cleaned_username = username.strip()
+    if not cleaned_username:
+        return
+    cached_rid = get_cached_rid_for_username(cleaned_username)
+    if cached_rid is not None and cached_rid > 0:
+        QDesktopServices.openUrl(QUrl(get_looky_user_url(cached_rid)))
+        return
+
+    api_key = check_looky_prerequisites(parent, restriction=get_looky_restriction([player]))
+    if api_key is None:
+        return
+
+    username_cf = cleaned_username.casefold()
+    if any(active.username.casefold() == username_cf for active in _active_rid_workers):
+        return
+
+    worker = _LookyUsernameRidWorker(cleaned_username, api_key)
+
+    def _on_resolved(rid: int) -> None:
+        QDesktopServices.openUrl(QUrl(get_looky_user_url(rid)))
+
+    def _on_not_found() -> None:
+        if isValid(parent):
+            QMessageBox.information(parent, get_looky_title(), tr('No Looky System profile found for "{username}".', username=cleaned_username))
+
+    def _on_failed(message: str) -> None:
+        if isValid(parent):
+            QMessageBox.warning(parent, get_looky_title(), tr('Failed: {message}', message=message))
+
+    worker.rid_resolved.connect(_on_resolved)
+    worker.rid_not_found.connect(_on_not_found)
+    worker.rid_failed.connect(_on_failed)
+    _active_rid_workers.add(worker)
+    worker.finished.connect(lambda: _active_rid_workers.discard(worker))
+    worker.start()
 
 
 def sync_player_looky_usernames_and_userip(

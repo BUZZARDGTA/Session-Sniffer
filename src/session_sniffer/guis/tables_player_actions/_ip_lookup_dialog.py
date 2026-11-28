@@ -63,6 +63,7 @@ from session_sniffer.networking.looky_system import LookyState, get_looky_user_u
 from session_sniffer.networking.ping import ping_player
 from session_sniffer.networking.reverse_dns import reverse_dns_lookup
 from session_sniffer.networking.third_party_servers import is_third_party_server_ip
+from session_sniffer.player.looky_rids import resolve_player_rockstar_ids
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.userip import UserIP, UserIPDatabases
 from session_sniffer.player.userip_groups import get_excluded_looky_usernames_cf, record_looky_db_correlation
@@ -354,10 +355,9 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
         self._website_button = website_button
 
         def _on_website_clicked() -> None:
-            with self._target.looky_system.lock:
-                rids = list(self._target.looky_system.rockstarids)
-            if len(rids) == 1:
-                QDesktopServices.openUrl(QUrl(get_looky_user_url(rids[0])))
+            resolved_rids = resolve_player_rockstar_ids(self._target)
+            if len(resolved_rids) == 1:
+                QDesktopServices.openUrl(QUrl(get_looky_user_url(resolved_rids[0][1])))
             else:
                 QDesktopServices.openUrl(QUrl(LOOKY_BASE_HOST))
 
