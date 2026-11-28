@@ -595,11 +595,17 @@
     }
 
     function applyStaticMetadata() {
+        var releaseVersion = DATA.version;
+        var appVersion = DATA.appVersion || DATA.version;
         document.querySelectorAll('[data-release-version]').forEach(function setVer(el) {
-            el.textContent = DATA.version;
+            if (el.textContent !== releaseVersion) {
+                el.textContent = releaseVersion;
+            }
         });
         document.querySelectorAll('[data-app-version]').forEach(function setAppVer(el) {
-            el.textContent = DATA.appVersion || DATA.version;
+            if (el.textContent !== appVersion) {
+                el.textContent = appVersion;
+            }
         });
         document.querySelectorAll('[data-languages-count]').forEach(function setLang(el) {
             el.textContent = String(DATA.languagesCount);
@@ -1304,7 +1310,100 @@
     }
 
     function hydrateLiveCommunityStats() {
-        /* GitHub Releases: latest version, binary sizes, and total downloads */
+        function applyLatestStableRelease(latest) {
+            if (!latest || latest.draft || latest.prerelease) {
+                return;
+            }
+
+            if (latest.tag_name) {
+                var shortTag = String(latest.tag_name).split('+')[0];
+                var formattedAppVer = formatProjectVersion(latest.tag_name, latest.published_at);
+                document.querySelectorAll('[data-release-version]').forEach(function setTag(el) {
+                    if (el.textContent !== shortTag) {
+                        el.textContent = shortTag;
+                    }
+                });
+                document.querySelectorAll('[data-app-version]').forEach(function setAppTag(el) {
+                    if (el.textContent !== formattedAppVer) {
+                        el.textContent = formattedAppVer;
+                    }
+                });
+            }
+
+            if (latest.published_at) {
+                var dateWrap = document.getElementById('release-date-wrap');
+                var dateText = document.getElementById('release-date-text');
+                var parsedDate = new Date(latest.published_at);
+                if (dateWrap && dateText && !Number.isNaN(parsedDate.getTime())) {
+                    dateText.textContent = parsedDate.toLocaleDateString(activeLang || 'en-US', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                    });
+                    dateWrap.hidden = false;
+                }
+            }
+
+            if (Array.isArray(latest.assets)) {
+                latest.assets.forEach(function applyAssetMeta(asset) {
+                    var sizeEl = document.querySelector('[data-asset-size="' + asset.name + '"]');
+                    if (sizeEl && typeof asset.size === 'number' && asset.size > 0) {
+                        sizeEl.textContent = formatBytes(asset.size);
+                    }
+
+                    var rawDigest = typeof asset.digest === 'string' ? asset.digest.trim() : '';
+                    var shaMatch = /^sha256:([0-9a-f]{64})$/i.exec(rawDigest);
+                    if (!shaMatch) {
+                        return;
+                    }
+                    var fullHash = shaMatch[1].toLowerCase();
+                    var shortHash = fullHash.slice(0, 10) + '\u2026' + fullHash.slice(-10);
+                    var hashWrap = document.querySelector('[data-asset-hash-wrap="' + asset.name + '"]');
+                    var hashValEl = document.querySelector('[data-asset-hash="' + asset.name + '"]');
+                    var hashCopyBtn = document.querySelector('[data-asset-hash-copy="' + asset.name + '"]');
+                    if (!hashWrap || !hashValEl) {
+                        return;
+                    }
+
+                    hashValEl.textContent = shortHash;
+                    hashValEl.setAttribute('data-full-hash', fullHash);
+                    setRichTooltip(hashValEl, 'SHA-256 · ' + asset.name, fullHash, 'full');
+                    hashWrap.hidden = false;
+
+                    function copyAssetHash() {
+                        if (navigator.clipboard && navigator.clipboard.writeText) {
+                            navigator.clipboard.writeText(fullHash).then(function copied() {
+                                if (hashCopyBtn) {
+                                    var useEl = hashCopyBtn.querySelector('use');
+                                    hashCopyBtn.classList.add('is-copied');
+                                    if (useEl) {
+                                        useEl.setAttribute('href', '#icon-check');
+                                    }
+                                    window.setTimeout(function restoreCopyIcon() {
+                                        hashCopyBtn.classList.remove('is-copied');
+                                        if (useEl) {
+                                            useEl.setAttribute('href', '#icon-copy');
+                                        }
+                                    }, 1800);
+                                }
+                                showToast(tSite('download.toast_hash_copied', { file: asset.name }));
+                            }).catch(function ignoreCopyErr() {
+                                showToast(fullHash);
+                            });
+                        } else {
+                            showToast(fullHash);
+                        }
+                    }
+
+                    hashValEl.addEventListener('click', copyAssetHash);
+                    if (hashCopyBtn) {
+                        hashCopyBtn.addEventListener('click', copyAssetHash);
+                    }
+                });
+            }
+        }
+
+        /* GitHub Releases: latest stable version, binary sizes, and total downloads */
         window.fetch('https://api.github.com/repos/BUZZARDGTA/Session-Sniffer/releases?per_page=100')
             .then(function checkResp(resp) {
                 if (!resp.ok) {
@@ -1331,93 +1430,20 @@
                     totalEl.textContent = formatNumber(totalDownloads) + '+';
                 }
 
-                var latest = releases.find(function isStable(r) { return !r.draft && !r.prerelease; }) || releases[0];
-                if (!latest) {
+                var latest = releases.find(function isStable(r) { return !r.draft && !r.prerelease; });
+                if (latest) {
+                    applyLatestStableRelease(latest);
                     return;
                 }
 
-                if (latest.tag_name) {
-                    var shortTag = String(latest.tag_name).split('+')[0];
-                    var formattedAppVer = formatProjectVersion(latest.tag_name, latest.published_at);
-                    document.querySelectorAll('[data-release-version]').forEach(function setTag(el) {
-                        el.textContent = shortTag;
-                    });
-                    document.querySelectorAll('[data-app-version]').forEach(function setAppTag(el) {
-                        el.textContent = formattedAppVer;
-                    });
-                }
-
-                if (latest.published_at) {
-                    var dateWrap = document.getElementById('release-date-wrap');
-                    var dateText = document.getElementById('release-date-text');
-                    var parsedDate = new Date(latest.published_at);
-                    if (dateWrap && dateText && !Number.isNaN(parsedDate.getTime())) {
-                        dateText.textContent = parsedDate.toLocaleDateString(activeLang || 'en-US', {
-                            year: 'numeric',
-                            month: 'short',
-                            day: 'numeric',
-                        });
-                        dateWrap.hidden = false;
-                    }
-                }
-
-                if (Array.isArray(latest.assets)) {
-                    latest.assets.forEach(function applyAssetMeta(asset) {
-                        var sizeEl = document.querySelector('[data-asset-size="' + asset.name + '"]');
-                        if (sizeEl && typeof asset.size === 'number' && asset.size > 0) {
-                            sizeEl.textContent = formatBytes(asset.size);
+                return window.fetch('https://api.github.com/repos/BUZZARDGTA/Session-Sniffer/releases/latest')
+                    .then(function checkLatestResp(resp) {
+                        if (!resp.ok) {
+                            throw new Error('GitHub latest release API status ' + resp.status);
                         }
-
-                        var rawDigest = typeof asset.digest === 'string' ? asset.digest.trim() : '';
-                        var shaMatch = /^sha256:([0-9a-f]{64})$/i.exec(rawDigest);
-                        if (!shaMatch) {
-                            return;
-                        }
-                        var fullHash = shaMatch[1].toLowerCase();
-                        var shortHash = fullHash.slice(0, 10) + '\u2026' + fullHash.slice(-10);
-                        var hashWrap = document.querySelector('[data-asset-hash-wrap="' + asset.name + '"]');
-                        var hashValEl = document.querySelector('[data-asset-hash="' + asset.name + '"]');
-                        var hashCopyBtn = document.querySelector('[data-asset-hash-copy="' + asset.name + '"]');
-                        if (!hashWrap || !hashValEl) {
-                            return;
-                        }
-
-                        hashValEl.textContent = shortHash;
-                        hashValEl.setAttribute('data-full-hash', fullHash);
-                        setRichTooltip(hashValEl, 'SHA-256 · ' + asset.name, fullHash, 'full');
-                        hashWrap.hidden = false;
-
-                        function copyAssetHash() {
-                            if (navigator.clipboard && navigator.clipboard.writeText) {
-                                navigator.clipboard.writeText(fullHash).then(function copied() {
-                                    if (hashCopyBtn) {
-                                        var useEl = hashCopyBtn.querySelector('use');
-                                        hashCopyBtn.classList.add('is-copied');
-                                        if (useEl) {
-                                            useEl.setAttribute('href', '#icon-check');
-                                        }
-                                        window.setTimeout(function restoreCopyIcon() {
-                                            hashCopyBtn.classList.remove('is-copied');
-                                            if (useEl) {
-                                                useEl.setAttribute('href', '#icon-copy');
-                                            }
-                                        }, 1800);
-                                    }
-                                    showToast(tSite('download.toast_hash_copied', { file: asset.name }));
-                                }).catch(function ignoreCopyErr() {
-                                    showToast(fullHash);
-                                });
-                            } else {
-                                showToast(fullHash);
-                            }
-                        }
-
-                        hashValEl.addEventListener('click', copyAssetHash);
-                        if (hashCopyBtn) {
-                            hashCopyBtn.addEventListener('click', copyAssetHash);
-                        }
-                    });
-                }
+                        return resp.json();
+                    })
+                    .then(applyLatestStableRelease);
             })
             .catch(function ignoreOffline() {
                 /* Keep synced fallback values when offline or rate-limited. */

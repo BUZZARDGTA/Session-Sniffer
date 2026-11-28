@@ -11,7 +11,7 @@ import tomllib
 from pathlib import Path
 from typing import Final, cast
 
-from packaging.version import Version
+from packaging.version import InvalidVersion, Version
 
 from session_sniffer.constants.tables import (
     GUI_COLUMN_HEADERS_TOOLTIPS,
@@ -49,7 +49,6 @@ PYPROJECT_PATH: Final = REPO_ROOT / 'pyproject.toml'
 
 _SVG_OPEN_TAG_RE: Final = re.compile(r'<svg\b([^>]*)>(.*)</svg>', re.DOTALL | re.IGNORECASE)
 _VIEWBOX_RE: Final = re.compile(r'viewBox="([^"]+)"', re.IGNORECASE)
-_VERSION_BASE_RE: Final = re.compile(r'^(v?\d+\.\d+\.\d+(?:[-.]?(?:rc|alpha|beta)\d*)?)', re.IGNORECASE)
 _TAG_SERIES_RE: Final = re.compile(r'^v?(\d+\.\d+)', re.IGNORECASE)
 _DEFAULT_ICON_STROKE_RE: Final = re.compile(r'#a5b4c4|(?<=stroke=")white(?=")', re.IGNORECASE)
 _SVG_FILL_CURRENT_COLOR_RE: Final = re.compile(r'\bfill="currentColor"', re.IGNORECASE)
@@ -69,6 +68,15 @@ _WEBSITE_STATIC_ASSETS: Final[tuple[str, ...]] = (
 _HTML_STATIC_ASSET_RE: Final = re.compile(
     r'((?:href|src)="/?)(' + '|'.join(re.escape(name) for name in _WEBSITE_STATIC_ASSETS) + r')(?:\?v=[0-9a-f]+)?(")',
 )
+_HTML_RELEASE_VERSION_RE: Final = re.compile(
+    r'(<[a-z0-9-]+\b[^>]*\bdata-release-version\b[^>]*>)[^<]*(</[a-z0-9-]+>)',
+    re.IGNORECASE,
+)
+_HTML_APP_VERSION_RE: Final = re.compile(
+    r'(<[a-z0-9-]+\b[^>]*\bdata-app-version\b[^>]*>)[^<]*(</[a-z0-9-]+>)',
+    re.IGNORECASE,
+)
+_DEFAULT_FALLBACK_VERSION: Final = 'v1.5.0'
 _WEBSITE_HTML_FILES: Final[tuple[str, ...]] = ('index.html', 'demo.html', 'history.html', '404.html')
 _LIGHT_LUMINANCE_THRESHOLD: Final = 140.0
 _PREDECESSOR_COMMITS_COUNT: Final = 99  # PS3-Blacklist-Sniffer (94) + PC-Blacklist-Sniffer (5)
@@ -424,19 +432,53 @@ def _write_crlf_text(path: Path, content: str) -> None:
         handle.write(normalized)
 
 
-def _read_project_version() -> tuple[str, str, str]:
-    """Read `(full_version, display_version, app_version)` from `pyproject.toml`."""
+def _read_pyproject_version() -> str | None:
+    """Read `project.version` from `pyproject.toml`, returning None if absent."""
     data = tomllib.loads(PYPROJECT_PATH.read_text(encoding='utf-8'))
     project_raw: object = data.get('project')
-    raw_version = 'v1.5.0'
     if isinstance(project_raw, dict):
         version_raw: object = cast('dict[str, object]', project_raw).get('version')
         if isinstance(version_raw, str) and version_raw:
-            raw_version = version_raw
-    match = _VERSION_BASE_RE.match(raw_version)
-    display_version = str(match.group(1)) if match else raw_version
-    app_version = format_project_version(Version(raw_version))
+            return version_raw
+    return None
+
+
+def _format_release_version(raw_version: str) -> tuple[str, str, str]:
+    """Format `(full_version, display_version, app_version)` for a release tag or version string."""
+    parsed = Version(raw_version)
+    base_tag = raw_version.split('+', maxsplit=1)[0]
+    display_version = f'v{base_tag[1:]}' if base_tag.startswith(('v', 'V')) else f'v{base_tag}'
+    app_version = format_project_version(parsed)
     return raw_version, display_version, app_version
+
+
+def _resolve_stable_release_version(git_tag_names: list[str]) -> tuple[str, str, str]:
+    """Resolve `(full_version, display_version, app_version)` for the latest stable release.
+
+    Prefers the highest non-prerelease version across local Git tags and `pyproject.toml` so
+    pre-release development versions in `pyproject.toml` never flash in the website header before
+    live GitHub release hydration completes.
+    """
+    candidates = list(git_tag_names)
+    pyproject_version = _read_pyproject_version()
+    if pyproject_version is not None:
+        candidates.append(pyproject_version)
+
+    stable_candidates: list[tuple[Version, str]] = []
+    for candidate in candidates:
+        try:
+            parsed = Version(candidate)
+        except InvalidVersion:
+            continue
+        if not parsed.is_prerelease and not parsed.is_devrelease:
+            stable_candidates.append((parsed, candidate))
+
+    if stable_candidates:
+        _, latest_raw = max(stable_candidates, key=lambda item: item[0])
+        return _format_release_version(latest_raw)
+
+    fallback = pyproject_version or _DEFAULT_FALLBACK_VERSION
+    return _format_release_version(fallback)
 
 
 def _build_theme_css_block(theme: Theme, selector: str) -> str:
@@ -664,11 +706,12 @@ def _classify_tag_kind(tag_name: str) -> str:
     return 'stable'
 
 
-def _collect_git_history_metadata() -> dict[str, object]:
-    """Collect commit count and full sorted Git release tag archive from the local repository."""
+def _collect_git_history_metadata() -> tuple[dict[str, object], list[str]]:
+    """Collect commit count, full sorted Git release tag archive, and raw tag names from the local repository."""
     git_exe = shutil.which('git')
     repo_commits = 0
     tags: list[dict[str, str]] = []
+    tag_names: list[str] = []
     series_counts: dict[str, int] = {}
 
     if git_exe is not None:
@@ -707,6 +750,7 @@ def _collect_git_history_metadata() -> dict[str, object]:
                 match = _TAG_SERIES_RE.match(tag_name)
                 series = f'v{match.group(1)}' if match else 'other'
                 series_counts[series] = series_counts.get(series, 0) + 1
+                tag_names.append(tag_name)
                 tags.append(
                     {
                         't': tag_name,
@@ -716,7 +760,7 @@ def _collect_git_history_metadata() -> dict[str, object]:
                     },
                 )
 
-    return {
+    history: dict[str, object] = {
         'repoCommits': repo_commits,
         'predecessorCommits': _PREDECESSOR_COMMITS_COUNT,
         'totalCommits': repo_commits + _PREDECESSOR_COMMITS_COUNT,
@@ -724,17 +768,19 @@ def _collect_git_history_metadata() -> dict[str, object]:
         'seriesCounts': series_counts,
         'tags': tags,
     }
+    return history, tag_names
 
 
-def _build_app_data_payload(en_catalog: dict[str, str], icon_sprite: str) -> dict[str, object]:
-    """Build the JSON payload for `app-data.generated.js` before attaching the content hash."""
-    full_version, display_version, app_version = _read_project_version()
+def _build_app_data_payload(en_catalog: dict[str, str], icon_sprite: str) -> tuple[dict[str, object], str, str]:
+    """Build the JSON payload for `app-data.generated.js` and return `(payload, display_version, app_version)`."""
+    history, git_tag_names = _collect_git_history_metadata()
+    full_version, display_version, app_version = _resolve_stable_release_version(git_tag_names)
     missing_lang_flags = sorted(set(SUPPORTED_LANGUAGES) - set(LANGUAGE_COUNTRY_FLAGS))
     if missing_lang_flags:
         message = f'Missing LANGUAGE_COUNTRY_FLAGS mappings for: {missing_lang_flags}'
         raise ValueError(message)
 
-    return {
+    payload: dict[str, object] = {
         'version': display_version,
         'appVersion': app_version,
         'fullVersion': full_version,
@@ -762,9 +808,10 @@ def _build_app_data_payload(en_catalog: dict[str, str], icon_sprite: str) -> dic
             }
             for theme in BUILTIN_THEMES
         ],
-        'history': _collect_git_history_metadata(),
+        'history': history,
         'iconSprite': icon_sprite,
     }
+    return payload, display_version, app_version
 
 
 def _compute_generated_assets_version(themes_css: str, payload: dict[str, object]) -> str:
@@ -800,19 +847,27 @@ def _compute_static_asset_versions() -> dict[str, str]:
     return versions
 
 
-def _stamp_html_asset_versions(asset_version: str) -> None:
-    """Stamp `?v=<hash>` onto generated and static CSS/JS tags in website HTML pages to prevent stale-cache mismatches."""
+def _stamp_html_asset_versions(asset_version: str, *, display_version: str, app_version: str) -> None:
+    """Stamp `?v=<hash>` and synced stable release labels onto website HTML pages."""
     static_versions = _compute_static_asset_versions()
 
     def _replace_static(match: re.Match[str]) -> str:
         asset_name = match.group(2)
         return f'{match.group(1)}{asset_name}?v={static_versions[asset_name]}{match.group(3)}'
 
+    def _replace_release_version(match: re.Match[str]) -> str:
+        return f'{match.group(1)}{display_version}{match.group(2)}'
+
+    def _replace_app_version(match: re.Match[str]) -> str:
+        return f'{match.group(1)}{app_version}{match.group(2)}'
+
     for html_name in _WEBSITE_HTML_FILES:
         html_path = WEBSITE_DIR / html_name
         original = html_path.read_text(encoding='utf-8')
         updated = _HTML_GENERATED_ASSET_RE.sub(rf'\1?v={asset_version}', original)
         updated = _HTML_STATIC_ASSET_RE.sub(_replace_static, updated)
+        updated = _HTML_RELEASE_VERSION_RE.sub(_replace_release_version, updated)
+        updated = _HTML_APP_VERSION_RE.sub(_replace_app_version, updated)
         if updated != original:
             _write_crlf_text(html_path, updated)
 
@@ -846,11 +901,11 @@ def main() -> None:
     _write_crlf_text(ASSETS_DIR / 'themes.generated.css', themes_css)
     bundle_count = _sync_i18n_bundles(en_catalog)
     icon_sprite, icon_count = _build_icon_sprite()
-    payload = _build_app_data_payload(en_catalog, icon_sprite)
+    payload, display_version, app_version = _build_app_data_payload(en_catalog, icon_sprite)
     asset_version = _compute_generated_assets_version(themes_css, payload)
     payload['assetVersion'] = asset_version
     _write_crlf_text(ASSETS_DIR / 'app-data.generated.js', _render_app_data_js(payload))
-    _stamp_html_asset_versions(asset_version)
+    _stamp_html_asset_versions(asset_version, display_version=display_version, app_version=app_version)
     print(
         f'Synced {len(BUILTIN_THEMES)} themes, {icon_count} SVG icons, '
         f'{len(SYNCED_COUNTRY_FLAGS)} country flags, and {bundle_count + 1} languages '
