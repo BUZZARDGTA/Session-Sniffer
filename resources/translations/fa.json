@@ -2801,6 +2801,7 @@
     "Time: Started at {time}": "زمان: شروع در {time}",
     "Time: Started at {time} ({duration})": "زمان: شروع در {time} ({duration})",
     "Time: {start} - {end}": "زمان: {start} - {end}",
+    "Time: {start} - {end} ({duration})": "زمان: {start} - {end} ({duration})",
     "Time: {time}": "زمان: {time}",
     "Timeout": "پایان مهلت",
     "Timestamp when this player joined or rejoined the session.": "مُهر زمانیِ زمان پیوستن یا پیوستن مجدد این بازیکن به نشست.",
@@ -3169,6 +3170,7 @@
     "{seconds}s timeout": "مهلت زمانی {seconds} ثانیه",
     "{server_ip} ({exchanged} pkts)": "{server_ip} ({exchanged} بسته)",
     "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} ago)": "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} پیش)",
+    "{session}: {players}": "{session}: {players}",
     "{size} downloaded": "{size} دانلود شده",
     "{source} Lua Plugin (Source of Truth)": "افزونهٔ Lua مربوط به {source} (مرجع معتبر)",
     "{source} Lua plugin reported session host {host_ip}{username_suffix}": "افزونهٔ Lua مربوط به {source} میزبان نشست {host_ip}{username_suffix} را گزارش کرد",
@@ -4042,6 +4044,10 @@
     "Watching {count} baselined IP for traffic spikes.": {
       "one": "در حال پایش {count} IP دارای خط پایه برای شناسایی جهش ترافیک.",
       "other": "در حال پایش {count} IP دارای خط پایه برای شناسایی جهش ترافیک."
+    },
+    "{base} ({count} player selected · {session})": {
+      "one": "{base} ({count} بازیکن انتخاب‌شده · {session})",
+      "other": "{base} ({count} بازیکن انتخاب‌شده · {session})"
     },
     "{base} ({count} player selected)": {
       "one": "{base} ({count} بازیکن انتخاب‌شده)",

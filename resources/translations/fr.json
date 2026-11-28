@@ -2801,6 +2801,7 @@
     "Time: Started at {time}": "Heure : Démarrée à {time}",
     "Time: Started at {time} ({duration})": "Heure : Démarrée à {time} ({duration})",
     "Time: {start} - {end}": "Heure : {start} - {end}",
+    "Time: {start} - {end} ({duration})": "Heure : {start} - {end} ({duration})",
     "Time: {time}": "Heure : {time}",
     "Timeout": "Délai d'expiration",
     "Timestamp when this player joined or rejoined the session.": "Horodatage auquel ce joueur a rejoint ou rejoint à nouveau la session.",
@@ -3169,6 +3170,7 @@
     "{seconds}s timeout": "Délai de {seconds} s",
     "{server_ip} ({exchanged} pkts)": "{server_ip} ({exchanged} paq.)",
     "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} ago)": "{session_prefix}{ip}  |  {usernames}  |  {time} (il y a {elapsed})",
+    "{session}: {players}": "{session} : {players}",
     "{size} downloaded": "{size} téléchargés",
     "{source} Lua Plugin (Source of Truth)": "Plugin Lua {source} (Source de référence)",
     "{source} Lua plugin reported session host {host_ip}{username_suffix}": "Le plugin Lua {source} a signalé l'hôte de session {host_ip}{username_suffix}",
@@ -4042,6 +4044,10 @@
     "Watching {count} baselined IP for traffic spikes.": {
       "one": "Surveillance des pics de trafic pour {count} IP de référence.",
       "other": "Surveillance des pics de trafic pour {count} IP de référence."
+    },
+    "{base} ({count} player selected · {session})": {
+      "one": "{base} ({count} joueur sélectionné · {session})",
+      "other": "{base} ({count} joueurs sélectionnés · {session})"
     },
     "{base} ({count} player selected)": {
       "one": "{base} ({count} joueur sélectionné)",

@@ -255,8 +255,8 @@ class ElidedTextTooltipDelegate(QStyledItemDelegate):
         if not event or event.type() != QEvent.Type.ToolTip:
             return super().helpEvent(event, view, option, index)
 
-        if index.data(Qt.ItemDataRole.ToolTipRole):
-            return super().helpEvent(event, view, option, index)
+        raw_model_tooltip = index.data(Qt.ItemDataRole.ToolTipRole)
+        model_tooltip = raw_model_tooltip if isinstance(raw_model_tooltip, str) and raw_model_tooltip else ''
 
         text = index.data(Qt.ItemDataRole.DisplayRole)
         if not isinstance(text, str) or not text:
@@ -286,27 +286,26 @@ class ElidedTextTooltipDelegate(QStyledItemDelegate):
             return super().helpEvent(event, view, option, index)
 
         tooltip_text = text
+        is_rich_html = False
         user_role_data = index.data(Qt.ItemDataRole.UserRole)
         looky_names: set[str] | None = cast('set[str]', user_role_data) if isinstance(user_role_data, set) and user_role_data else None
         if matched_player is not None or looky_names is not None:
             is_disconnected = _is_disconnected_cell(view, index)
+            is_rich_html = True
             if matched_player is not None and player_userip is not None:
-                userip_lines = _format_userip_tooltip_lines(
-                    matched_player,
-                    player_userip,
-                    looky_names=looky_names,
-                    is_disconnected=is_disconnected,
-                )
-                tooltip_text = '<br>'.join(userip_lines)
+                tooltip_text = '<br>'.join(_format_userip_tooltip_lines(matched_player, player_userip, looky_names=looky_names, is_disconnected=is_disconnected))
             elif matched_player is not None:
-                source_lines = _format_username_source_lines(
-                    matched_player,
-                    looky_names=looky_names,
-                    is_disconnected=is_disconnected,
-                )
+                source_lines = _format_username_source_lines(matched_player, looky_names=looky_names, is_disconnected=is_disconnected)
                 tooltip_text = '<br>'.join(source_lines) if source_lines else f'<span>{html.escape(text)}</span>'
             elif looky_names is not None:
                 tooltip_text = _format_looky_tooltip_html(text, looky_names, is_disconnected=is_disconnected)
+
+        if model_tooltip and model_tooltip != text:
+            if is_rich_html:
+                escaped_model_lines = '<br>'.join(html.escape(line) for line in model_tooltip.splitlines())
+                tooltip_text = f'{tooltip_text}<hr>{escaped_model_lines}'
+            else:
+                tooltip_text = f'{tooltip_text}\n\n{model_tooltip}'
 
         QToolTip.showText(event.globalPos(), tooltip_text, view)
         return True

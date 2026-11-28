@@ -2801,6 +2801,7 @@
     "Time: Started at {time}": "זמן: התחיל ב-{time}",
     "Time: Started at {time} ({duration})": "זמן: התחיל ב-{time} ({duration})",
     "Time: {start} - {end}": "זמן: {start} - {end}",
+    "Time: {start} - {end} ({duration})": "זמן: {start} - {end} ({duration})",
     "Time: {time}": "זמן: {time}",
     "Timeout": "זמן קצוב (Timeout)",
     "Timestamp when this player joined or rejoined the session.": "חותמת הזמן שבה שחקן זה הצטרף או הצטרף מחדש לסשן.",
@@ -3169,6 +3170,7 @@
     "{seconds}s timeout": "פסק זמן של {seconds} שנ׳",
     "{server_ip} ({exchanged} pkts)": "{server_ip} ({exchanged} חבילות)",
     "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} ago)": "{session_prefix}{ip}  |  {usernames}  |  {time} (לפני {elapsed})",
+    "{session}: {players}": "{session}: {players}",
     "{size} downloaded": "{size} הורדו",
     "{source} Lua Plugin (Source of Truth)": "תוסף Lua של {source} (מקור אמת)",
     "{source} Lua plugin reported session host {host_ip}{username_suffix}": "תוסף ה-Lua של {source} דיווח על מארח הסשן {host_ip}{username_suffix}",
@@ -4456,6 +4458,12 @@
       "two": "עוקב אחר {count} כתובות IP מכוילות לאיתור זינוקים בתעבורה.",
       "many": "עוקב אחר {count} כתובות IP מכוילות לאיתור זינוקים בתעבורה.",
       "other": "עוקב אחר {count} כתובות IP מכוילות לאיתור זינוקים בתעבורה."
+    },
+    "{base} ({count} player selected · {session})": {
+      "one": "{base} (שחקן {count} נבחר · {session})",
+      "two": "{base} ({count} שחקנים נבחרו · {session})",
+      "many": "{base} ({count} שחקנים נבחרו · {session})",
+      "other": "{base} ({count} שחקנים נבחרו · {session})"
     },
     "{base} ({count} player selected)": {
       "one": "{base} (שחקן {count} נבחר)",

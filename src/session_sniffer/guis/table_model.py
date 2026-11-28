@@ -27,6 +27,7 @@ from session_sniffer.constants.tables import (
 )
 from session_sniffer.error_messages import format_type_error
 from session_sniffer.guis._player_identifier_core import PlayerIdentifierTracker
+from session_sniffer.guis._session_info_format import format_session_tooltip_lines
 from session_sniffer.guis.exceptions import TableDataConsistencyError, UnsupportedSortColumnError
 from session_sniffer.guis.high_rate_monitor import HighRateTracker
 from session_sniffer.guis.live_language import CANONICAL_HEADER_ROLE, CANONICAL_HEADER_TOOLTIP_ROLE
@@ -490,31 +491,26 @@ class SessionTableModel(QAbstractTableModel):
             background_color = self._compiled_colors[row_index][column_index].background
             if background_color is not None:
                 output = background_color
-        elif role == Qt.ItemDataRole.ToolTipRole and self.ip_column_index >= 0 and self.ip_column_index == column_index:
-            ip = self._get_ip_from_data_safely(self._data[row_index])
-            matched_player = self.resolve_row_player(ip)
-            tooltips: list[str] = []
-            if (not self.view.is_connected_table or TableMergeState.is_merged()) and matched_player is not None:
-                session_name = SessionTracker.get_session_name(matched_player.session_id)
-                session_label = (
-                    tr('Session #{id} ({name})', id=matched_player.session_id, name=session_name)
-                    if session_name is not None
-                    else tr('Session #{id}', id=matched_player.session_id)
-                )
-                if matched_player.session_id == SessionTracker.get_current_session_id():
-                    tooltips.append(tr('Current Session ({label})', label=session_label))
-                else:
-                    tooltips.append(tr('Past Session ({label})', label=session_label))
-            if Settings.gui_session_host_icon and Settings.is_session_host_feature_set() and self._is_row_session_host(ip):
-                tooltips.append(tr('Session Host'))
-            if Settings.gta5_relay_icon and Settings.is_gta5_feature_set() and matched_player is not None and matched_player.is_gta5_relay:
-                tooltips.append(tr('GTA5 Relay'))
-            if Settings.high_rate_monitor_icon and HighRateTracker.is_high_rate(ip):
-                tooltips.append(tr('High-Rate traffic detected (exceeds PPS/BPS thresholds)'))
-            if Settings.player_identifier_icon and PlayerIdentifierTracker.is_identified(ip):
-                tooltips.append(tr('Identified player (Player Identifier)'))
-            if tooltips:
-                output = '\n'.join(tooltips)
+        elif role == Qt.ItemDataRole.ToolTipRole:
+            is_ip_column = self.ip_column_index >= 0 and self.ip_column_index == column_index
+            show_session_tooltip = not self.view.is_connected_table or TableMergeState.is_merged()
+            if show_session_tooltip or is_ip_column:
+                ip = self._get_ip_from_data_safely(self._data[row_index])
+                matched_player = self.resolve_row_player(ip)
+                tooltips: list[str] = []
+                if show_session_tooltip and matched_player is not None:
+                    tooltips.extend(format_session_tooltip_lines(matched_player.session_id))
+                if is_ip_column:
+                    if Settings.gui_session_host_icon and Settings.is_session_host_feature_set() and self._is_row_session_host(ip):
+                        tooltips.append(tr('Session Host'))
+                    if Settings.gta5_relay_icon and Settings.is_gta5_feature_set() and matched_player is not None and matched_player.is_gta5_relay:
+                        tooltips.append(tr('GTA5 Relay'))
+                    if Settings.high_rate_monitor_icon and HighRateTracker.is_high_rate(ip):
+                        tooltips.append(tr('High-Rate traffic detected (exceeds PPS/BPS thresholds)'))
+                    if Settings.player_identifier_icon and PlayerIdentifierTracker.is_identified(ip):
+                        tooltips.append(tr('Identified player (Player Identifier)'))
+                if tooltips:
+                    output = '\n'.join(tooltips)
 
         return output
 

@@ -2801,6 +2801,7 @@
     "Time: Started at {time}": "Hora: Iniciada a les {time}",
     "Time: Started at {time} ({duration})": "Hora: Iniciada a les {time} ({duration})",
     "Time: {start} - {end}": "Hora: {start} - {end}",
+    "Time: {start} - {end} ({duration})": "Hora: {start} - {end} ({duration})",
     "Time: {time}": "Hora: {time}",
     "Timeout": "Temps d'espera",
     "Timestamp when this player joined or rejoined the session.": "Marca de temps de quan aquest jugador va entrar o es va reincorporar a la sessió.",
@@ -3169,6 +3170,7 @@
     "{seconds}s timeout": "temps d'espera de {seconds}s",
     "{server_ip} ({exchanged} pkts)": "{server_ip} ({exchanged} paq.)",
     "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} ago)": "{session_prefix}{ip}  |  {usernames}  |  {time} (fa {elapsed})",
+    "{session}: {players}": "{session}: {players}",
     "{size} downloaded": "{size} baixats",
     "{source} Lua Plugin (Source of Truth)": "Connector Lua {source} (Font de veritat)",
     "{source} Lua plugin reported session host {host_ip}{username_suffix}": "El connector Lua {source} ha notificat l'amfitrió de la sessió {host_ip}{username_suffix}",
@@ -4042,6 +4044,10 @@
     "Watching {count} baselined IP for traffic spikes.": {
       "one": "Vigilant {count} IP amb línia base per detectar pics de trànsit.",
       "other": "Vigilant {count} IPs amb línia base per detectar pics de trànsit."
+    },
+    "{base} ({count} player selected · {session})": {
+      "one": "{base} ({count} jugador seleccionat · {session})",
+      "other": "{base} ({count} jugadors seleccionats · {session})"
     },
     "{base} ({count} player selected)": {
       "one": "{base} ({count} jugador seleccionat)",

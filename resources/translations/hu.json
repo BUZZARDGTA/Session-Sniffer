@@ -2801,6 +2801,7 @@
     "Time: Started at {time}": "Időpont: kezdet {time}",
     "Time: Started at {time} ({duration})": "Időpont: kezdet {time} ({duration})",
     "Time: {start} - {end}": "Időpont: {start} - {end}",
+    "Time: {start} - {end} ({duration})": "Időpont: {start} - {end} ({duration})",
     "Time: {time}": "Időpont: {time}",
     "Timeout": "Időtúllépés",
     "Timestamp when this player joined or rejoined the session.": "Időbélyeg, amikor a játékos csatlakozott vagy újracsatlakozott a munkamenethez.",
@@ -3169,6 +3170,7 @@
     "{seconds}s timeout": "{seconds} mp időtúllépés",
     "{server_ip} ({exchanged} pkts)": "{server_ip} ({exchanged} csomag)",
     "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} ago)": "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} ideje)",
+    "{session}: {players}": "{session}: {players}",
     "{size} downloaded": "{size} letöltve",
     "{source} Lua Plugin (Source of Truth)": "{source} Lua bővítmény (Hiteles forrás)",
     "{source} Lua plugin reported session host {host_ip}{username_suffix}": "A(z) {source} Lua bővítmény jelentette a munkamenet-hosztot: {host_ip}{username_suffix}",
@@ -4042,6 +4044,10 @@
     "Watching {count} baselined IP for traffic spikes.": {
       "one": "{count} alapvonalba vett IP-cím figyelése forgalomkiugrásokra.",
       "other": "{count} alapvonalba vett IP-cím figyelése forgalomkiugrásokra."
+    },
+    "{base} ({count} player selected · {session})": {
+      "one": "{base} ({count} játékos kijelölve · {session})",
+      "other": "{base} ({count} játékos kijelölve · {session})"
     },
     "{base} ({count} player selected)": {
       "one": "{base} ({count} játékos kijelölve)",

@@ -2801,6 +2801,7 @@
     "Time: Started at {time}": "დრო: დაიწყო {time}-ზე",
     "Time: Started at {time} ({duration})": "დრო: დაიწყო {time}-ზე ({duration})",
     "Time: {start} - {end}": "დრო: {start} - {end}",
+    "Time: {start} - {end} ({duration})": "დრო: {start} - {end} ({duration})",
     "Time: {time}": "დრო: {time}",
     "Timeout": "მოლოდინის დრო ამოიწურა",
     "Timestamp when this player joined or rejoined the session.": "დროის ნიშნული, როცა ეს მოთამაშე შევიდა ან ხელახლა შეუერთდა სესიას.",
@@ -3169,6 +3170,7 @@
     "{seconds}s timeout": "{seconds}წმ მოლოდინის ლიმიტი",
     "{server_ip} ({exchanged} pkts)": "{server_ip} ({exchanged} პაკ.)",
     "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} ago)": "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} წინ)",
+    "{session}: {players}": "{session}: {players}",
     "{size} downloaded": "ჩამოტვირთულია {size}",
     "{source} Lua Plugin (Source of Truth)": "{source} Lua პლაგინი (პირველწყარო)",
     "{source} Lua plugin reported session host {host_ip}{username_suffix}": "{source} Lua პლაგინმა მიუთითა სესიის ჰოსტი {host_ip}{username_suffix}",
@@ -4042,6 +4044,10 @@
     "Watching {count} baselined IP for traffic spikes.": {
       "one": "მიმდინარეობს საბაზისო გაზომვაში ჩართული {count} IP-ის მონიტორინგი ტრაფიკის ნახტომებზე.",
       "other": "მიმდინარეობს საბაზისო გაზომვაში ჩართული {count} IP-ის მონიტორინგი ტრაფიკის ნახტომებზე."
+    },
+    "{base} ({count} player selected · {session})": {
+      "one": "{base} (მონიშნულია {count} მოთამაშე · {session})",
+      "other": "{base} (მონიშნულია {count} მოთამაშე · {session})"
     },
     "{base} ({count} player selected)": {
       "one": "{base} (მონიშნულია {count} მოთამაშე)",

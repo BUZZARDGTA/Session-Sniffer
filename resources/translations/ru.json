@@ -2801,6 +2801,7 @@
     "Time: Started at {time}": "Время: началась в {time}",
     "Time: Started at {time} ({duration})": "Время: началась в {time} ({duration})",
     "Time: {start} - {end}": "Время: {start} – {end}",
+    "Time: {start} - {end} ({duration})": "Время: {start} – {end} ({duration})",
     "Time: {time}": "Время: {time}",
     "Timeout": "Таймаут",
     "Timestamp when this player joined or rejoined the session.": "Временная метка входа или перезахода этого игрока в сессию.",
@@ -3169,6 +3170,7 @@
     "{seconds}s timeout": "таймаут {seconds} с",
     "{server_ip} ({exchanged} pkts)": "{server_ip} ({exchanged} пак.)",
     "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} ago)": "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} назад)",
+    "{session}: {players}": "{session}: {players}",
     "{size} downloaded": "загружено {size}",
     "{source} Lua Plugin (Source of Truth)": "Lua-плагин {source} (достоверный источник)",
     "{source} Lua plugin reported session host {host_ip}{username_suffix}": "Lua-плагин {source} сообщил о хосте сессии {host_ip}{username_suffix}",
@@ -4456,6 +4458,12 @@
       "few": "Отслеживание скачков трафика для {count} IP-адресов с базовым уровнем.",
       "many": "Отслеживание скачков трафика для {count} IP-адресов с базовым уровнем.",
       "other": "Отслеживание скачков трафика для {count} IP-адресов с базовым уровнем."
+    },
+    "{base} ({count} player selected · {session})": {
+      "one": "{base} (выбран {count} игрок · {session})",
+      "few": "{base} (выбрано {count} игрока · {session})",
+      "many": "{base} (выбрано {count} игроков · {session})",
+      "other": "{base} (выбрано {count} игроков · {session})"
     },
     "{base} ({count} player selected)": {
       "one": "{base} (выбран {count} игрок)",

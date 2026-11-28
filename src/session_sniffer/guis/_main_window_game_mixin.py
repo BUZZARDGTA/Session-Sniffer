@@ -19,9 +19,9 @@ from session_sniffer.gta5.suspend_manager import GTASuspendManager
 from session_sniffer.guis._main_window_looky_mixin import (
     format_game_solo_action_text,
     format_game_solo_tooltip,
-    format_session_time_component,
 )
 from session_sniffer.guis._main_window_shortcuts_mixin import append_shortcut_tooltip
+from session_sniffer.guis._session_info_format import format_session_time_component
 from session_sniffer.guis.session_host_diagnostics_dialog import show_session_host_diagnostics_dialog
 from session_sniffer.guis.session_host_history_window import SessionHostActionCallbacks, populate_host_history_submenu, setup_session_host_actions
 from session_sniffer.guis.stylesheets import GTA5_STATUS_LABEL_STYLESHEET

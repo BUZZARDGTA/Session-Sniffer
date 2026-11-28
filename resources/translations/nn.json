@@ -2801,6 +2801,7 @@
     "Time: Started at {time}": "Tid: Starta kl. {time}",
     "Time: Started at {time} ({duration})": "Tid: Starta kl. {time} ({duration})",
     "Time: {start} - {end}": "Tid: {start} - {end}",
+    "Time: {start} - {end} ({duration})": "Tid: {start} - {end} ({duration})",
     "Time: {time}": "Tid: {time}",
     "Timeout": "Tidsavbrot",
     "Timestamp when this player joined or rejoined the session.": "Tidsstempel for når denne spelaren vart med eller kom tilbake i økta.",
@@ -3169,6 +3170,7 @@
     "{seconds}s timeout": "{seconds}s tidsavbrot",
     "{server_ip} ({exchanged} pkts)": "{server_ip} ({exchanged} pkt)",
     "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} ago)": "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} sidan)",
+    "{session}: {players}": "{session}: {players}",
     "{size} downloaded": "{size} lasta ned",
     "{source} Lua Plugin (Source of Truth)": "{source} Lua-utviding (sanningskjelde)",
     "{source} Lua plugin reported session host {host_ip}{username_suffix}": "{source} Lua-utviding rapporterte øktvert {host_ip}{username_suffix}",
@@ -4042,6 +4044,10 @@
     "Watching {count} baselined IP for traffic spikes.": {
       "one": "Overvaker {count} grunnlinjeført IP for trafikktoppar.",
       "other": "Overvaker {count} grunnlinjeførte IP-ar for trafikktoppar."
+    },
+    "{base} ({count} player selected · {session})": {
+      "one": "{base} ({count} spelar vald · {session})",
+      "other": "{base} ({count} spelarar valde · {session})"
     },
     "{base} ({count} player selected)": {
       "one": "{base} ({count} spelar vald)",

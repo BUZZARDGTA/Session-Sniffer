@@ -2801,6 +2801,7 @@
     "Time: Started at {time}": "Àm: Thòisich aig {time}",
     "Time: Started at {time} ({duration})": "Àm: Thòisich aig {time} ({duration})",
     "Time: {start} - {end}": "Àm: {start} - {end}",
+    "Time: {start} - {end} ({duration})": "Àm: {start} - {end} ({duration})",
     "Time: {time}": "Àm: {time}",
     "Timeout": "Crìoch-ùine",
     "Timestamp when this player joined or rejoined the session.": "Stampa-ama nuair a cheangail no a rinn an cluicheadair seo ath-cheangal ris an t-seisean.",
@@ -3169,6 +3170,7 @@
     "{seconds}s timeout": "crìoch-ùine {seconds}d",
     "{server_ip} ({exchanged} pkts)": "{server_ip} ({exchanged} pac.)",
     "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} ago)": "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} air ais)",
+    "{session}: {players}": "{session}: {players}",
     "{size} downloaded": "{size} air a luchdadh a-nuas",
     "{source} Lua Plugin (Source of Truth)": "Plugan Lua {source} (Tùs na Fìrinn)",
     "{source} Lua plugin reported session host {host_ip}{username_suffix}": "Thug plugan Lua {source} cunntas air òstair an t-seisein {host_ip}{username_suffix}",
@@ -4456,6 +4458,12 @@
       "two": "A' cumail sùil air {count} IP bun-loidhne airson spìcean trafaig.",
       "few": "A' cumail sùil air {count} IPs bun-loidhne airson spìcean trafaig.",
       "other": "A' cumail sùil air {count} IP bun-loidhne airson spìcean trafaig."
+    },
+    "{base} ({count} player selected · {session})": {
+      "one": "{base} ({count} chluicheadair taghte · {session})",
+      "two": "{base} ({count} chluicheadair taghte · {session})",
+      "few": "{base} ({count} cluicheadairean taghte · {session})",
+      "other": "{base} ({count} cluicheadair taghte · {session})"
     },
     "{base} ({count} player selected)": {
       "one": "{base} ({count} chluicheadair taghte)",

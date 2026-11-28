@@ -2801,6 +2801,7 @@
     "Time: Started at {time}": "Tid: Startet kl. {time}",
     "Time: Started at {time} ({duration})": "Tid: Startet kl. {time} ({duration})",
     "Time: {start} - {end}": "Tid: {start} - {end}",
+    "Time: {start} - {end} ({duration})": "Tid: {start} - {end} ({duration})",
     "Time: {time}": "Tid: {time}",
     "Timeout": "Timeout",
     "Timestamp when this player joined or rejoined the session.": "Tidsstempel for, hvornår denne spiller tilsluttede eller gentilsluttede sessionen.",
@@ -3169,6 +3170,7 @@
     "{seconds}s timeout": "{seconds}s timeout",
     "{server_ip} ({exchanged} pkts)": "{server_ip} ({exchanged} pkt.)",
     "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} ago)": "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} siden)",
+    "{session}: {players}": "{session}: {players}",
     "{size} downloaded": "{size} downloadet",
     "{source} Lua Plugin (Source of Truth)": "{source} Lua-plugin (pålidelig kilde)",
     "{source} Lua plugin reported session host {host_ip}{username_suffix}": "{source} Lua-plugin rapporterede sessionsvært {host_ip}{username_suffix}",
@@ -4042,6 +4044,10 @@
     "Watching {count} baselined IP for traffic spikes.": {
       "one": "Overvåger {count} baselinet IP for trafikspidser.",
       "other": "Overvåger {count} baselinede IP'er for trafikspidser."
+    },
+    "{base} ({count} player selected · {session})": {
+      "one": "{base} ({count} spiller valgt · {session})",
+      "other": "{base} ({count} spillere valgt · {session})"
     },
     "{base} ({count} player selected)": {
       "one": "{base} ({count} spiller valgt)",

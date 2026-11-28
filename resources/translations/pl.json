@@ -2801,6 +2801,7 @@
     "Time: Started at {time}": "Czas: rozpoczęto o {time}",
     "Time: Started at {time} ({duration})": "Czas: rozpoczęto o {time} ({duration})",
     "Time: {start} - {end}": "Czas: {start} - {end}",
+    "Time: {start} - {end} ({duration})": "Czas: {start} - {end} ({duration})",
     "Time: {time}": "Czas: {time}",
     "Timeout": "Przekroczono limit czasu",
     "Timestamp when this player joined or rejoined the session.": "Znacznik czasu dołączenia lub ponownego dołączenia tego gracza do sesji.",
@@ -3169,6 +3170,7 @@
     "{seconds}s timeout": "limit czasu {seconds} s",
     "{server_ip} ({exchanged} pkts)": "{server_ip} ({exchanged} pkt)",
     "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} ago)": "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} temu)",
+    "{session}: {players}": "{session}: {players}",
     "{size} downloaded": "pobrano {size}",
     "{source} Lua Plugin (Source of Truth)": "Wtyczka Lua {source} (Źródło rozstrzygające)",
     "{source} Lua plugin reported session host {host_ip}{username_suffix}": "Wtyczka Lua {source} zgłosiła hosta sesji {host_ip}{username_suffix}",
@@ -4456,6 +4458,12 @@
       "few": "Obserwowanie skoków ruchu dla {count} adresów IP z pomiarem bazowym.",
       "many": "Obserwowanie skoków ruchu dla {count} adresów IP z pomiarem bazowym.",
       "other": "Obserwowanie skoków ruchu dla {count} adresów IP z pomiarem bazowym."
+    },
+    "{base} ({count} player selected · {session})": {
+      "one": "{base} (wybrano {count} gracza · {session})",
+      "few": "{base} (wybrano {count} graczy · {session})",
+      "many": "{base} (wybrano {count} graczy · {session})",
+      "other": "{base} (wybrano {count} graczy · {session})"
     },
     "{base} ({count} player selected)": {
       "one": "{base} (wybrano {count} gracza)",

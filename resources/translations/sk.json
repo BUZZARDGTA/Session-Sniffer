@@ -2801,6 +2801,7 @@
     "Time: Started at {time}": "Čas: Začalo o {time}",
     "Time: Started at {time} ({duration})": "Čas: Začalo o {time} ({duration})",
     "Time: {start} - {end}": "Čas: {start} - {end}",
+    "Time: {start} - {end} ({duration})": "Čas: {start} - {end} ({duration})",
     "Time: {time}": "Čas: {time}",
     "Timeout": "Časový limit",
     "Timestamp when this player joined or rejoined the session.": "Časová pečiatka, kedy sa tento hráč pripojil alebo znova pripojil do relácie.",
@@ -3169,6 +3170,7 @@
     "{seconds}s timeout": "časový limit {seconds} s",
     "{server_ip} ({exchanged} pkts)": "{server_ip} ({exchanged} pkt)",
     "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} ago)": "{session_prefix}{ip}  |  {usernames}  |  {time} (pred {elapsed})",
+    "{session}: {players}": "{session}: {players}",
     "{size} downloaded": "Stiahnuté: {size}",
     "{source} Lua Plugin (Source of Truth)": "Lua plugin {source} (autoritatívny zdroj)",
     "{source} Lua plugin reported session host {host_ip}{username_suffix}": "Lua plugin {source} nahlásil hostiteľa relácie {host_ip}{username_suffix}",
@@ -4249,6 +4251,11 @@
       "one": "Sleduje sa {count} referenčne zameraná IP adresa na prudké nárasty prevádzky.",
       "few": "Sledujú sa {count} referenčne zamerané IP adresy na prudké nárasty prevádzky.",
       "other": "Sleduje sa {count} referenčne zameraných IP adries na prudké nárasty prevádzky."
+    },
+    "{base} ({count} player selected · {session})": {
+      "one": "{base} (vybratý {count} hráč · {session})",
+      "few": "{base} (vybratí {count} hráči · {session})",
+      "other": "{base} (vybratých {count} hráčov · {session})"
     },
     "{base} ({count} player selected)": {
       "one": "{base} (vybratý {count} hráč)",

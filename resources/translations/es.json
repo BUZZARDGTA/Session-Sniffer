@@ -2801,6 +2801,7 @@
     "Time: Started at {time}": "Hora: Inició a las {time}",
     "Time: Started at {time} ({duration})": "Hora: Inició a las {time} ({duration})",
     "Time: {start} - {end}": "Hora: {start} - {end}",
+    "Time: {start} - {end} ({duration})": "Hora: {start} - {end} ({duration})",
     "Time: {time}": "Hora: {time}",
     "Timeout": "Tiempo de espera",
     "Timestamp when this player joined or rejoined the session.": "Marca de tiempo de cuándo este jugador se unió o reingresó a la sesión.",
@@ -3169,6 +3170,7 @@
     "{seconds}s timeout": "tiempo límite de {seconds}s",
     "{server_ip} ({exchanged} pkts)": "{server_ip} ({exchanged} pqts.)",
     "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} ago)": "{session_prefix}{ip}  |  {usernames}  |  {time} (hace {elapsed})",
+    "{session}: {players}": "{session}: {players}",
     "{size} downloaded": "{size} descargados",
     "{source} Lua Plugin (Source of Truth)": "Plugin Lua de {source} (Fuente de referencia)",
     "{source} Lua plugin reported session host {host_ip}{username_suffix}": "El plugin Lua de {source} informó como host de sesión a {host_ip}{username_suffix}",
@@ -4042,6 +4044,10 @@
     "Watching {count} baselined IP for traffic spikes.": {
       "one": "Vigilando {count} IP con línea base en busca de picos de tráfico.",
       "other": "Vigilando {count} IP con línea base en busca de picos de tráfico."
+    },
+    "{base} ({count} player selected · {session})": {
+      "one": "{base} ({count} jugador seleccionado · {session})",
+      "other": "{base} ({count} jugadores seleccionados · {session})"
     },
     "{base} ({count} player selected)": {
       "one": "{base} ({count} jugador seleccionado)",

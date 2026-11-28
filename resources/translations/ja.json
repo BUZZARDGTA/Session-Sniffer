@@ -2801,6 +2801,7 @@
     "Time: Started at {time}": "時刻: {time} に開始",
     "Time: Started at {time} ({duration})": "時刻: {time} に開始 ({duration})",
     "Time: {start} - {end}": "時刻: {start} - {end}",
+    "Time: {start} - {end} ({duration})": "時刻: {start} - {end} ({duration})",
     "Time: {time}": "時刻: {time}",
     "Timeout": "タイムアウト",
     "Timestamp when this player joined or rejoined the session.": "このプレイヤーがセッションに参加または再参加したタイムスタンプです。",
@@ -3169,6 +3170,7 @@
     "{seconds}s timeout": "{seconds}秒 タイムアウト",
     "{server_ip} ({exchanged} pkts)": "{server_ip} ({exchanged} パケット)",
     "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} ago)": "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed}前)",
+    "{session}: {players}": "{session}: {players}",
     "{size} downloaded": "{size} ダウンロード済み",
     "{source} Lua Plugin (Source of Truth)": "{source} Lua プラグイン（信頼できる情報源）",
     "{source} Lua plugin reported session host {host_ip}{username_suffix}": "{source} Lua プラグインがセッションホスト {host_ip}{username_suffix} を報告しました",
@@ -3835,6 +3837,9 @@
     },
     "Watching {count} baselined IP for traffic spikes.": {
       "other": "ベースライン記録済みの {count} 個の IP のトラフィックスパイクを監視中です。"
+    },
+    "{base} ({count} player selected · {session})": {
+      "other": "{base}（{count} 人のプレイヤーを選択中 · {session}）"
     },
     "{base} ({count} player selected)": {
       "other": "{base}（{count} 人のプレイヤーを選択中）"

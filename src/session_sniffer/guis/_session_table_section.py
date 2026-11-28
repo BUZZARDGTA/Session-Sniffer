@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 from shiboken6 import isValid
 
 from session_sniffer.constants.tables import COLUMN_FORMAT_SETTING_TO_COLUMNS
+from session_sniffer.guis._session_info_format import format_session_bar_summary, format_session_tooltip_lines
 from session_sniffer.guis.delegates import SearchHighlightDelegate
 from session_sniffer.guis.live_language import register_language_refresh
 from session_sniffer.guis.stylesheets import (
@@ -67,6 +68,7 @@ class SessionTableSection(QWidget):
         self._section_name = 'Connected' if is_connected else 'Disconnected'
         self.last_count: int = -1
         self._selected_count: int = 0
+        self._selected_session_id: int | None = None
         self._is_expanded = True
         self._is_connected = is_connected
         self._rows_keyboard_editing = False
@@ -525,6 +527,7 @@ class SessionTableSection(QWidget):
         """Clear all table data and reset selection count."""
         self.table_model.reset_columns()
         self._selected_count = 0
+        self._selected_session_id = None
         self.last_count = 0
         self._clear_button.setEnabled(False)
         self._update_header_label()
@@ -620,8 +623,9 @@ class SessionTableSection(QWidget):
 
     def _header_label_text(self) -> str:
         selected_session = SessionFilterState.get_selected_session()
+        is_filtered_past_session = not self._is_connected and 0 < selected_session < SessionTracker.get_current_session_id()
         count = max(0, self.last_count)
-        if not self._is_connected and 0 < selected_session < SessionTracker.get_current_session_id():
+        if is_filtered_past_session:
             display_name = SessionTracker.get_session_display_name(selected_session)
             base = tr("Session '{name}' Players ({count})", name=display_name, count=count)
         elif self._is_connected:
@@ -630,6 +634,15 @@ class SessionTableSection(QWidget):
             base = tr('Disconnected Players ({count})', count=count)
 
         if self._selected_count > 0:
+            if self._selected_session_id is not None and not is_filtered_past_session:
+                session_summary = format_session_bar_summary(self._selected_session_id)
+                return tr_plural(
+                    '{base} ({count} player selected · {session})',
+                    '{base} ({count} players selected · {session})',
+                    self._selected_count,
+                    base=base,
+                    session=session_summary,
+                )
             return tr_plural(
                 '{base} ({count} player selected)',
                 '{base} ({count} players selected)',
@@ -658,6 +671,10 @@ class SessionTableSection(QWidget):
         if not isValid(self._header_label):
             return
         self._header_label.setText(self._header_label_text())
+        selected_session = SessionFilterState.get_selected_session()
+        is_filtered_past_session = not self._is_connected and 0 < selected_session < SessionTracker.get_current_session_id()
+        tooltip_session_id = selected_session if is_filtered_past_session else self._selected_session_id
+        self._header_label.setToolTip('\n'.join(format_session_tooltip_lines(tooltip_session_id)) if tooltip_session_id is not None else '')
         self._update_clear_button_tooltip()
 
     def refresh_selection_count(self) -> None:
@@ -665,7 +682,17 @@ class SessionTableSection(QWidget):
         self._on_selection_changed()
 
     def _on_selection_changed(self) -> None:
-        self._selected_count = len({i.row() for i in self.table_view.selectionModel().selectedIndexes()})
+        selected_rows = {i.row() for i in self.table_view.selectionModel().selectedIndexes()}
+        self._selected_count = len(selected_rows)
+        if selected_rows and (not self._is_connected or TableMergeState.is_merged()):
+            session_ids: set[int] = set()
+            for row in selected_rows:
+                matched_player = self.table_model.get_player_for_row(row)
+                if matched_player is not None:
+                    session_ids.add(max(1, matched_player.session_id))
+            self._selected_session_id = next(iter(session_ids)) if len(session_ids) == 1 else None
+        else:
+            self._selected_session_id = None
         self._update_header_label()
 
     # -- Pagination handlers --------------------------------------------------

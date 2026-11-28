@@ -2801,6 +2801,7 @@
     "Time: Started at {time}": "时间：开始于 {time}",
     "Time: Started at {time} ({duration})": "时间：开始于 {time} ({duration})",
     "Time: {start} - {end}": "时间：{start} - {end}",
+    "Time: {start} - {end} ({duration})": "时间：{start} - {end} ({duration})",
     "Time: {time}": "时间：{time}",
     "Timeout": "超时时间",
     "Timestamp when this player joined or rejoined the session.": "此玩家加入或重新加入会话的时间戳。",
@@ -3169,6 +3170,7 @@
     "{seconds}s timeout": "{seconds} 秒超时",
     "{server_ip} ({exchanged} pkts)": "{server_ip}（已交互 {exchanged} 包）",
     "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} ago)": "{session_prefix}{ip}  |  {usernames}  |  {time}（{elapsed}前）",
+    "{session}: {players}": "{session}：{players}",
     "{size} downloaded": "已下载 {size}",
     "{source} Lua Plugin (Source of Truth)": "{source} Lua 插件（权威数据源）",
     "{source} Lua plugin reported session host {host_ip}{username_suffix}": "{source} Lua 插件报告会话主机为 {host_ip}{username_suffix}",
@@ -3835,6 +3837,9 @@
     },
     "Watching {count} baselined IP for traffic spikes.": {
       "other": "正在监控 {count} 个已建立基线的 IP 以检测流量激增。"
+    },
+    "{base} ({count} player selected · {session})": {
+      "other": "{base}（已选择 {count} 名玩家 · {session}）"
     },
     "{base} ({count} player selected)": {
       "other": "{base}（已选择 {count} 名玩家）"

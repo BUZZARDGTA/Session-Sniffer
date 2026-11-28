@@ -2801,6 +2801,7 @@
     "Time: Started at {time}": "Aika: Alkoi klo {time}",
     "Time: Started at {time} ({duration})": "Aika: Alkoi klo {time} ({duration})",
     "Time: {start} - {end}": "Aika: {start} - {end}",
+    "Time: {start} - {end} ({duration})": "Aika: {start} - {end} ({duration})",
     "Time: {time}": "Aika: {time}",
     "Timeout": "Aikakatkaisu",
     "Timestamp when this player joined or rejoined the session.": "Aikaleima, jolloin tämä pelaaja liittyi istuntoon tai liittyi siihen uudelleen.",
@@ -3169,6 +3170,7 @@
     "{seconds}s timeout": "{seconds} s aikakatkaisu",
     "{server_ip} ({exchanged} pkts)": "{server_ip} ({exchanged} pak.)",
     "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} ago)": "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} sitten)",
+    "{session}: {players}": "{session}: {players}",
     "{size} downloaded": "{size} ladattu",
     "{source} Lua Plugin (Source of Truth)": "{source} Lua-laajennus (Totuuden lähde)",
     "{source} Lua plugin reported session host {host_ip}{username_suffix}": "{source} Lua-laajennus ilmoitti istunnon isännäksi {host_ip}{username_suffix}",
@@ -4042,6 +4044,10 @@
     "Watching {count} baselined IP for traffic spikes.": {
       "one": "Tarkkaillaan {count} perustasoon tallennettua IP-osoitetta liikennepiikkien varalta.",
       "other": "Tarkkaillaan {count} perustasoon tallennettua IP-osoitetta liikennepiikkien varalta."
+    },
+    "{base} ({count} player selected · {session})": {
+      "one": "{base} ({count} pelaaja valittu · {session})",
+      "other": "{base} ({count} pelaajaa valittu · {session})"
     },
     "{base} ({count} player selected)": {
       "one": "{base} ({count} pelaaja valittu)",

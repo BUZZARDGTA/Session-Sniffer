@@ -2801,6 +2801,7 @@
     "Time: Started at {time}": "Vrijeme: započeto u {time}",
     "Time: Started at {time} ({duration})": "Vrijeme: započeto u {time} ({duration})",
     "Time: {start} - {end}": "Vrijeme: {start} - {end}",
+    "Time: {start} - {end} ({duration})": "Vrijeme: {start} - {end} ({duration})",
     "Time: {time}": "Vrijeme: {time}",
     "Timeout": "Istek vremena",
     "Timestamp when this player joined or rejoined the session.": "Vremenska oznaka kada se ovaj igrač pridružio ili ponovno pridružio sesiji.",
@@ -3169,6 +3170,7 @@
     "{seconds}s timeout": "istek vremena {seconds}s",
     "{server_ip} ({exchanged} pkts)": "{server_ip} ({exchanged} paketa)",
     "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} ago)": "{session_prefix}{ip}  |  {usernames}  |  {time} (prije {elapsed})",
+    "{session}: {players}": "{session}: {players}",
     "{size} downloaded": "preuzeto {size}",
     "{source} Lua Plugin (Source of Truth)": "{source} Lua dodatak (Izvor istine)",
     "{source} Lua plugin reported session host {host_ip}{username_suffix}": "{source} Lua dodatak prijavio je domaćina sesije {host_ip}{username_suffix}",
@@ -4249,6 +4251,11 @@
       "one": "Praćenje skokova prometa za {count} IP s osnovnom razinom.",
       "few": "Praćenje skokova prometa za {count} IP-a s osnovnom razinom.",
       "other": "Praćenje skokova prometa za {count} IP-ova s osnovnom razinom."
+    },
+    "{base} ({count} player selected · {session})": {
+      "one": "{base} (odabran {count} igrač · {session})",
+      "few": "{base} (odabrana {count} igrača · {session})",
+      "other": "{base} (odabrano {count} igrača · {session})"
     },
     "{base} ({count} player selected)": {
       "one": "{base} (odabran {count} igrač)",

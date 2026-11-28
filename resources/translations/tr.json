@@ -2801,6 +2801,7 @@
     "Time: Started at {time}": "Zaman: {time} saatinde başladı",
     "Time: Started at {time} ({duration})": "Zaman: {time} saatinde başladı ({duration})",
     "Time: {start} - {end}": "Zaman: {start} - {end}",
+    "Time: {start} - {end} ({duration})": "Zaman: {start} - {end} ({duration})",
     "Time: {time}": "Zaman: {time}",
     "Timeout": "Zaman Aşımı",
     "Timestamp when this player joined or rejoined the session.": "Bu oyuncunun oturuma katıldığı veya yeniden katıldığı zaman damgası.",
@@ -3169,6 +3170,7 @@
     "{seconds}s timeout": "{seconds}sn zaman aşımı",
     "{server_ip} ({exchanged} pkts)": "{server_ip} ({exchanged} paket)",
     "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} ago)": "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} önce)",
+    "{session}: {players}": "{session}: {players}",
     "{size} downloaded": "{size} indirildi",
     "{source} Lua Plugin (Source of Truth)": "{source} Lua Eklentisi (Ana Kaynak)",
     "{source} Lua plugin reported session host {host_ip}{username_suffix}": "{source} Lua eklentisi {host_ip}{username_suffix} oturum sahibini bildirdi",
@@ -4042,6 +4044,10 @@
     "Watching {count} baselined IP for traffic spikes.": {
       "one": "Temel ölçümü alınan {count} IP ani trafik artışları için izleniyor.",
       "other": "Temel ölçümü alınan {count} IP ani trafik artışları için izleniyor."
+    },
+    "{base} ({count} player selected · {session})": {
+      "one": "{base} ({count} oyuncu seçili · {session})",
+      "other": "{base} ({count} oyuncu seçili · {session})"
     },
     "{base} ({count} player selected)": {
       "one": "{base} ({count} oyuncu seçili)",

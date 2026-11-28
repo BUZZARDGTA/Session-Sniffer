@@ -2801,6 +2801,7 @@
     "Time: Started at {time}": "Obudde: Lwatandika ku {time}",
     "Time: Started at {time} ({duration})": "Obudde: Lwatandika ku {time} ({duration})",
     "Time: {start} - {end}": "Obudde: {start} - {end}",
+    "Time: {start} - {end} ({duration})": "Obudde: {start} - {end} ({duration})",
     "Time: {time}": "Obudde: {time}",
     "Timeout": "Obudde Buweddeyo",
     "Timestamp when this player joined or rejoined the session.": "Essaawa omuzannyi ono lwe yeegatta oba lwe yaddamu okwegatta ku lutuula.",
@@ -3169,6 +3170,7 @@
     "{seconds}s timeout": "obudde buweddeyo mu sikonda {seconds}",
     "{server_ip} ({exchanged} pkts)": "{server_ip} (paketi {exchanged})",
     "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} ago)": "{session_prefix}{ip}  |  {usernames}  |  {time} (emabega {elapsed})",
+    "{session}: {players}": "{session}: {players}",
     "{size} downloaded": "{size} kiwanuddwa",
     "{source} Lua Plugin (Source of Truth)": "Plugin ya Lua eya {source} (Ensibuko y'Amazima)",
     "{source} Lua plugin reported session host {host_ip}{username_suffix}": "Plugin ya Lua eya {source} yaloopye omutegeka w'olutuula {host_ip}{username_suffix}",
@@ -4042,6 +4044,10 @@
     "Watching {count} baselined IP for traffic spikes.": {
       "one": "Etunuulidde endagiriro ya IP {count} ey'omusingi olw'okulinnya kw'entambula.",
       "other": "Etunuulidde endagiriro za IP {count} ez'omusingi olw'okulinnya kw'entambula."
+    },
+    "{base} ({count} player selected · {session})": {
+      "one": "{base} (omuzannyi {count} alondeddwa · {session})",
+      "other": "{base} (abazannyi {count} balondeddwa · {session})"
     },
     "{base} ({count} player selected)": {
       "one": "{base} (omuzannyi {count} alondeddwa)",

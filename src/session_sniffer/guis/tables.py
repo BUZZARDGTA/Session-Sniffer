@@ -89,6 +89,7 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
         self._saved_v_scroll: int | None = None
         self._has_auto_sized_with_data: bool = False
         self._recalculation_payloads_remaining: int = 0
+        self._showing_flag_tooltip: bool = False
         self._column_layout: TableColumnLayoutController = TableColumnLayoutController(
             self,
             min_column_widths=self.min_column_widths,
@@ -183,12 +184,16 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
             return False
         if watched == self.viewport() and isinstance(event, QHoverEvent):
             index = self.indexAt(event.position().toPoint())  # Get hovered cell
+            handled_flag = False
             if index.isValid():
                 model = self.model()
                 if (country_column := model.get_column_index('Country')) is not None and country_column == index.column():
                     matched_player = model.get_player_for_row(index.row())
                     if matched_player is not None and matched_player.country_flag is not None:
-                        self._show_flag_tooltip(event, index, matched_player)
+                        handled_flag = self._show_flag_tooltip(event, index, matched_player)
+            if not handled_flag and self._showing_flag_tooltip:
+                self._showing_flag_tooltip = False
+                QToolTip.hideText()
 
         return super().eventFilter(watched, event)
 
@@ -559,8 +564,8 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
         self.horizontalScrollBar().setValue(h_scroll)
         self.verticalScrollBar().setValue(v_scroll)
 
-    def _show_flag_tooltip(self, event: QHoverEvent, index: QModelIndex, player: Player) -> None:
-        """Show tooltip only if hovering exactly over the flag."""
+    def _show_flag_tooltip(self, event: QHoverEvent, index: QModelIndex, player: Player) -> bool:
+        """Show tooltip immediately when hovering over the flag icon; return True if shown."""
         cell_rect = self.visualRect(index)
         icon_size = self.iconSize()
         if not icon_size.isValid():
@@ -574,11 +579,12 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
         if flag_rect.contains(event.position().toPoint()):
             country_name, _ = player.iplookup.resolve_country()
             if country_name not in {'', '...', 'N/A'}:
-                QToolTip.showText(event.globalPosition().toPoint(), country_name, self)
-            else:
-                QToolTip.hideText()
-        else:
-            QToolTip.hideText()
+                row_tooltip = index.data(Qt.ItemDataRole.ToolTipRole)
+                tooltip_text = f'{country_name}\n\n{row_tooltip}' if isinstance(row_tooltip, str) and row_tooltip else country_name
+                self._showing_flag_tooltip = True
+                QToolTip.showText(event.globalPosition().toPoint(), tooltip_text, self)
+                return True
+        return False
 
     def capture_selection(self) -> None:
         """Save the current cell selection by player IP and scroll positions for later restoration."""

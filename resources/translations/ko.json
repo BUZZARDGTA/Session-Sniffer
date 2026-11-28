@@ -2801,6 +2801,7 @@
     "Time: Started at {time}": "시간: {time}에 시작됨",
     "Time: Started at {time} ({duration})": "시간: {time}에 시작됨 ({duration})",
     "Time: {start} - {end}": "시간: {start} - {end}",
+    "Time: {start} - {end} ({duration})": "시간: {start} - {end} ({duration})",
     "Time: {time}": "시간: {time}",
     "Timeout": "타임아웃",
     "Timestamp when this player joined or rejoined the session.": "이 플레이어가 세션에 참가하거나 재참가한 타임스탬프입니다.",
@@ -3169,6 +3170,7 @@
     "{seconds}s timeout": "{seconds}초 타임아웃",
     "{server_ip} ({exchanged} pkts)": "{server_ip} ({exchanged} 패킷)",
     "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} ago)": "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} 전)",
+    "{session}: {players}": "{session}: {players}",
     "{size} downloaded": "{size} 다운로드됨",
     "{source} Lua Plugin (Source of Truth)": "{source} Lua 플러그인 (기준 정보)",
     "{source} Lua plugin reported session host {host_ip}{username_suffix}": "{source} Lua 플러그인이 세션 호스트를 {host_ip}{username_suffix}(으)로 보고함",
@@ -3835,6 +3837,9 @@
     },
     "Watching {count} baselined IP for traffic spikes.": {
       "other": "기준선이 기록된 {count}개 IP의 트래픽 급증을 감시 중입니다."
+    },
+    "{base} ({count} player selected · {session})": {
+      "other": "{base} ({count}명 선택됨 · {session})"
     },
     "{base} ({count} player selected)": {
       "other": "{base} ({count}명 선택됨)"

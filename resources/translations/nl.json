@@ -2801,6 +2801,7 @@
     "Time: Started at {time}": "Tijd: Gestart om {time}",
     "Time: Started at {time} ({duration})": "Tijd: Gestart om {time} ({duration})",
     "Time: {start} - {end}": "Tijd: {start} - {end}",
+    "Time: {start} - {end} ({duration})": "Tijd: {start} - {end} ({duration})",
     "Time: {time}": "Tijd: {time}",
     "Timeout": "Time-out",
     "Timestamp when this player joined or rejoined the session.": "Tijdstempel waarop deze speler heeft deelgenomen of opnieuw heeft deelgenomen aan de sessie.",
@@ -3169,6 +3170,7 @@
     "{seconds}s timeout": "{seconds}s time-out",
     "{server_ip} ({exchanged} pkts)": "{server_ip} ({exchanged} pakk.)",
     "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} ago)": "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} geleden)",
+    "{session}: {players}": "{session}: {players}",
     "{size} downloaded": "{size} gedownload",
     "{source} Lua Plugin (Source of Truth)": "{source} Lua-plug-in (Betrouwbare bron)",
     "{source} Lua plugin reported session host {host_ip}{username_suffix}": "{source} Lua-plug-in heeft sessiehost {host_ip} gerapporteerd{username_suffix}",
@@ -4042,6 +4044,10 @@
     "Watching {count} baselined IP for traffic spikes.": {
       "one": "{count} basislijn-IP wordt gemonitord op verkeerspieken.",
       "other": "{count} basislijn-IP's worden gemonitord op verkeerspieken."
+    },
+    "{base} ({count} player selected · {session})": {
+      "one": "{base} ({count} speler geselecteerd · {session})",
+      "other": "{base} ({count} spelers geselecteerd · {session})"
     },
     "{base} ({count} player selected)": {
       "one": "{base} ({count} speler geselecteerd)",

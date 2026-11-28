@@ -2801,6 +2801,7 @@
     "Time: Started at {time}": "時間：開始於 {time}",
     "Time: Started at {time} ({duration})": "時間：開始於 {time} ({duration})",
     "Time: {start} - {end}": "時間：{start} - {end}",
+    "Time: {start} - {end} ({duration})": "時間：{start} - {end} ({duration})",
     "Time: {time}": "時間：{time}",
     "Timeout": "逾時時間",
     "Timestamp when this player joined or rejoined the session.": "此玩家加入或重新加入工作階段的時間戳記。",
@@ -3169,6 +3170,7 @@
     "{seconds}s timeout": "{seconds} 秒逾時",
     "{server_ip} ({exchanged} pkts)": "{server_ip}（已交換 {exchanged} 封包）",
     "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} ago)": "{session_prefix}{ip}  |  {usernames}  |  {time}（{elapsed}前）",
+    "{session}: {players}": "{session}：{players}",
     "{size} downloaded": "已下載 {size}",
     "{source} Lua Plugin (Source of Truth)": "{source} Lua 外掛程式（權威資料來源）",
     "{source} Lua plugin reported session host {host_ip}{username_suffix}": "{source} Lua 外掛程式回報工作階段主機為 {host_ip}{username_suffix}",
@@ -3835,6 +3837,9 @@
     },
     "Watching {count} baselined IP for traffic spikes.": {
       "other": "正在監測 {count} 個已建立基準的 IP 是否有流量驟增。"
+    },
+    "{base} ({count} player selected · {session})": {
+      "other": "{base}（已選取 {count} 名玩家 · {session}）"
     },
     "{base} ({count} player selected)": {
       "other": "{base}（已選取 {count} 名玩家）"

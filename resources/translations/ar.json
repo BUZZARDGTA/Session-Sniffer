@@ -2801,6 +2801,7 @@
     "Time: Started at {time}": "الوقت: بدأت عند {time}",
     "Time: Started at {time} ({duration})": "الوقت: بدأت عند {time} ({duration})",
     "Time: {start} - {end}": "الوقت: {start} - {end}",
+    "Time: {start} - {end} ({duration})": "الوقت: {start} - {end} ({duration})",
     "Time: {time}": "الوقت: {time}",
     "Timeout": "انتهاء المهلة",
     "Timestamp when this player joined or rejoined the session.": "الطابع الزمني لانضمام هذا اللاعب أو إعادة انضمامه إلى الجلسة.",
@@ -3169,6 +3170,7 @@
     "{seconds}s timeout": "مهلة {seconds}s",
     "{server_ip} ({exchanged} pkts)": "{server_ip} ({exchanged} حزمة)",
     "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} ago)": "{session_prefix}{ip}  |  {usernames}  |  {time} (منذ {elapsed})",
+    "{session}: {players}": "{session}: {players}",
     "{size} downloaded": "تم تنزيل {size}",
     "{source} Lua Plugin (Source of Truth)": "إضافة {source} Lua (المصدر الموثوق)",
     "{source} Lua plugin reported session host {host_ip}{username_suffix}": "أبلغت إضافة {source} Lua عن مضيف الجلسة {host_ip}{username_suffix}",
@@ -4870,6 +4872,14 @@
       "few": "مراقبة {count} عناوين IP في خط الأساس بحثًا عن ارتفاعات مفاجئة في حركة المرور.",
       "many": "مراقبة {count} عنوان IP في خط الأساس بحثًا عن ارتفاعات مفاجئة في حركة المرور.",
       "other": "مراقبة {count} عنوان IP في خط الأساس بحثًا عن ارتفاعات مفاجئة في حركة المرور."
+    },
+    "{base} ({count} player selected · {session})": {
+      "zero": "{base} (لا يوجد لاعبون محددون ({count}) · {session})",
+      "one": "{base} (تم تحديد لاعب واحد ({count}) · {session})",
+      "two": "{base} (تم تحديد لاعبَين ({count}) · {session})",
+      "few": "{base} (تم تحديد {count} لاعبين · {session})",
+      "many": "{base} (تم تحديد {count} لاعبًا · {session})",
+      "other": "{base} (تم تحديد {count} لاعب · {session})"
     },
     "{base} ({count} player selected)": {
       "zero": "{base} (لا يوجد لاعبون محددون ({count}))",

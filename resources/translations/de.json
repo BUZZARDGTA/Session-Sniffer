@@ -2801,6 +2801,7 @@
     "Time: Started at {time}": "Zeit: Gestartet um {time}",
     "Time: Started at {time} ({duration})": "Zeit: Gestartet um {time} ({duration})",
     "Time: {start} - {end}": "Zeit: {start} - {end}",
+    "Time: {start} - {end} ({duration})": "Zeit: {start} - {end} ({duration})",
     "Time: {time}": "Zeit: {time}",
     "Timeout": "Zeitüberschreitung",
     "Timestamp when this player joined or rejoined the session.": "Zeitstempel, wann dieser Spieler der Sitzung beigetreten oder erneut beigetreten ist.",
@@ -3169,6 +3170,7 @@
     "{seconds}s timeout": "{seconds}s Zeitüberschreitung",
     "{server_ip} ({exchanged} pkts)": "{server_ip} ({exchanged} Pkt.)",
     "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} ago)": "{session_prefix}{ip}  |  {usernames}  |  {time} (vor {elapsed})",
+    "{session}: {players}": "{session}: {players}",
     "{size} downloaded": "{size} heruntergeladen",
     "{source} Lua Plugin (Source of Truth)": "{source} Lua-Plugin (Maßgebliche Quelle)",
     "{source} Lua plugin reported session host {host_ip}{username_suffix}": "{source} Lua-Plugin meldete Sitzungshost {host_ip}{username_suffix}",
@@ -4042,6 +4044,10 @@
     "Watching {count} baselined IP for traffic spikes.": {
       "one": "Überwache {count} IP mit Basislinie auf Traffic-Spitzen.",
       "other": "Überwache {count} IPs mit Basislinie auf Traffic-Spitzen."
+    },
+    "{base} ({count} player selected · {session})": {
+      "one": "{base} ({count} Spieler ausgewählt · {session})",
+      "other": "{base} ({count} Spieler ausgewählt · {session})"
     },
     "{base} ({count} player selected)": {
       "one": "{base} ({count} Spieler ausgewählt)",

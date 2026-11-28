@@ -22,7 +22,6 @@ from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-    from datetime import date, datetime
 
 
 def format_game_solo_action_text() -> str:
@@ -48,12 +47,6 @@ def format_game_solo_tooltip(game_label: str) -> str:
         game_label=game_label,
         duration=Settings.solo_session_duration,
     )
-
-
-def format_session_time_component(target_dt: datetime, current_date: date) -> str:
-    """Format a session timestamp with date prefix if not today."""
-    prefix = f'{target_dt.strftime("%m/%d")} ' if target_dt.date() != current_date else ''
-    return f'{prefix}{target_dt.strftime("%H:%M:%S")}'
 
 
 class LookyMixin(QMainWindow):

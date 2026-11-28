@@ -2801,6 +2801,7 @@
     "Time: Started at {time}": "Čas: Spuštěno v {time}",
     "Time: Started at {time} ({duration})": "Čas: Spuštěno v {time} ({duration})",
     "Time: {start} - {end}": "Čas: {start} - {end}",
+    "Time: {start} - {end} ({duration})": "Čas: {start} - {end} ({duration})",
     "Time: {time}": "Čas: {time}",
     "Timeout": "Časový limit",
     "Timestamp when this player joined or rejoined the session.": "Časové razítko, kdy se tento hráč připojil nebo znovu připojil do relace.",
@@ -3169,6 +3170,7 @@
     "{seconds}s timeout": "limit {seconds} s",
     "{server_ip} ({exchanged} pkts)": "{server_ip} ({exchanged} pkt)",
     "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} ago)": "{session_prefix}{ip}  |  {usernames}  |  {time} (před {elapsed})",
+    "{session}: {players}": "{session}: {players}",
     "{size} downloaded": "Staženo {size}",
     "{source} Lua Plugin (Source of Truth)": "Lua plugin {source} (směrodatný zdroj)",
     "{source} Lua plugin reported session host {host_ip}{username_suffix}": "Lua plugin {source} nahlásil hostitele relace {host_ip}{username_suffix}",
@@ -4249,6 +4251,11 @@
       "one": "Sledování {count} IP ze základní linie kvůli špičkám provozu.",
       "few": "Sledování {count} IP ze základní linie kvůli špičkám provozu.",
       "other": "Sledování {count} IP ze základní linie kvůli špičkám provozu."
+    },
+    "{base} ({count} player selected · {session})": {
+      "one": "{base} (vybrán {count} hráč · {session})",
+      "few": "{base} (vybráni {count} hráči · {session})",
+      "other": "{base} (vybráno {count} hráčů · {session})"
     },
     "{base} ({count} player selected)": {
       "one": "{base} (vybrán {count} hráč)",

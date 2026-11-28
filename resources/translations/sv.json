@@ -2801,6 +2801,7 @@
     "Time: Started at {time}": "Tid: Startad kl. {time}",
     "Time: Started at {time} ({duration})": "Tid: Startad kl. {time} ({duration})",
     "Time: {start} - {end}": "Tid: {start} - {end}",
+    "Time: {start} - {end} ({duration})": "Tid: {start} - {end} ({duration})",
     "Time: {time}": "Tid: {time}",
     "Timeout": "Tidsgräns överskriden",
     "Timestamp when this player joined or rejoined the session.": "Tidsstämpel för när denna spelare anslöt eller återanslöt till sessionen.",
@@ -3169,6 +3170,7 @@
     "{seconds}s timeout": "{seconds}s tidsgräns",
     "{server_ip} ({exchanged} pkts)": "{server_ip} ({exchanged} pkt)",
     "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} ago)": "{session_prefix}{ip}  |  {usernames}  |  {time} (för {elapsed} sedan)",
+    "{session}: {players}": "{session}: {players}",
     "{size} downloaded": "{size} hämtat",
     "{source} Lua Plugin (Source of Truth)": "{source} Lua-plugin (sanningskälla)",
     "{source} Lua plugin reported session host {host_ip}{username_suffix}": "{source} Lua-plugin rapporterade sessionsvärden {host_ip}{username_suffix}",
@@ -4042,6 +4044,10 @@
     "Watching {count} baselined IP for traffic spikes.": {
       "one": "Övervakar {count} baslinjemätt IP-adress för trafiktoppar.",
       "other": "Övervakar {count} baslinjemätta IP-adresser för trafiktoppar."
+    },
+    "{base} ({count} player selected · {session})": {
+      "one": "{base} ({count} spelare markerad · {session})",
+      "other": "{base} ({count} spelare markerade · {session})"
     },
     "{base} ({count} player selected)": {
       "one": "{base} ({count} spelare markerad)",

@@ -2801,6 +2801,7 @@
     "Time: Started at {time}": "Час: Розпочато о {time}",
     "Time: Started at {time} ({duration})": "Час: Розпочато о {time} ({duration})",
     "Time: {start} - {end}": "Час: {start} - {end}",
+    "Time: {start} - {end} ({duration})": "Час: {start} - {end} ({duration})",
     "Time: {time}": "Час: {time}",
     "Timeout": "Тайм-аут",
     "Timestamp when this player joined or rejoined the session.": "Позначка часу, коли цей гравець приєднався або повторно приєднався до сесії.",
@@ -3169,6 +3170,7 @@
     "{seconds}s timeout": "тайм-аут {seconds} с",
     "{server_ip} ({exchanged} pkts)": "{server_ip} ({exchanged} пак.)",
     "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} ago)": "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} тому)",
+    "{session}: {players}": "{session}: {players}",
     "{size} downloaded": "Завантажено {size}",
     "{source} Lua Plugin (Source of Truth)": "Lua-плагін {source} (першоджерело даних)",
     "{source} Lua plugin reported session host {host_ip}{username_suffix}": "Lua-плагін {source} повідомив про хоста сесії {host_ip}{username_suffix}",
@@ -4456,6 +4458,12 @@
       "few": "Відстеження сплесків трафіку для {count} IP-адрес із базовим рівнем.",
       "many": "Відстеження сплесків трафіку для {count} IP-адрес із базовим рівнем.",
       "other": "Відстеження сплесків трафіку для {count} IP-адрес із базовим рівнем."
+    },
+    "{base} ({count} player selected · {session})": {
+      "one": "{base} (вибрано {count} гравця · {session})",
+      "few": "{base} (вибрано {count} гравців · {session})",
+      "many": "{base} (вибрано {count} гравців · {session})",
+      "other": "{base} (вибрано {count} гравців · {session})"
     },
     "{base} ({count} player selected)": {
       "one": "{base} (вибрано {count} гравця)",

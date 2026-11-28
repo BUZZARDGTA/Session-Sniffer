@@ -2801,6 +2801,7 @@
     "Time: Started at {time}": "Време: Започнала в {time}",
     "Time: Started at {time} ({duration})": "Време: Започнала в {time} ({duration})",
     "Time: {start} - {end}": "Време: {start} - {end}",
+    "Time: {start} - {end} ({duration})": "Време: {start} - {end} ({duration})",
     "Time: {time}": "Време: {time}",
     "Timeout": "Време за изчакване",
     "Timestamp when this player joined or rejoined the session.": "Времеви печат, когато този играч се е присъединил или влязъл отново в сесията.",
@@ -3169,6 +3170,7 @@
     "{seconds}s timeout": "{seconds}с време за изчакване",
     "{server_ip} ({exchanged} pkts)": "{server_ip} ({exchanged} пак.)",
     "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} ago)": "{session_prefix}{ip}  |  {usernames}  |  {time} (преди {elapsed})",
+    "{session}: {players}": "{session}: {players}",
     "{size} downloaded": "{size} изтеглени",
     "{source} Lua Plugin (Source of Truth)": "Lua плъгин {source} (Достоверен източник)",
     "{source} Lua plugin reported session host {host_ip}{username_suffix}": "Lua плъгинът {source} докладва домакин на сесията {host_ip}{username_suffix}",
@@ -4042,6 +4044,10 @@
     "Watching {count} baselined IP for traffic spikes.": {
       "one": "Наблюдение на {count} базов IP адрес за пикове в трафика.",
       "other": "Наблюдение на {count} базови IP адреса за пикове в трафика."
+    },
+    "{base} ({count} player selected · {session})": {
+      "one": "{base} ({count} избран играч · {session})",
+      "other": "{base} ({count} избрани играчи · {session})"
     },
     "{base} ({count} player selected)": {
       "one": "{base} ({count} избран играч)",

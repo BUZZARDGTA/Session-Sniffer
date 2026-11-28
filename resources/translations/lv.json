@@ -2801,6 +2801,7 @@
     "Time: Started at {time}": "Laiks: sākās plkst. {time}",
     "Time: Started at {time} ({duration})": "Laiks: sākās plkst. {time} ({duration})",
     "Time: {start} - {end}": "Laiks: {start} - {end}",
+    "Time: {start} - {end} ({duration})": "Laiks: {start} - {end} ({duration})",
     "Time: {time}": "Laiks: {time}",
     "Timeout": "Noildze",
     "Timestamp when this player joined or rejoined the session.": "Laikspiedols, kad šis spēlētājs pievienojās vai atkārtoti pievienojās sesijai.",
@@ -3169,6 +3170,7 @@
     "{seconds}s timeout": "{seconds}s noildze",
     "{server_ip} ({exchanged} pkts)": "{server_ip} ({exchanged} pak.)",
     "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} ago)": "{session_prefix}{ip}  |  {usernames}  |  {time} (pirms {elapsed})",
+    "{session}: {players}": "{session}: {players}",
     "{size} downloaded": "Lejupielādēti {size}",
     "{source} Lua Plugin (Source of Truth)": "{source} Lua spraudnis (uzticamais avots)",
     "{source} Lua plugin reported session host {host_ip}{username_suffix}": "{source} Lua spraudnis ziņoja par sesijas saimnieku {host_ip}{username_suffix}",
@@ -4249,6 +4251,11 @@
       "zero": "Novēro {count} IP adrešu ar bāzlīniju datplūsmas lēcieniem.",
       "one": "Novēro {count} IP adresi ar bāzlīniju datplūsmas lēcieniem.",
       "other": "Novēro {count} IP adreses ar bāzlīniju datplūsmas lēcieniem."
+    },
+    "{base} ({count} player selected · {session})": {
+      "zero": "{base} (atlasīti {count} spēlētāju · {session})",
+      "one": "{base} (atlasīts {count} spēlētājs · {session})",
+      "other": "{base} (atlasīti {count} spēlētāji · {session})"
     },
     "{base} ({count} player selected)": {
       "zero": "{base} (atlasīti {count} spēlētāju)",

@@ -2801,6 +2801,7 @@
     "Time: Started at {time}": "Уақыт: {time} уақытында басталды",
     "Time: Started at {time} ({duration})": "Уақыт: {time} уақытында басталды ({duration})",
     "Time: {start} - {end}": "Уақыт: {start} - {end}",
+    "Time: {start} - {end} ({duration})": "Уақыт: {start} - {end} ({duration})",
     "Time: {time}": "Уақыт: {time}",
     "Timeout": "Күту уақыты бітті",
     "Timestamp when this player joined or rejoined the session.": "Осы ойыншының сеансқа қосылған немесе қайта қосылған уақыт белгісі.",
@@ -3169,6 +3170,7 @@
     "{seconds}s timeout": "{seconds} с күту шегі",
     "{server_ip} ({exchanged} pkts)": "{server_ip} ({exchanged} пкт)",
     "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} ago)": "{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} бұрын)",
+    "{session}: {players}": "{session}: {players}",
     "{size} downloaded": "{size} жүктелді",
     "{source} Lua Plugin (Source of Truth)": "{source} Lua плагині (Шынайы дереккөз)",
     "{source} Lua plugin reported session host {host_ip}{username_suffix}": "{source} Lua плагині сеанс хостын хабарлады: {host_ip}{username_suffix}",
@@ -4042,6 +4044,10 @@
     "Watching {count} baselined IP for traffic spikes.": {
       "one": "Трафик секірістерін анықтау үшін базалық деңгейі жазылған {count} IP бақылануда.",
       "other": "Трафик секірістерін анықтау үшін базалық деңгейі жазылған {count} IP бақылануда."
+    },
+    "{base} ({count} player selected · {session})": {
+      "one": "{base} ({count} ойыншы таңдалды · {session})",
+      "other": "{base} ({count} ойыншы таңдалды · {session})"
     },
     "{base} ({count} player selected)": {
       "one": "{base} ({count} ойыншы таңдалды)",
