@@ -55,7 +55,7 @@
   "faq.a_arp_s4_title": "选择目标设备并开始嗅探",
   "faq.a_filesize_1": "Session Sniffer 将 Python 及应用所需的全部内容打包成一个直接可运行的文件，让你无需手动安装任何额外软件即可立刻启动。",
   "faq.a_filesize_2": "这个单一文件包含了网络扫描引擎、桌面界面、主题、全部 33 种语言以及所有内置工具——因此下载体积相对较大。",
-  "faq.a_usernames_1": "默认情况下仅显示 IP 地址。请查看“支持的游戏与软件”下方的“用户名解析”板块，了解所有可用的玩家用户名显示方式。",
+  "faq.a_usernames_1": "默认情况下仅显示 IP 地址。",
   "faq.a_usernames_yes": "是的，这完全正常。",
   "faq.copy_link": "复制直达链接",
   "faq.eyebrow": "快速解答",

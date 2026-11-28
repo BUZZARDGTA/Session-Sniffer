@@ -55,7 +55,7 @@
   "faq.a_arp_s4_title": "Tria el dispositiu i inicia l'anàlisi",
   "faq.a_filesize_1": "Session Sniffer empaqueta Python i tot el que necessita l'aplicació en un sol fitxer llest per executar, perquè el puguis obrir de seguida sense instal·lar res manualment.",
   "faq.a_filesize_2": "Aquest únic fitxer inclou el motor d'anàlisi de xarxa, la interfície d'escriptori, els temes, els 33 idiomes i totes les eines integrades — per això la baixada és relativament gran.",
-  "faq.a_usernames_1": "Per defecte només es mostren adreces IP. Consulta la secció de resolució de noms d'usuari dins de «Jocs i programari compatibles» per veure totes les maneres disponibles de mostrar els noms dels jugadors.",
+  "faq.a_usernames_1": "Per defecte només es mostren adreces IP.",
   "faq.a_usernames_yes": "Sí — és completament normal.",
   "faq.copy_link": "Copia l'enllaç directe",
   "faq.eyebrow": "Respostes ràpides",

@@ -55,7 +55,7 @@
   "faq.a_arp_s4_title": "Choose your device and start sniffing",
   "faq.a_filesize_1": "Session Sniffer packs Python and everything the app needs into a single ready-to-run file, so you can launch it right away without installing extra software manually.",
   "faq.a_filesize_2": "That single file includes the network scanning engine, the desktop interface, themes, all 33 languages, and every built-in tool — which is why the download is relatively large.",
-  "faq.a_usernames_1": "By default, only IP addresses are shown. Check the Username Resolving section under Supported Games & Software to see all available ways to resolve player usernames.",
+  "faq.a_usernames_1": "By default, only IP addresses are shown.",
   "faq.a_usernames_yes": "Yes — that's completely normal.",
   "faq.copy_link": "Copy direct link",
   "faq.eyebrow": "Quick Answers",

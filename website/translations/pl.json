@@ -55,7 +55,7 @@
   "faq.a_arp_s4_title": "Wybierz urządzenie i rozpocznij podsłuch",
   "faq.a_filesize_1": "Session Sniffer pakuje Pythona i wszystko, czego aplikacja potrzebuje, w jeden gotowy plik, dzięki czemu możesz ją uruchomić od razu bez ręcznego instalowania dodatkowych składników.",
   "faq.a_filesize_2": "Ten jeden plik zawiera silnik skanowania sieci, interfejs desktopowy, motywy, wszystkie 33 języki i wbudowane narzędzia — dlatego rozmiar pliku do pobrania jest stosunkowo duży.",
-  "faq.a_usernames_1": "Domyślnie wyświetlane są wyłącznie adresy IP. Wszystkie dostępne sposoby rozpoznawania nazw graczy znajdziesz w sekcji «Rozpoznawanie nazw użytkowników» w części Obsługiwane gry i oprogramowanie.",
+  "faq.a_usernames_1": "Domyślnie wyświetlane są wyłącznie adresy IP.",
   "faq.a_usernames_yes": "Tak — to zupełnie normalne.",
   "faq.copy_link": "Kopiuj bezpośredni link",
   "faq.eyebrow": "Szybkie odpowiedzi",

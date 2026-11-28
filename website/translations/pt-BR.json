@@ -55,7 +55,7 @@
   "faq.a_arp_s4_title": "Escolha o dispositivo e inicie o monitoramento",
   "faq.a_filesize_1": "O Session Sniffer empacota o Python e tudo o que o aplicativo precisa em um único arquivo pronto para rodar, para que você possa abrir imediatamente sem instalar nada manualmente.",
   "faq.a_filesize_2": "Esse arquivo único inclui o mecanismo de monitoramento de rede, a interface desktop, os temas, todos os 33 idiomas e todas as ferramentas integradas — por isso o download é relativamente grande.",
-  "faq.a_usernames_1": "Por padrão, apenas os endereços IP são exibidos. Confira a seção «Resolução de nomes de usuário» em Jogos e softwares compatíveis para ver todas as formas disponíveis de identificar jogadores.",
+  "faq.a_usernames_1": "Por padrão, apenas os endereços IP são exibidos.",
   "faq.a_usernames_yes": "Sim — isso é totalmente normal.",
   "faq.copy_link": "Copiar link direto",
   "faq.eyebrow": "Respostas rápidas",

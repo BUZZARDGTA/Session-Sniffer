@@ -55,7 +55,7 @@
   "faq.a_arp_s4_title": "Valitse laite ja aloita seuranta",
   "faq.a_filesize_1": "Session Sniffer pakkaa Pythonin ja kaiken sovelluksen tarvitseman yhteen heti suoritettavaan tiedostoon, jotta voit avata sen suoraan ilman manuaalisia lisäasennuksia.",
   "faq.a_filesize_2": "Tämä yksittäinen tiedosto sisältää verkkoskannerin, työpöytäkäyttöliittymän, teemat, kaikki 33 kieltä sekä kaikki sisäänrakennetut työkalut — siksi lataustiedosto on suhteellisen suuri.",
-  "faq.a_usernames_1": "Oletuksena näytetään vain IP-osoitteet. Katso Tuetut pelit ja ohjelmistot -osion Käyttäjänimien selvitys -kohdasta kaikki käytettävissä olevat tavat pelaajien nimien näyttämiseen.",
+  "faq.a_usernames_1": "Oletuksena näytetään vain IP-osoitteet.",
   "faq.a_usernames_yes": "Kyllä — se on täysin normaalia.",
   "faq.copy_link": "Kopioi suora linkki",
   "faq.eyebrow": "Pikavastaukset",

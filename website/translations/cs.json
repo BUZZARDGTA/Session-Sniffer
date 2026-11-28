@@ -55,7 +55,7 @@
   "faq.a_arp_s4_title": "Vyberte zařízení a spusťte sledování",
   "faq.a_filesize_1": "Session Sniffer zabaluje Python a vše potřebné pro aplikaci do jediného souboru připraveného ke spuštění, takže nemusíte nic ručně doinstalovávat.",
   "faq.a_filesize_2": "Tento jeden soubor obsahuje síťový skener, desktopové rozhraní, motivy, všech 33 jazyků i všechny vestavěné nástroje — proto je soubor ke stažení poměrně velký.",
-  "faq.a_usernames_1": "Ve výchozím nastavení se zobrazují pouze IP adresy. Všechny dostupné způsoby zobrazení uživatelských jmen hráčů najdete v sekci „Rozpoznávání uživatelských jmen“ pod podporovanými hrami a softwarem.",
+  "faq.a_usernames_1": "Ve výchozím nastavení se zobrazují pouze IP adresy.",
   "faq.a_usernames_yes": "Ano — je to úplně normální.",
   "faq.copy_link": "Kopírovat přímý odkaz",
   "faq.eyebrow": "Rychlé odpovědi",

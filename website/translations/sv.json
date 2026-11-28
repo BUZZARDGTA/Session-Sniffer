@@ -55,7 +55,7 @@
   "faq.a_arp_s4_title": "Välj din enhet och starta sniffning",
   "faq.a_filesize_1": "Session Sniffer packar in Python och allt appen behöver i en enda körklar fil, så att du kan starta den direkt utan att manuellt installera något extra.",
   "faq.a_filesize_2": "Den enda filen innehåller nätverksskannern, skrivbordsgränssnittet, teman, alla 33 språk och alla inbyggda verktyg — därför är filstorleken relativt stor.",
-  "faq.a_usernames_1": "Som standard visas endast IP-adresser. Se avsnittet om användarnamnsuppslagning under Spel och program som stöds för alla tillgängliga sätt att visa spelarnamn.",
+  "faq.a_usernames_1": "Som standard visas endast IP-adresser.",
   "faq.a_usernames_yes": "Ja — det är helt normalt.",
   "faq.copy_link": "Kopiera direktlänk",
   "faq.eyebrow": "Snabba svar",

@@ -55,7 +55,7 @@
   "faq.a_arp_s4_title": "Odaberite uređaj i pokrenite praćenje",
   "faq.a_filesize_1": "Session Sniffer pakira Python i sve što je aplikaciji potrebno u jednu datoteku spremnu za pokretanje, tako da je možete pokrenuti odmah bez ručnog instaliranja dodatnog softvera.",
   "faq.a_filesize_2": "Ta jedna datoteka sadrži mrežni skener, desktop sučelje, teme, svih 33 jezika i sve ugrađene alate — zbog toga je datoteka relativno velika.",
-  "faq.a_usernames_1": "Prema zadanim postavkama prikazuju se samo IP adrese. Pogledajte odjeljak «Prepoznavanje korisničkih imena» ispod Podržanih igara i softvera za sve dostupne načine prikaza imena igrača.",
+  "faq.a_usernames_1": "Prema zadanim postavkama prikazuju se samo IP adrese.",
   "faq.a_usernames_yes": "Da — to je potpuno normalno.",
   "faq.copy_link": "Kopiraj izravnu poveznicu",
   "faq.eyebrow": "Brzi odgovori",

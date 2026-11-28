@@ -55,7 +55,7 @@
   "faq.a_arp_s4_title": "Izvēlieties ierīci un sāciet pārtveršanu",
   "faq.a_filesize_1": "Session Sniffer apvieno Python un visu lietotnei nepieciešamo vienā uzreiz palaižamā failā, lai jūs varētu sākt uzreiz bez manuālas papildu programmatūras instalēšanas.",
   "faq.a_filesize_2": "Šis viens fails ietver tīkla skenēšanas dzinēju, darbvirsmas saskarni, motīvus, visas 33 valodas un visus iebūvētos rīkus — tādēļ faila izmērs ir salīdzinoši liels.",
-  "faq.a_usernames_1": "Pēc noklusējuma tiek rādītas tikai IP adreses. Visus pieejamos veidus spēlētāju lietotājvārdu attēlošanai skatiet sadaļā «Lietotājvārdu noteikšana» zem Atbalstītajām spēlēm un programmatūras.",
+  "faq.a_usernames_1": "Pēc noklusējuma tiek rādītas tikai IP adreses.",
   "faq.a_usernames_yes": "Jā — tas ir pilnīgi normāli.",
   "faq.copy_link": "Kopēt tiešo saiti",
   "faq.eyebrow": "Ātrās atbildes",

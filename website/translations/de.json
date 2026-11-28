@@ -55,7 +55,7 @@
   "faq.a_arp_s4_title": "Gerät auswählen und Mitschnitt starten",
   "faq.a_filesize_1": "Session Sniffer packt Python und alles, was die App braucht, in eine einzige sofort startbare Datei, damit du sie direkt ohne manuelle Zusatzinstallationen nutzen kannst.",
   "faq.a_filesize_2": "Diese eine Datei enthält die Netzwerk-Scan-Engine, die Desktop-Oberfläche, Themes, alle 33 Sprachen und alle integrierten Werkzeuge — deshalb ist der Download vergleichsweise groß.",
-  "faq.a_usernames_1": "Standardmäßig werden nur IP-Adressen angezeigt. Alle verfügbaren Möglichkeiten zur Anzeige von Spielernamen findest du im Abschnitt „Benutzernamen-Auflösung“ unter Unterstützte Spiele & Software.",
+  "faq.a_usernames_1": "Standardmäßig werden nur IP-Adressen angezeigt.",
   "faq.a_usernames_yes": "Ja — das ist völlig normal.",
   "faq.copy_link": "Direktlink kopieren",
   "faq.eyebrow": "Schnelle Antworten",

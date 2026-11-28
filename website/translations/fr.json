@@ -55,7 +55,7 @@
   "faq.a_arp_s4_title": "Choisissez votre appareil et lancez la capture",
   "faq.a_filesize_1": "Session Sniffer regroupe Python et tout ce dont l'application a besoin dans un seul fichier prêt à l'emploi, afin que vous puissiez la lancer immédiatement sans rien installer manuellement.",
   "faq.a_filesize_2": "Ce fichier unique inclut le moteur d'analyse réseau, l'interface graphique de bureau, les thèmes, les 33 langues et tous les outils intégrés — c'est la principale raison de sa taille relativement importante.",
-  "faq.a_usernames_1": "Par défaut, seules les adresses IP sont affichées. Consultez la section « Résolution des noms d'utilisateur » sous Jeux et logiciels pris en charge pour découvrir toutes les méthodes disponibles.",
+  "faq.a_usernames_1": "Par défaut, seules les adresses IP sont affichées.",
   "faq.a_usernames_yes": "Oui — c'est tout à fait normal.",
   "faq.copy_link": "Copier le lien direct",
   "faq.eyebrow": "Réponses rapides",
