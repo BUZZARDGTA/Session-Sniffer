@@ -22,9 +22,9 @@
     <meta name="twitter:image" content="https://sessionsniffer.com/assets/history/2026-gui-v1-5-pyside6.png">
 
     <link rel="icon" type="image/svg+xml" href="assets/app_icon.svg">
-    <link rel="stylesheet" href="assets/themes.generated.css?v=055bc973">
+    <link rel="stylesheet" href="assets/themes.generated.css?v=0dd3919b">
     <script src="theme-init.js?v=43008c51"></script>
-    <link rel="stylesheet" href="styles.css?v=147e4f5d">
+    <link rel="stylesheet" href="styles.css?v=93f5d2e7">
     <link rel="stylesheet" href="games.css?v=96bccfea">
 </head>
 
@@ -304,7 +304,17 @@
                                 <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-app_icon"></use></svg>
                                 <span data-i18n="hero.showcase_title">Session Sniffer Desktop App</span>
                             </span>
-                            <span class="badge badge-warning hero-showcase-badge" data-i18n="hero.showcase_badge">Screenshot</span>
+                            <button
+                                type="button"
+                                class="hero-showcase-expand-btn"
+                                id="hero-showcase-expand-btn"
+                                data-i18n-title="history.era_screenshot_hint"
+                                aria-label="Click image to inspect full size"
+                                title="Click image to inspect full size"
+                            >
+                                <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-maximize-2"></use></svg>
+                                <span data-i18n="hero.showcase_expand">Expand</span>
+                            </button>
                         </div>
                         <div class="hero-showcase-viewport">
                             <button
@@ -322,10 +332,6 @@
                                     width="1920"
                                     height="1080"
                                 >
-                                <span class="hero-showcase-zoom-hint" aria-hidden="true">
-                                    <svg class="icon icon-xs"><use href="#icon-maximize-2"></use></svg>
-                                    <span data-i18n="history.era_view_screenshot">Expand Screenshot</span>
-                                </span>
                             </button>
                             <div class="hero-showcase-overlay">
                                 <span class="hero-showcase-prompt" data-i18n="hero.showcase_prompt">Want to click around the UI before downloading?</span>
@@ -1303,7 +1309,6 @@
                 <div class="hero-lightbox-info">
                     <svg class="icon icon-sm" aria-hidden="true"><use href="#icon-app_icon"></use></svg>
                     <span id="hero-lightbox-title" data-i18n="hero.showcase_title">Session Sniffer Desktop App</span>
-                    <span class="badge badge-warning hero-showcase-badge" data-i18n="hero.showcase_badge">Screenshot</span>
                 </div>
                 <div class="hero-lightbox-controls">
                     <a href="/demo" class="btn btn-sm hero-showcase-demo-btn" id="hero-lightbox-demo">
@@ -1439,8 +1444,8 @@
         <p class="ss-tooltip-body" id="ss-tooltip-body"></p>
     </div>
 
-    <script src="assets/app-data.generated.js?v=055bc973" defer></script>
-    <script src="core.js?v=8bb56905" defer></script>
+    <script src="assets/app-data.generated.js?v=0dd3919b" defer></script>
+    <script src="core.js?v=a03df322" defer></script>
     <script src="games.js?v=8425c28b" defer></script>
 </body>
 

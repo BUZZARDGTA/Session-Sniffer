@@ -1273,10 +1273,30 @@ summary:focus-visible {
     white-space: nowrap;
 }
 
-.hero-showcase-badge {
+.hero-showcase-expand-btn {
     flex-shrink: 0;
-    font-size: 10.5px;
-    padding: 2px 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 7px;
+    border: 1px solid var(--ss-border);
+    background: var(--ss-control);
+    color: var(--ss-text-strong);
+    font-family: inherit;
+    font-size: 11.5px;
+    font-weight: 600;
+    line-height: 1.2;
+    cursor: pointer;
+    transition: border-color 0.16s ease, background-color 0.16s ease, color 0.16s ease;
+}
+
+.hero-showcase-expand-btn:hover,
+.hero-showcase-expand-btn:focus-visible {
+    border-color: rgba(var(--ss-accent-rgb), 0.72);
+    background: rgba(var(--ss-accent-rgb), 0.12);
+    color: var(--ss-accent);
+    outline: none;
 }
 
 .hero-showcase-viewport {
@@ -1312,34 +1332,6 @@ summary:focus-visible {
 .hero-showcase-img-btn:hover .hero-showcase-img,
 .hero-showcase-img-btn:focus-visible .hero-showcase-img {
     transform: scale(1.02);
-}
-
-.hero-showcase-zoom-hint {
-    position: absolute;
-    top: 12px;
-    inset-inline-end: 12px;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 5px 10px;
-    border-radius: 999px;
-    background: rgba(11, 13, 18, 0.82);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    color: #f8fafc;
-    font-family: inherit;
-    font-size: 11.5px;
-    font-weight: 600;
-    backdrop-filter: blur(8px);
-    opacity: 0;
-    transform: translateY(-2px);
-    transition: opacity 0.18s ease, transform 0.18s ease;
-    pointer-events: none;
-}
-
-.hero-showcase-img-btn:hover .hero-showcase-zoom-hint,
-.hero-showcase-img-btn:focus-visible .hero-showcase-zoom-hint {
-    opacity: 1;
-    transform: translateY(0);
 }
 
 .hero-showcase-overlay {
@@ -2871,15 +2863,6 @@ summary:focus-visible {
     .hero-showcase-img {
         aspect-ratio: 16 / 9.25;
         height: auto;
-    }
-
-    .hero-showcase-zoom-hint {
-        opacity: 1;
-        transform: none;
-        top: 8px;
-        inset-inline-end: 8px;
-        font-size: 11px;
-        padding: 4px 8px;
     }
 
     .hero-showcase-overlay {

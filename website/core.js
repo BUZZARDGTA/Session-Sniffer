@@ -1776,14 +1776,19 @@
     function initHeroLightbox() {
         var heroLightbox = document.getElementById('hero-lightbox');
         var heroZoomBtn = document.getElementById('hero-showcase-zoom-btn');
-        if (!heroLightbox || !heroZoomBtn) {
+        var heroExpandBtn = document.getElementById('hero-showcase-expand-btn');
+        if (!heroLightbox || (!heroZoomBtn && !heroExpandBtn)) {
             return;
         }
         var heroLbBackdrop = document.getElementById('hero-lightbox-backdrop');
         var heroLbClose = document.getElementById('hero-lightbox-close');
         var heroLbDownload = document.getElementById('hero-lightbox-download');
+        var lastTrigger = heroExpandBtn || heroZoomBtn;
 
-        function openHeroLightbox() {
+        function openHeroLightbox(triggerEl) {
+            if (triggerEl) {
+                lastTrigger = triggerEl;
+            }
             heroLightbox.hidden = false;
             document.body.style.overflow = 'hidden';
             if (heroLbClose) {
@@ -1797,10 +1802,21 @@
             }
             heroLightbox.hidden = true;
             document.body.style.overflow = '';
-            heroZoomBtn.focus();
+            if (lastTrigger) {
+                lastTrigger.focus();
+            }
         }
 
-        heroZoomBtn.addEventListener('click', openHeroLightbox);
+        if (heroZoomBtn) {
+            heroZoomBtn.addEventListener('click', function onZoomClick() {
+                openHeroLightbox(heroZoomBtn);
+            });
+        }
+        if (heroExpandBtn) {
+            heroExpandBtn.addEventListener('click', function onExpandClick() {
+                openHeroLightbox(heroExpandBtn);
+            });
+        }
         if (heroLbBackdrop) {
             heroLbBackdrop.addEventListener('click', closeHeroLightbox);
         }
