@@ -22,10 +22,10 @@
     <meta name="twitter:image" content="https://sessionsniffer.com/assets/history/2026-gui-v1-5-pyside6.png">
 
     <link rel="icon" type="image/svg+xml" href="assets/app_icon.svg">
-    <link rel="stylesheet" href="assets/themes.generated.css?v=0dd3919b">
+    <link rel="stylesheet" href="assets/themes.generated.css?v=54ed7643">
     <script src="theme-init.js?v=43008c51"></script>
     <link rel="stylesheet" href="styles.css?v=93f5d2e7">
-    <link rel="stylesheet" href="games.css?v=96bccfea">
+    <link rel="stylesheet" href="games.css?v=afcf7065">
 </head>
 
 <body>
@@ -506,22 +506,58 @@
                         </div>
                     </div>
 
-                    <!-- Filter Bars: P2P Behavior + Platforms -->
-                    <div class="games-filters-wrap">
-                        <div class="games-filter-row" id="games-p2p-filters" role="group" aria-label="Filter by P2P behavior"></div>
-                        <div class="games-filter-row games-filter-row--platforms" id="games-platform-filters" role="group" aria-label="Filter by tested platform"></div>
-                    </div>
-
-                    <!-- Live Status Strip -->
-                    <div class="games-results-bar">
-                        <div class="games-results-left">
-                            <span class="games-results-count" id="games-results-count">Showing 56 of 56 tested titles</span>
+                    <!-- Compact Filter Bar + Clickable P2P Legend -->
+                    <div class="games-toolbar">
+                        <div class="games-toolbar-controls">
+                            <div class="games-dropdown" id="games-p2p-dropdown">
+                                <button
+                                    type="button"
+                                    class="games-dropdown-btn"
+                                    id="games-p2p-btn"
+                                    aria-haspopup="listbox"
+                                    aria-expanded="false"
+                                    aria-controls="games-p2p-menu"
+                                >
+                                    <span class="games-dropdown-dot" id="games-p2p-btn-dot" hidden aria-hidden="true"></span>
+                                    <span class="games-dropdown-btn-label" id="games-p2p-label">All P2P Modes</span>
+                                    <svg class="icon icon-xs games-dropdown-chevron" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+                                </button>
+                                <div class="games-dropdown-menu" id="games-p2p-menu" role="listbox" hidden></div>
+                            </div>
+                            <div class="games-dropdown" id="games-platform-dropdown">
+                                <button
+                                    type="button"
+                                    class="games-dropdown-btn"
+                                    id="games-platform-btn"
+                                    aria-haspopup="listbox"
+                                    aria-expanded="false"
+                                    aria-controls="games-platform-menu"
+                                >
+                                    <span class="games-dropdown-btn-label" id="games-platform-label">All Platforms</span>
+                                    <svg class="icon icon-xs games-dropdown-chevron" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+                                </button>
+                                <div class="games-dropdown-menu" id="games-platform-menu" role="listbox" hidden></div>
+                            </div>
+                            <button
+                                type="button"
+                                class="games-legend-toggle"
+                                id="games-legend-toggle"
+                                aria-expanded="false"
+                                aria-controls="games-p2p-legend"
+                            >
+                                <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-info"></use></svg>
+                                <span data-i18n="games.legend_toggle">P2P Legend</span>
+                            </button>
                             <button type="button" class="games-reset-btn" id="games-reset-filters-btn" hidden>
                                 <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-rotate-ccw"></use></svg>
                                 <span data-i18n="games.reset_filters">Reset filters</span>
                             </button>
                         </div>
+                        <span class="games-results-count" id="games-results-count">Showing 56 of 56 tested titles</span>
                     </div>
+
+                    <!-- Clickable P2P Legend Drawer (Desktop & Mobile) -->
+                    <div class="games-p2p-legend" id="games-p2p-legend" hidden></div>
 
                     <!-- Compatibility Table View -->
                     <div class="games-table-view" id="games-table-view">
@@ -1444,9 +1480,9 @@
         <p class="ss-tooltip-body" id="ss-tooltip-body"></p>
     </div>
 
-    <script src="assets/app-data.generated.js?v=0dd3919b" defer></script>
-    <script src="core.js?v=a03df322" defer></script>
-    <script src="games.js?v=8425c28b" defer></script>
+    <script src="assets/app-data.generated.js?v=54ed7643" defer></script>
+    <script src="core.js?v=8e71352b" defer></script>
+    <script src="games.js?v=801721c7" defer></script>
 </body>
 
 </html>

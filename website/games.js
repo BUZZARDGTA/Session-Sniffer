@@ -33,7 +33,6 @@
             platforms: ['PC'],
             p2p: 'host',
             resolver: 'no',
-            noteKey: 'games.note_host_only',
             cover: COVERS_DIR + 'borderlands-2.webp',
         },
         {
@@ -43,7 +42,6 @@
             platforms: ['PC'],
             p2p: 'host',
             resolver: 'no',
-            noteKey: 'games.note_host_only',
             cover: COVERS_DIR + 'borderlands-3.webp',
         },
         {
@@ -63,7 +61,6 @@
             platforms: ['PC'],
             p2p: 'host',
             resolver: 'no',
-            noteKey: 'games.note_host_only',
             cover: COVERS_DIR + 'borderlands-tps.webp',
         },
         {
@@ -202,7 +199,6 @@
             platforms: ['PC'],
             p2p: 'full',
             resolver: 'no',
-            noteKey: 'games.note_fully_p2p',
             cover: COVERS_DIR + 'dragon-ball-fighterz.webp',
             showcaseRank: 19,
         },
@@ -262,7 +258,6 @@
             platforms: ['PC'],
             p2p: 'full',
             resolver: 'no',
-            noteKey: 'games.note_fully_p2p',
             cover: COVERS_DIR + 'green-hell.webp',
         },
         {
@@ -305,7 +300,6 @@
             platforms: ['PS3'],
             p2p: 'full',
             resolver: 'ps3',
-            noteKey: 'games.note_fully_p2p',
             cover: COVERS_DIR + 'minecraft-ps3.webp',
             showcaseRank: 25,
         },
@@ -326,7 +320,6 @@
             platforms: ['PC'],
             p2p: 'full',
             resolver: 'no',
-            noteKey: 'games.note_fully_p2p',
             cover: COVERS_DIR + 'monster-hunter-world.webp',
             showcaseRank: 9,
         },
@@ -365,7 +358,6 @@
             platforms: ['PC'],
             p2p: 'full',
             resolver: 'no',
-            noteKey: 'games.note_fully_p2p',
             cover: COVERS_DIR + 'naruto-storm-revolution.webp',
         },
         {
@@ -384,7 +376,6 @@
             platforms: ['PC'],
             p2p: 'host',
             resolver: 'no',
-            noteKey: 'games.note_host_only',
             cover: COVERS_DIR + 'new-monopoly.webp',
         },
         {
@@ -418,7 +409,6 @@
             platforms: ['PC'],
             p2p: 'host',
             resolver: 'no',
-            noteKey: 'games.note_host_only',
             cover: COVERS_DIR + 'ready-or-not.webp',
             showcaseRank: 10,
         },
@@ -450,7 +440,6 @@
             platforms: ['PC'],
             p2p: 'host',
             resolver: 'no',
-            noteKey: 'games.note_host_only',
             cover: COVERS_DIR + 'risk-of-rain-2.webp',
             showcaseRank: 15,
         },
@@ -481,7 +470,6 @@
             platforms: ['PC'],
             p2p: 'host',
             resolver: 'no',
-            noteKey: 'games.note_host_only',
             cover: COVERS_DIR + 'sons-of-the-forest.webp',
             showcaseRank: 14,
         },
@@ -492,7 +480,6 @@
             platforms: ['PC'],
             p2p: 'full',
             resolver: 'no',
-            noteKey: 'games.note_fully_p2p',
             cover: COVERS_DIR + 'sf-30th.webp',
         },
         {
@@ -502,7 +489,6 @@
             platforms: ['PC'],
             p2p: 'full',
             resolver: 'no',
-            noteKey: 'games.note_fully_p2p',
             cover: COVERS_DIR + 'tekken-7.webp',
             showcaseRank: 21,
         },
@@ -532,7 +518,6 @@
             platforms: ['PC'],
             p2p: 'host',
             resolver: 'no',
-            noteKey: 'games.note_host_only',
             cover: COVERS_DIR + 'thehunter-classic.webp',
         },
         {
@@ -561,7 +546,6 @@
             platforms: ['PC'],
             p2p: 'full',
             resolver: 'no',
-            noteKey: 'games.note_fully_p2p',
             cover: COVERS_DIR + 'ultra-sf-iv.webp',
         },
         {
@@ -801,6 +785,7 @@
         view: 'table',
         p2pFilter: 'all',
         platformFilter: 'all',
+        legendOpen: false,
         searchQuery: '',
         sortField: 'name',
         sortDir: 'asc',
@@ -906,18 +891,6 @@
     }
 
     function getPlatformTipInfo(platform, category) {
-        if (platform === 'all') {
-            return {
-                title: tSite('games.filter_platform_all'),
-                body: tSite(pickCategoryKey(
-                    category,
-                    'games.tip_platforms_col_game',
-                    'games.tip_platforms_col_software',
-                    'games.tip_platforms_col'
-                )),
-                variant: 'neutral',
-            };
-        }
         if (platform === 'Any') {
             return {
                 title: tSite('games.platform_any'),
@@ -1022,12 +995,14 @@
         return (P2P_META[p2pKey] || P2P_META.verified).descKey;
     }
 
-    function createP2pBadge(p2pKey, category) {
+    function createP2pBadge(p2pKey, category, skipTooltip) {
         var meta = P2P_META[p2pKey] || P2P_META.verified;
         var span = document.createElement('span');
         span.className = 'p2p-badge p2p-badge--' + p2pKey;
         var label = tSite(meta.labelKey);
-        setRichTooltip(span, label, tSite(getP2pDescKey(p2pKey, category)), p2pKey);
+        if (!skipTooltip) {
+            setRichTooltip(span, label, tSite(getP2pDescKey(p2pKey, category)), p2pKey);
+        }
         span.appendChild(createIconSvg(meta.icon, 'icon-xs'));
         var txt = document.createElement('span');
         txt.textContent = label;
@@ -1923,28 +1898,55 @@
         });
     }
 
+    function closeGamesDropdowns(exceptId) {
+        [
+            { btnId: 'games-p2p-btn', menuId: 'games-p2p-menu' },
+            { btnId: 'games-platform-btn', menuId: 'games-platform-menu' },
+        ].forEach(function closeOne(pair) {
+            if (exceptId && pair.menuId === exceptId) {
+                return;
+            }
+            var btn = document.getElementById(pair.btnId);
+            var menu = document.getElementById(pair.menuId);
+            if (btn) {
+                btn.setAttribute('aria-expanded', 'false');
+            }
+            if (menu) {
+                menu.hidden = true;
+            }
+        });
+    }
+
     function renderGamesFilters() {
-        var p2pBar = document.getElementById('games-p2p-filters');
-        var platBar = document.getElementById('games-platform-filters');
+        var p2pBtn = document.getElementById('games-p2p-btn');
+        var p2pLabel = document.getElementById('games-p2p-label');
+        var p2pDot = document.getElementById('games-p2p-btn-dot');
+        var p2pMenu = document.getElementById('games-p2p-menu');
+        var platBtn = document.getElementById('games-platform-btn');
+        var platLabel = document.getElementById('games-platform-label');
+        var platMenu = document.getElementById('games-platform-menu');
         var pool = getCategoryPool();
 
-        if (p2pBar) {
-            p2pBar.innerHTML = '';
+        if (p2pBtn && p2pLabel && p2pMenu) {
+            p2pMenu.innerHTML = '';
+            p2pBtn.setAttribute('aria-label', tSite('games.col_p2p'));
             var platformPool = pool.filter(function byPlat(item) {
                 return platformMatchesFilter(item.platforms, gamesState.platformFilter);
             });
 
-            var cat = gamesState.category;
             var p2pOptions = [
-                { key: 'all', labelKey: 'games.filter_p2p_all', descKey: pickCategoryKey(cat, 'games.tip_p2p_all_game', 'games.tip_p2p_all_software', 'games.tip_p2p_all'), dot: null, variant: 'neutral' },
-                { key: 'full', labelKey: 'games.p2p_full', descKey: getP2pDescKey('full', cat), dot: 'full', variant: 'full' },
-                { key: 'host', labelKey: 'games.p2p_host', descKey: getP2pDescKey('host', cat), dot: 'host', variant: 'host' },
-                { key: 'partial', labelKey: 'games.p2p_partial', descKey: getP2pDescKey('partial', cat), dot: 'partial', variant: 'partial' },
-                { key: 'verified', labelKey: 'games.p2p_verified', descKey: getP2pDescKey('verified', cat), dot: 'verified', variant: 'verified' },
-                { key: 'resolver', labelKey: 'games.filter_resolver', descKey: pickCategoryKey(cat, 'games.tip_resolver_col_game', 'games.tip_resolver_col_software', 'games.tip_resolver_col'), dot: 'resolver', variant: 'resolver' },
+                { key: 'all', labelKey: 'games.filter_p2p_all', dot: null },
+                { key: 'full', labelKey: 'games.p2p_full', dot: 'full' },
+                { key: 'host', labelKey: 'games.p2p_host', dot: 'host' },
+                { key: 'partial', labelKey: 'games.p2p_partial', dot: 'partial' },
+                { key: 'verified', labelKey: 'games.p2p_verified', dot: 'verified' },
+                { key: 'resolver', labelKey: 'games.filter_resolver', dot: 'resolver' },
             ];
 
-            p2pOptions.forEach(function addP2pPill(opt) {
+            var activeP2pText = tSite('games.filter_p2p_all');
+            var activeP2pDot = null;
+
+            p2pOptions.forEach(function addP2pOpt(opt) {
                 var count = platformPool.filter(function countMatch(item) {
                     if (opt.key === 'all') {
                         return true;
@@ -1960,65 +1962,164 @@
                 }
 
                 var isActive = gamesState.p2pFilter === opt.key;
-                var btn = document.createElement('button');
-                btn.type = 'button';
-                btn.className = 'games-filter-pill' + (isActive ? ' is-active' : '');
-                btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
                 var labelText = tSite(opt.labelKey);
-                setRichTooltip(btn, labelText, tSite(opt.descKey), opt.variant);
-
-                if (opt.dot) {
-                    var dot = document.createElement('span');
-                    dot.className = 'games-filter-dot games-filter-dot--' + opt.dot;
-                    dot.setAttribute('aria-hidden', 'true');
-                    btn.appendChild(dot);
+                if (isActive) {
+                    activeP2pText = opt.key === 'all' ? labelText : labelText + ' (' + count + ')';
+                    activeP2pDot = opt.dot;
                 }
 
-                var lbl = document.createElement('span');
-                lbl.textContent = labelText;
-                btn.appendChild(lbl);
+                var optBtn = document.createElement('button');
+                optBtn.type = 'button';
+                optBtn.className = 'games-dropdown-option' + (isActive ? ' is-active' : '');
+                optBtn.setAttribute('role', 'option');
+                optBtn.setAttribute('aria-selected', isActive ? 'true' : 'false');
 
+                var left = document.createElement('span');
+                left.className = 'games-dropdown-option-left';
+                if (opt.dot) {
+                    var dot = document.createElement('span');
+                    dot.className = 'games-dropdown-dot games-dropdown-dot--' + opt.dot;
+                    dot.setAttribute('aria-hidden', 'true');
+                    left.appendChild(dot);
+                }
+                var txt = document.createElement('span');
+                txt.textContent = labelText;
+                left.appendChild(txt);
+                optBtn.appendChild(left);
+
+                var right = document.createElement('span');
+                right.className = 'games-dropdown-option-right';
                 var cnt = document.createElement('span');
-                cnt.className = 'games-filter-count';
+                cnt.className = 'games-dropdown-count';
                 cnt.textContent = String(count);
-                btn.appendChild(cnt);
+                right.appendChild(cnt);
+                if (isActive) {
+                    right.appendChild(createIconSvg('check', 'icon-xs games-dropdown-check'));
+                }
+                optBtn.appendChild(right);
 
-                btn.addEventListener('click', function onSelectP2p() {
+                optBtn.addEventListener('click', function onPickP2p() {
                     gamesState.p2pFilter = opt.key;
+                    closeGamesDropdowns();
                     renderGamesExplorer();
                 });
 
-                p2pBar.appendChild(btn);
+                p2pMenu.appendChild(optBtn);
             });
+
+            p2pLabel.textContent = activeP2pText;
+            p2pBtn.classList.toggle('is-filtered', gamesState.p2pFilter !== 'all');
+            if (p2pDot) {
+                if (activeP2pDot) {
+                    p2pDot.className = 'games-dropdown-dot games-dropdown-dot--' + activeP2pDot;
+                    p2pDot.hidden = false;
+                } else {
+                    p2pDot.hidden = true;
+                }
+            }
         }
 
-        if (platBar) {
-            platBar.innerHTML = '';
-            PLATFORM_FILTERS.forEach(function addPlatPill(opt) {
+        if (platBtn && platLabel && platMenu) {
+            platMenu.innerHTML = '';
+            platBtn.setAttribute('aria-label', tSite('games.col_platforms'));
+            var p2pPool = pool.filter(function byP2p(item) {
+                if (gamesState.p2pFilter === 'resolver') {
+                    return item.resolver !== 'no';
+                }
+                return gamesState.p2pFilter === 'all' || item.p2p === gamesState.p2pFilter;
+            });
+
+            var activePlatText = tSite('games.filter_platform_all');
+
+            PLATFORM_FILTERS.forEach(function addPlatOpt(opt) {
                 if (opt.cats.indexOf(gamesState.category) === -1) {
                     return;
                 }
+                var count = p2pPool.filter(function countPlat(item) {
+                    return platformMatchesFilter(item.platforms, opt.key);
+                }).length;
+
+                if (opt.key !== 'all' && count === 0 && gamesState.platformFilter !== opt.key) {
+                    return;
+                }
+
                 var isActive = gamesState.platformFilter === opt.key;
-                var btn = document.createElement('button');
-                btn.type = 'button';
-                btn.className = 'games-filter-pill games-filter-pill--platform' + (isActive ? ' is-active' : '');
-                btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+                var labelText = opt.labelKey ? tSite(opt.labelKey) : opt.label;
+                if (isActive) {
+                    activePlatText = opt.key === 'all' ? labelText : labelText + ' (' + count + ')';
+                }
 
-                var tipInfo = getPlatformTipInfo(opt.key, gamesState.category);
-                setRichTooltip(btn, tipInfo.title, tipInfo.body, tipInfo.variant);
+                var optBtn = document.createElement('button');
+                optBtn.type = 'button';
+                optBtn.className = 'games-dropdown-option' + (isActive ? ' is-active' : '');
+                optBtn.setAttribute('role', 'option');
+                optBtn.setAttribute('aria-selected', isActive ? 'true' : 'false');
 
-                var lbl = document.createElement('span');
-                lbl.textContent = opt.labelKey ? tSite(opt.labelKey) : opt.label;
-                btn.appendChild(lbl);
+                var left = document.createElement('span');
+                left.className = 'games-dropdown-option-left';
+                var txt = document.createElement('span');
+                txt.textContent = labelText;
+                left.appendChild(txt);
+                optBtn.appendChild(left);
 
-                btn.addEventListener('click', function onSelectPlat() {
+                var right = document.createElement('span');
+                right.className = 'games-dropdown-option-right';
+                var cnt = document.createElement('span');
+                cnt.className = 'games-dropdown-count';
+                cnt.textContent = String(count);
+                right.appendChild(cnt);
+                if (isActive) {
+                    right.appendChild(createIconSvg('check', 'icon-xs games-dropdown-check'));
+                }
+                optBtn.appendChild(right);
+
+                optBtn.addEventListener('click', function onPickPlat() {
                     gamesState.platformFilter = opt.key;
+                    closeGamesDropdowns();
                     renderGamesExplorer();
                 });
 
-                platBar.appendChild(btn);
+                platMenu.appendChild(optBtn);
             });
+
+            platLabel.textContent = activePlatText;
+            platBtn.classList.toggle('is-filtered', gamesState.platformFilter !== 'all');
         }
+    }
+
+    function renderP2pLegend() {
+        var toggleBtn = document.getElementById('games-legend-toggle');
+        var legendEl = document.getElementById('games-p2p-legend');
+        if (toggleBtn) {
+            toggleBtn.classList.toggle('is-active', gamesState.legendOpen);
+            toggleBtn.setAttribute('aria-expanded', gamesState.legendOpen ? 'true' : 'false');
+        }
+        if (!legendEl) {
+            return;
+        }
+        legendEl.hidden = !gamesState.legendOpen;
+        if (!gamesState.legendOpen) {
+            return;
+        }
+
+        legendEl.innerHTML = '';
+        var grid = document.createElement('div');
+        grid.className = 'games-p2p-legend-grid';
+
+        ['full', 'host', 'partial', 'verified'].forEach(function addLegendEntry(key) {
+            var item = document.createElement('div');
+            item.className = 'games-p2p-legend-item';
+            item.appendChild(createP2pBadge(key, gamesState.category, true));
+
+            var desc = document.createElement('p');
+            desc.className = 'games-p2p-legend-desc';
+            desc.textContent = tSite(getP2pDescKey(key, gamesState.category));
+            item.appendChild(desc);
+
+            grid.appendChild(item);
+        });
+
+        legendEl.appendChild(grid);
     }
 
     function updateGamesSortHeaders() {
@@ -2325,6 +2426,7 @@
         syncGamesTabsUi();
         updateCategoryColumnTooltips();
         renderGamesFilters();
+        renderP2pLegend();
         updateGamesSortHeaders();
 
         var pool = getCategoryPool();
@@ -2595,6 +2697,45 @@
             });
         });
 
+        function bindGamesDropdown(btnId, menuId) {
+            var btn = document.getElementById(btnId);
+            var menu = document.getElementById(menuId);
+            if (!btn || !menu) {
+                return;
+            }
+            btn.addEventListener('click', function onToggleDropdown(ev) {
+                ev.stopPropagation();
+                var willOpen = menu.hidden;
+                closeGamesDropdowns(willOpen ? menuId : null);
+                Core.closeThemeDropdown();
+                Core.closeLangDropdown();
+                menu.hidden = !willOpen;
+                btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+            });
+        }
+
+        bindGamesDropdown('games-p2p-btn', 'games-p2p-menu');
+        bindGamesDropdown('games-platform-btn', 'games-platform-menu');
+
+        Core.onOutsideDismiss(function dismissGamesDropdowns(ev) {
+            var p2pWrap = document.getElementById('games-p2p-dropdown');
+            var platWrap = document.getElementById('games-platform-dropdown');
+            if (!Core.isEventInside(ev, p2pWrap) && !Core.isEventInside(ev, platWrap)) {
+                closeGamesDropdowns();
+            }
+        });
+        Core.onClosePopups(function closeOnPopupEvent() {
+            closeGamesDropdowns();
+        });
+
+        var legendToggle = document.getElementById('games-legend-toggle');
+        if (legendToggle) {
+            legendToggle.addEventListener('click', function onToggleLegend() {
+                gamesState.legendOpen = !gamesState.legendOpen;
+                renderP2pLegend();
+            });
+        }
+
         var searchInput = document.getElementById('games-search-input');
         if (searchInput) {
             searchInput.addEventListener('input', function onSearchGames() {
@@ -2677,6 +2818,7 @@
 
     document.addEventListener('keydown', function onGamesKeyDown(ev) {
         if (ev.key === 'Escape') {
+            closeGamesDropdowns();
             closeGameDetailModal();
         } else if (gamesState.modalOpen && (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight')) {
             ev.preventDefault();

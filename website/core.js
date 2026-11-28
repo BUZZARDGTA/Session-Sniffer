@@ -1199,6 +1199,16 @@
         richTooltipState.initialized = true;
         ensureRichTooltip();
 
+        var lastTouchTs = 0;
+
+        function isCoarseTouchOnly() {
+            return Boolean(window.matchMedia && window.matchMedia('(hover: none) and (pointer: coarse)').matches);
+        }
+
+        function isRecentTouch() {
+            return lastTouchTs > 0 && (Date.now() - lastTouchTs) < 700;
+        }
+
         function findTipTarget(node) {
             var el = node && node.nodeType === 1 ? node : (node && node.parentElement);
             if (!el || typeof el.closest !== 'function') {
@@ -1208,6 +1218,9 @@
         }
 
         function handleEnter(ev) {
+            if ((ev && ev.pointerType === 'touch') || isCoarseTouchOnly() || isRecentTouch()) {
+                return;
+            }
             var target = findTipTarget(ev.target);
             if (!target) {
                 if (richTooltipState.activeTarget) {
@@ -1226,7 +1239,7 @@
             }
             var nextTarget = findTipTarget(ev.relatedTarget);
             if (nextTarget !== richTooltipState.activeTarget) {
-                if (nextTarget) {
+                if (nextTarget && !isCoarseTouchOnly() && !isRecentTouch()) {
                     showRichTooltip(nextTarget);
                 } else {
                     hideRichTooltip();
@@ -1234,16 +1247,39 @@
             }
         }
 
+        document.addEventListener('touchstart', function onTouchStart() {
+            lastTouchTs = Date.now();
+            hideRichTooltip();
+        }, { passive: true });
+
+        document.addEventListener('pointerdown', function onPointerDown(ev) {
+            if (ev && ev.pointerType === 'touch') {
+                lastTouchTs = Date.now();
+                hideRichTooltip();
+            }
+        }, { passive: true });
+
         document.addEventListener('pointerover', handleEnter);
         document.addEventListener('mouseover', handleEnter);
         document.addEventListener('pointerout', handleLeave);
         document.addEventListener('mouseout', handleLeave);
 
         document.addEventListener('focusin', function onTipFocus(ev) {
-            var target = findTipTarget(ev.target);
-            if (target) {
-                showRichTooltip(target);
+            if (isCoarseTouchOnly() || isRecentTouch()) {
+                return;
             }
+            var target = findTipTarget(ev.target);
+            if (!target) {
+                return;
+            }
+            try {
+                if (typeof target.matches === 'function' && !target.matches(':focus-visible')) {
+                    return;
+                }
+            } catch (_err) {
+                /* Ignore browsers without :focus-visible selector support. */
+            }
+            showRichTooltip(target);
         });
 
         document.addEventListener('focusout', function onTipBlur() {
